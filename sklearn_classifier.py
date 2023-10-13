@@ -1,6 +1,7 @@
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
+from sklearn.naive_bayes import GaussianNB
 from dataset import GaussianDataset
 
 
@@ -47,5 +48,20 @@ print('Total Accuracy:', np.round(eval_acc, 1))
 print('Groups Accuracy:', np.round(g_eval_accs, 1))
 print('OoD Probs:', ood_probs)
 print('************')
+
+
+clf = GaussianNB()
+clf.fit(x_train, g_train)
+
+preds = clf.predict(x_eval)
+eval_acc = 100 * accuracy_score(g_eval, preds)
+    
+ood_probs = [clf.predict_proba(samples)[:, 0].mean() for samples in ood_groups]
+    
+print('************')
+print('Total Accuracy:', np.round(eval_acc, 1))
+print('OoD Probs:', ood_probs)
+print('************')
+
 
 
