@@ -1,0 +1,10 @@
+**/datasets/MNIST
+**/datasets/ood_datasets
+**/checkpoints
+**/energy_results
+**/output
+**/plot_mnist
+**/plot_waterbird
+*.DS_Store
+*.pyc
+*.npy
