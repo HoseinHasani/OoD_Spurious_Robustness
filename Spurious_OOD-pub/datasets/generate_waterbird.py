@@ -7,8 +7,8 @@ from tqdm import tqdm
 from dataset_utils import crop_and_resize, combine_and_mask
 
 ################ Paths and other configs - Set these #################################
-cub_dir = '/nobackup-slow/dataset/CUB_200_2011'
-places_dir = '/nobackup-slow/dataset/places365_standard'
+cub_dir = 'raw_datasets/CUB_200_2011'
+places_dir = 'raw_datasets/places365_standard'
 output_dir = 'datasets/'
 
 target_places = [

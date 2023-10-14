@@ -1,3 +1,4 @@
+**/datasets/raw_datasets
 **/datasets/MNIST
 **/datasets/ood_datasets
 **/checkpoints
