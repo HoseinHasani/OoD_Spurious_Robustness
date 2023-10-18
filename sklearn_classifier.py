@@ -16,7 +16,6 @@ x_train = dataset.x[:N_train]
 y_train = dataset.y[:N_train]
 g_train = dataset.g[:N_train]
 
-
 x_eval = dataset.x[N_train:]
 y_eval = dataset.y[N_train:]
 g_eval = dataset.g[N_train:]
@@ -41,12 +40,12 @@ for k in range(N_group):
     g_acc = 100 * accuracy_score(y_eval[eval_group_inds[k]], preds)
     g_eval_accs.append(g_acc)
     
-ood_probs = [clf.predict_proba(samples)[:, 0].mean() for samples in ood_groups]
+ood_probs = [np.round(clf.predict_proba(samples)[:, 0].mean(), 3) for samples in ood_groups]
     
 print('************')
 print('Total Accuracy:', np.round(eval_acc, 1))
 print('Groups Accuracy:', np.round(g_eval_accs, 1))
-print('OoD Probs:', ood_probs)
+print('OoD Probs (first class, second class):', tuple(ood_probs))
 print('************')
 
 utils.visualize_clf_boundary(clf, x_train, y_train, ood_groups)
@@ -57,13 +56,21 @@ clf.fit(x_train, g_train)
 preds = clf.predict(x_eval)
 eval_acc = 100 * accuracy_score(g_eval, preds)
     
-ood_probs = [clf.predict_proba(samples)[:, 0].mean() for samples in ood_groups]
+g_eval_accs = []
+for k in range(N_group):
+    preds = clf.predict(x_eval[eval_group_inds[k]])
+    g_acc = 100 * accuracy_score(g_eval[eval_group_inds[k]], preds)
+    g_eval_accs.append(g_acc)
+    
+ood_probs = [np.round(clf.predict_proba(samples)[:, 0].mean(), 3) for samples in ood_groups]
     
 print('************')
 print('Total Accuracy:', np.round(eval_acc, 1))
-print('OoD Probs:', ood_probs)
+print('Groups Accuracy:', np.round(g_eval_accs, 1))
+print('OoD Probs (first class, second class):', tuple(ood_probs))
 print('************')
 
+utils.visualize_clf_boundary(clf, x_train, g_train//2, ood_groups)
 
 
 

@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 
 
 class GaussianDataset():
-    def __init__(self, maj_size=5000, min_size=200, std=0.3):
+    def __init__(self, maj_size=5000, min_size=160, std=0.3):
         
         self.std_maj = std
         self.std_min = std / 2

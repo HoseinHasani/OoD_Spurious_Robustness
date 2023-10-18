@@ -8,7 +8,11 @@ def visualize_clf_boundary(clf, x_data, y_data, ood_groups, lim=4):
 
     xx, yy = np.mgrid[-lim/2:lim/2:.01, -lim:lim:.01]
     grid = np.c_[xx.ravel(), yy.ravel()]
-    probs = clf.predict_proba(grid)[:, 1].reshape(xx.shape)
+    probs = clf.predict_proba(grid)
+    if probs.shape[-1] > 2:
+        probs[:, -1] = probs[:, -2:].sum(-1)
+
+    probs = probs[:, -1].reshape(xx.shape)
     
     
     f, ax = plt.subplots(figsize=(8, 6))
