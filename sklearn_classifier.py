@@ -4,9 +4,12 @@ from sklearn.metrics import accuracy_score
 from sklearn.naive_bayes import GaussianNB
 from dataset import GaussianDataset
 import utils
-
+import os
 
 N_train = 2000
+
+pic_path = 'pics/'
+os.makedirs(pic_path, exist_ok=True)
 
 dataset = GaussianDataset()
 
@@ -40,16 +43,16 @@ for k in range(N_group):
     g_acc = 100 * accuracy_score(y_eval[eval_group_inds[k]], preds)
     g_eval_accs.append(g_acc)
     
-ood_probs = [np.round(clf.predict_proba(samples)[:, 0].mean(), 3) for samples in ood_groups]
+ood_probs = [np.round(clf.predict_proba(samples).max(-1).mean(), 3) for samples in ood_groups]
     
 print('************')
 print('Discriminative Approach:')
 print('Total Accuracy:', np.round(eval_acc, 1))
 print('Groups Accuracy:', np.round(g_eval_accs, 1))
-print('OoD Probs (first class, second class):', tuple(ood_probs))
+print('OoD Probs (first group, second group):', tuple(ood_probs))
 print('************')
 
-utils.visualize_clf_boundary(clf, x_train, y_train, ood_groups)
+utils.visualize_clf_boundary(clf, x_train, y_train, ood_groups, 'Logistic Regression', pic_path)
 
 clf = GaussianNB()
 clf.fit(x_train, g_train)
@@ -65,7 +68,7 @@ for k in range(N_group):
     
     
 class_conditional_probs = [utils.calc_class_conditional_probs(samples, clf) for samples in ood_groups]
-ood_probs = [np.round(class_conditional_probs[k].sum(-1).mean(), 3) for k in range(len(ood_groups))]
+ood_probs = [np.round(class_conditional_probs[k].max(-1).mean(), 3) for k in range(len(ood_groups))]
     
 
 
@@ -73,11 +76,11 @@ print('************')
 print('Generative Approach:')
 print('Total Accuracy:', np.round(eval_acc, 1))
 print('Groups Accuracy:', np.round(g_eval_accs, 1))
-print('OoD Probs (first class, second class):', tuple(ood_probs))
+print('OoD Probs (first group, second group):', tuple(ood_probs))
 print('************')
 
-utils.visualize_clf_boundary(clf, x_train, g_train//2, ood_groups)
-utils.visualize_OoD_dist(clf, x_train, ood_groups)
+utils.visualize_clf_boundary(clf, x_train, g_train//2, ood_groups, 'GaussianNB Classifier', pic_path)
+utils.visualize_OoD_dist(clf, x_train, ood_groups, 'In-Distribution PDF', pic_path)
 
 
 
