@@ -51,17 +51,40 @@ o2_prototype = o2_embs.mean(0)[None]
 embs = np.concatenate([c11_embs, c12_embs, c21_embs, c22_embs, o1_embs, o2_embs])
 protos = np.concatenate([c11_prototype, c12_prototype, c21_prototype, c22_prototype, o1_prototype, o2_prototype])
 
-dists = np.array([np.linalg.norm(embs - proto, axis=-1) for proto in protos])
+euc_dists = np.array([np.linalg.norm(embs - proto, axis=-1) for proto in protos])
 
-dists = np.round(dists, 1).T
+euc_dists = np.round(euc_dists, 1).T
 
 pic_path = 'pics/'
 os.makedirs(pic_path, exist_ok=True)
 
 plt.figure(figsize=(10, 10))
-sns.heatmap(dists, cmap='coolwarm', annot=True, linewidths=2)
+sns.heatmap(euc_dists, cmap='coolwarm', annot=True, linewidths=2)
 
-plt.xlabel('prototypes', fontsize=10)
-plt.ylabel('embeddings', fontsize=10)
+plt.xlabel('prototypes', fontsize=16)
+plt.ylabel('embeddings', fontsize=16)
+
+plt.title('Unnormalized Euclidean Distance Matrix', fontsize=20)
 
 plt.savefig(pic_path + 'euc_dist_from_prototypes.png', dpi=160)
+
+
+
+embs_normalized = embs / np.linalg.norm(embs, axis=-1)[:, None]
+protos_normalized = protos / np.linalg.norm(protos, axis=-1)[:, None]
+
+cosine_dists = np.array([np.dot(embs_normalized, proto) for proto in protos_normalized])
+
+cosine_dists = np.round(cosine_dists, 2).T
+
+plt.figure(figsize=(10, 10))
+sns.heatmap(cosine_dists, cmap='coolwarm', annot=True, linewidths=2)
+
+plt.xlabel('prototypes', fontsize=16)
+plt.ylabel('embeddings', fontsize=16)
+
+plt.title('Cosine Distance Matrix', fontsize=20)
+
+plt.savefig(pic_path + 'cosine_dist_mat.png', dpi=160)
+
+
