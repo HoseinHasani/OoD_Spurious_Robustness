@@ -1,7 +1,10 @@
 import torch
 from torchvision import transforms
+from matplotlib import pyplot as plt
 from PIL import Image 
 import numpy as np
+import os
+import seaborn as sns
 
 
 image_path = 'face_toy_dataset/'
@@ -35,3 +38,30 @@ with torch.no_grad():
     o1_embs = np.array([model_dino(img.unsqueeze(0).to(device)).squeeze().cpu().numpy() for img in o1_imgs])
     o2_embs = np.array([model_dino(img.unsqueeze(0).to(device)).squeeze().cpu().numpy() for img in o2_imgs])
 
+
+
+
+c11_prototype = c11_embs.mean(0)[None]
+c12_prototype = c12_embs.mean(0)[None]
+c21_prototype = c21_embs.mean(0)[None]
+c22_prototype = c22_embs.mean(0)[None]
+o1_prototype = o1_embs.mean(0)[None]
+o2_prototype = o2_embs.mean(0)[None]
+
+embs = np.concatenate([c11_embs, c12_embs, c21_embs, c22_embs, o1_embs, o2_embs])
+protos = np.concatenate([c11_prototype, c12_prototype, c21_prototype, c22_prototype, o1_prototype, o2_prototype])
+
+dists = np.array([np.linalg.norm(embs - proto, axis=-1) for proto in protos])
+
+dists = np.round(dists, 1).T
+
+pic_path = 'pics/'
+os.makedirs(pic_path, exist_ok=True)
+
+plt.figure(figsize=(10, 10))
+sns.heatmap(dists, cmap='coolwarm', annot=True, linewidths=2)
+
+plt.xlabel('prototypes', fontsize=10)
+plt.ylabel('embeddings', fontsize=10)
+
+plt.savefig(pic_path + 'euc_dist_from_prototypes.png', dpi=160)
