@@ -88,3 +88,27 @@ plt.title('Cosine Distance Matrix', fontsize=20)
 plt.savefig(pic_path + 'cosine_dist_mat.png', dpi=160)
 
 
+
+def softmax(x):
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum(axis=-1)[:, None]
+
+emb_probs = softmax(embs)
+proto_probs = softmax(protos)
+
+cross_entropy_losses = np.array([np.dot(np.log(emb_probs), proto) for proto in proto_probs])
+
+cross_entropy_losses = - np.round(cross_entropy_losses, 2).T
+
+plt.figure(figsize=(10, 10))
+sns.heatmap(cross_entropy_losses, cmap='coolwarm', annot=True, linewidths=2)
+
+plt.xlabel('prototypes', fontsize=16)
+plt.ylabel('embeddings', fontsize=16)
+
+plt.title('Cross-Entropy Matrix', fontsize=20)
+
+plt.savefig(pic_path + 'Cross_entropy_mat.png', dpi=160)
+
+
+
