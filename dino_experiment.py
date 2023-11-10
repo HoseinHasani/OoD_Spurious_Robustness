@@ -1,10 +1,12 @@
 import torch
 from torchvision import transforms
 from matplotlib import pyplot as plt
+from sklearn.manifold import TSNE
 from PIL import Image 
 import numpy as np
 import os
 import seaborn as sns
+
 
 
 image_path = 'face_toy_dataset/'
@@ -112,3 +114,31 @@ plt.savefig(pic_path + 'Cross_entropy_mat.png', dpi=160)
 
 
 
+concat_embs = np.concatenate([embs_normalized, protos_normalized])
+
+tsne = TSNE(n_components=2, learning_rate='auto', init='random', perplexity=18)
+tsne_embs = tsne.fit_transform(concat_embs)
+
+concat_embs = np.concatenate([embs_normalized, protos_normalized])
+
+tsne = TSNE(n_components=2, learning_rate='auto', init='random', perplexity=10)
+tsne_embs = tsne.fit_transform(concat_embs)
+
+K = 6
+#cmap = plt.get_cmap('jet')
+#colors = np.random.permutation(K)
+#colors = cmap(colors / np.max(colors) * 1)
+
+colors = ['tab:blue', 'tab:green', 'tab:pink', 'tab:orange', 'tab:red', 'tab:cyan']
+
+plt.figure(figsize=(7, 7))
+
+for i in range(K):
+    samples = tsne_embs[i * 4: (i + 1) * 4]
+    proto = tsne_embs[-K + i]
+    plt.scatter(samples[:, 0], samples[:, 1], marker='*', s=25, c=colors[i], label='samples ' + str(i))
+    plt.scatter(proto[None, 0], proto[None, 1], marker='o', s=40, c=colors[i], label='prototype ' + str(i))    
+  
+plt.title('DINO t-SNE Embeddings')
+plt.legend()
+plt.savefig(pic_path + 'tsne.png', dpi=160)
