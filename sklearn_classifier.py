@@ -8,7 +8,7 @@ import os
 
 N_train = 2000
 
-pic_path = 'pics/'
+pic_path = 'results/sklearn_pics/'
 os.makedirs(pic_path, exist_ok=True)
 
 dataset = GaussianDataset()
