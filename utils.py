@@ -101,7 +101,7 @@ def plot_adj_mat(mat, name, path, figsize=10):
     plt.savefig(path + name + '.png', dpi=160)
 
 
-def plot_tsne(embs, n_groups, n_samples, name, path, figsize=7):
+def plot_tsne(embs, group_names, n_groups, n_samples, name, path, figsize=7):
     
     #cmap = plt.get_cmap('jet')
     #colors = np.random.permutation(K)
@@ -114,8 +114,8 @@ def plot_tsne(embs, n_groups, n_samples, name, path, figsize=7):
     for i in range(n_groups):
         samples = embs[i * n_samples: (i + 1) * n_samples]
         proto = embs[-n_groups + i]
-        plt.scatter(samples[:, 0], samples[:, 1], marker='*', s=25, c=colors[i], label='samples ' + str(i))
-        plt.scatter(proto[None, 0], proto[None, 1], marker='o', s=40, c=colors[i], label='prototype ' + str(i))    
+        plt.scatter(samples[:, 0], samples[:, 1], marker='*', s=25, c=colors[i], label=group_names[i] + ' (samples)')
+        plt.scatter(proto[None, 0], proto[None, 1], marker='o', s=40, c=colors[i], label=group_names[i] + ' (prototype)')    
       
     plt.title('DINO t-SNE Embeddings')
     plt.legend()

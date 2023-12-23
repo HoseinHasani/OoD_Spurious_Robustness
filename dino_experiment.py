@@ -41,7 +41,7 @@ prototype_list = []
 
 for name in group_names:
     
-    imgs = [transform(Image.open(image_path + name + ' (' + str(k + 1) + ').jpg')) for k in range(N_samples)]
+    imgs = [transform(Image.open(image_path + name + f' ({k + 1}).jpg')) for k in range(N_samples)]
     with torch.no_grad():
         embs = [model_dino(img.unsqueeze(0).to(device)).squeeze().cpu().numpy() for img in imgs]
     
@@ -60,7 +60,7 @@ euc_dists = np.round(euc_dists, 1).T
 
 
 
-utils.plot_adj_mat(euc_dists, 'Unnormalized Euclidean Similarity Matrix', result_path)
+utils.plot_adj_mat(euc_dists, 'Unnormalized Euclidean Distance Matrix', result_path)
 
 
 ### Cosine distance ####
@@ -98,6 +98,6 @@ all_embs = np.concatenate([embs_normalized, protos_normalized])
 tsne = TSNE(n_components=2, learning_rate='auto', init='pca', perplexity=tsne_perplexity)
 tsne_embs = tsne.fit_transform(all_embs)
 
-utils.plot_tsne(tsne_embs, N_groups, N_samples, 'DINO t-SNE Embeddings', result_path)
+utils.plot_tsne(tsne_embs, group_names, N_groups, N_samples, 'DINO t-SNE Embeddings', result_path)
 
 
