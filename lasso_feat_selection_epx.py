@@ -1,0 +1,140 @@
+import torch
+from torch import nn
+import torch.nn.functional as F
+import pickle
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+import tqdm
+
+
+
+# set seed
+seed = 8
+torch.manual_seed(seed)
+np.random.seed(seed)
+g_batch_size = 64
+gamma = 0.01
+
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+
+#!cp ./drive/MyDrive/grouped_embs.pkl .
+with open('grouped_embs.pkl', 'rb') as f:
+    grouped_embs = pickle.load(f)
+    
+    
+grouped_embs['bald'] = np.concatenate([grouped_embs['woman_bald'], grouped_embs['man_bald']])
+del grouped_embs['man_bald']
+del grouped_embs['woman_bald']
+grouped_prototypes = {group: embs.mean(axis=0, keepdims=True) for group, embs in grouped_embs.items()}
+all_embs = np.concatenate(list(grouped_embs.values()))
+all_prototypes = np.concatenate(list(grouped_prototypes.values()))
+y_true = np.concatenate([[i] * len(group_embs) for i, group_embs in enumerate(grouped_embs.values())])
+group_names = list(grouped_embs.keys())
+
+
+
+class MLP(nn.Module):
+    def __init__(self, n_feat=1024, n_out=2):
+        super().__init__()
+        self.layer = nn.Linear(n_feat, n_out)
+
+    def forward(self, x):
+        return self.layer(x)
+    
+    
+mlp = MLP().to(device)  
+loss_function = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(mlp.parameters(), lr=1e-3)
+    
+mlp.train()
+    
+for e in tqdm.tqdm(range(500)):
+    
+    data_list = []
+    for name in ['man_blond', 'woman_blond']:
+        g_inds = np.random.choice(len(grouped_embs[name]), g_batch_size, replace=False)
+        data_list.append(grouped_embs[name][g_inds])
+    
+    data0 = torch.tensor(np.concatenate(data_list), dtype=torch.float32).to(device)  
+    lbl0 = torch.zeros(2 * g_batch_size, dtype=torch.long).to(device)  
+    
+    data_list = []
+    for name in ['man_black', 'woman_black']:
+        g_inds = np.random.choice(len(grouped_embs[name]), g_batch_size, replace=False)
+        data_list.append(grouped_embs[name][g_inds])
+    
+    data1 = torch.tensor(np.concatenate(data_list), dtype=torch.float32).to(device)  
+    lbl1 = torch.ones(2 * g_batch_size, dtype=torch.long).to(device)  
+    
+    data = torch.cat([data0, data1])
+    lbl = torch.cat([lbl0, lbl1])
+    
+    optimizer.zero_grad()
+    logits = mlp(data)
+    weight = next(mlp.parameters())
+    l1_loss = torch.abs(weight).sum()
+    loss = loss_function(logits, lbl) + gamma * l1_loss
+    loss.backward()
+    optimizer.step()
+    
+    if e % 100 == 0:
+        with torch.no_grad():
+            plt.figure()
+            weight = next(mlp.parameters()).detach().cpu().numpy()
+            plt.hist(np.abs(weight.ravel()), 100)
+            plt.title(str(e))
+            
+            data0 = torch.tensor(np.concatenate([grouped_embs['man_blond'][:1000],
+                                                 grouped_embs['woman_blond'][:1000]]),
+                                                dtype=torch.float32).to(device)
+            lbl0 = torch.zeros(2000, dtype=torch.long).to(device) 
+            
+            data1 = torch.tensor(np.concatenate([grouped_embs['man_black'][:1000],
+                                                 grouped_embs['woman_black'][:1000]]),
+                                                dtype=torch.float32).to(device)
+            lbl1 = torch.ones(2000, dtype=torch.long).to(device) 
+            data = torch.cat([data0, data1])
+            lbl = torch.cat([lbl0, lbl1])
+            pred = mlp(data).max(-1)[1]
+            acc = (pred == lbl).float().mean().item()
+            print('train acc:', acc)
+            
+            
+weight = next(mlp.parameters()).detach().cpu().numpy()
+n_feat = 50
+blond_feats = np.argsort(weight[0])[-n_feat:]
+black_feats = np.argsort(weight[1])[-n_feat:]
+selected_feats = {'blond': blond_feats, 'black': black_feats}
+
+
+def calc_cos_dist2(embs, prototypes, prototype_name):
+    if 'blond' in prototype_name:
+        feat_inds = selected_feats['blond']
+    elif 'black' in prototype_name:
+        feat_inds = selected_feats['black']
+    else:
+        print('WRONG NAME!')
+    embs = embs[:, feat_inds]
+    prototypes = prototypes[:, feat_inds]
+
+    embs_normalized = embs / np.linalg.norm(embs, axis=-1, keepdims=True)
+    prototypes_normalized = prototypes / np.linalg.norm(prototypes, axis=-1, keepdims=True)
+    cos_dist = (1 - (embs_normalized[:, None] * prototypes_normalized).sum(axis=-1)) / 2
+    return cos_dist.squeeze()
+
+
+grouped_cos_dist = {group: calc_cos_dist2(grouped_embs[group], grouped_prototypes[group], group) for group in list(grouped_embs.keys())[:-1]}
+
+
+fig, axes = plt.subplots(2, 2, figsize=(10, 10))
+axes = axes.flatten()
+for group, ax in zip([group for group in grouped_embs if not 'bald' in group], axes):
+    sns.kdeplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax)
+    sns.kdeplot(calc_cos_dist2(grouped_embs['bald'], grouped_prototypes[group], group), label='ood', ax=ax)
+    ax.legend()
+    ax.set_title(group)
+    
+    
