@@ -109,6 +109,7 @@ blond_feats = np.argsort(weight[0])[-n_feat:]
 black_feats = np.argsort(weight[1])[-n_feat:]
 selected_feats = {'blond': blond_feats, 'black': black_feats}
 
+####################################################
 
 def calc_cos_dist2(embs, prototypes, prototype_name):
     if 'blond' in prototype_name:
@@ -138,3 +139,56 @@ for group, ax in zip([group for group in grouped_embs if not 'bald' in group], a
     ax.set_title(group)
     
     
+####################################################
+    
+from sklearn.linear_model import LogisticRegression
+
+merged_feats = list(set(np.concatenate([blond_feats, black_feats])))
+data0 = np.concatenate([grouped_embs['man_blond'][:1000], grouped_embs['woman_blond'][:1000]])
+lbl0 = np.zeros(2000)
+data1 = np.concatenate([grouped_embs['man_black'][:1000], grouped_embs['woman_black'][:1000]])
+lbl1 = np.ones(2000)
+
+x_train = np.concatenate([data0, data1])[:, merged_feats]
+y_train = np.concatenate([lbl0, lbl1])
+
+clf = LogisticRegression()
+clf.fit(x_train, y_train)
+
+data0 = np.concatenate([grouped_embs['man_blond'][-200:], grouped_embs['woman_blond'][-200:]])
+lbl0 = np.zeros(400)
+data1 = np.concatenate([grouped_embs['man_black'][-200:], grouped_embs['woman_black'][-200:]])
+lbl1 = np.ones(400)
+
+x_eval = np.concatenate([data0, data1])[:, merged_feats]
+y_eval = np.concatenate([lbl0, lbl1])
+
+preds = clf.predict(x_eval)
+eval_acc = 100 * (preds == y_eval).mean()
+print('BLOND / BLACK ACC:', eval_acc)
+
+merged_feats = list(set(np.concatenate([blond_feats, black_feats])))
+data0 = np.concatenate([grouped_embs['man_blond'][:1000], grouped_embs['man_black'][:1000]])
+lbl0 = np.zeros(2000)
+data1 = np.concatenate([grouped_embs['woman_blond'][:1000], grouped_embs['woman_black'][:1000]])
+lbl1 = np.ones(2000)
+
+x_train = np.concatenate([data0, data1])[:, merged_feats]
+y_train = np.concatenate([lbl0, lbl1])
+
+clf = LogisticRegression()
+clf.fit(x_train, y_train)
+
+data0 = np.concatenate([grouped_embs['man_blond'][-200:], grouped_embs['man_black'][-200:]])
+lbl0 = np.zeros(400)
+data1 = np.concatenate([grouped_embs['woman_blond'][-200:], grouped_embs['woman_black'][-200:]])
+lbl1 = np.ones(400)
+
+x_eval = np.concatenate([data0, data1])[:, merged_feats]
+y_eval = np.concatenate([lbl0, lbl1])
+
+preds = clf.predict(x_eval)
+eval_acc = 100 * (preds == y_eval).mean()
+print('MAN / WOMAN ACC:', eval_acc)
+
+####################################################
