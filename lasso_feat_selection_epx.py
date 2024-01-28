@@ -12,7 +12,10 @@ import tqdm
 
 # set seed
 seed = 8
+n_feat = 100
 n_feats = 1024
+n_steps = 500
+n_data_eval = 1000
 torch.manual_seed(seed)
 np.random.seed(seed)
 g_batch_size = 64
@@ -49,6 +52,19 @@ class MLP(nn.Module):
 ####################################################
 
 
+def prepare_data(group_names, len_g, lbl_val):
+    data_list = []
+    for name in group_names:
+        g_inds = np.random.choice(len(grouped_embs[name]), len_g, replace=False)
+        data_list.append(grouped_embs[name][g_inds])
+    
+    data = np.concatenate(data_list)
+    labels = lbl_val * np.ones(len(group_names) * len_g)
+    
+    return data, labels
+    
+####################################################
+
 mlp_sp = MLP().to(device)  
 loss_function = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(mlp_sp.parameters(), lr=1e-3)
@@ -56,26 +72,17 @@ optimizer = torch.optim.Adam(mlp_sp.parameters(), lr=1e-3)
 print('Train spurious feature classifier:')
 mlp_sp.train()
     
-for e in tqdm.tqdm(range(500)):
+for e in tqdm.tqdm(range(n_steps)):
     
-    data_list = []
-    for name in ['woman_black', 'woman_blond']:
-        g_inds = np.random.choice(len(grouped_embs[name]), g_batch_size, replace=False)
-        data_list.append(grouped_embs[name][g_inds])
     
-    data0 = torch.tensor(np.concatenate(data_list), dtype=torch.float32).to(device)  
-    lbl0 = torch.zeros(2 * g_batch_size, dtype=torch.long).to(device)  
+    data0, lbl0 = prepare_data(['woman_black', 'woman_blond'], g_batch_size, 0)
+    data1, lbl1 = prepare_data(['man_black', 'man_blond'], g_batch_size, 1)
     
-    data_list = []
-    for name in ['man_black', 'man_blond']:
-        g_inds = np.random.choice(len(grouped_embs[name]), g_batch_size, replace=False)
-        data_list.append(grouped_embs[name][g_inds])
+    data_np = np.concatenate([data0, data1])
+    lbl_np = np.concatenate([lbl0, lbl1]).astype(int)
     
-    data1 = torch.tensor(np.concatenate(data_list), dtype=torch.float32).to(device)  
-    lbl1 = torch.ones(2 * g_batch_size, dtype=torch.long).to(device)  
-    
-    data = torch.cat([data0, data1])
-    lbl = torch.cat([lbl0, lbl1])
+    data = torch.tensor(data_np, dtype=torch.float32).to(device)  
+    lbl = torch.tensor(lbl_np, dtype=torch.long).to(device)  
     
     optimizer.zero_grad()
     logits = mlp_sp(data)
@@ -85,31 +92,28 @@ for e in tqdm.tqdm(range(500)):
     loss.backward()
     optimizer.step()
     
-    if e % 100 == 0:
+    if e % int(n_steps / 5) == 0:
         with torch.no_grad():
             plt.figure()
             weight = next(mlp_sp.parameters()).detach().cpu().numpy()
             plt.hist(np.abs(weight.ravel()), 100)
             plt.title(str(e))
             
-            data00 = torch.tensor(np.concatenate([grouped_embs['woman_black'][:1000],
-                                                 grouped_embs['woman_blond'][:1000]]),
-                                                dtype=torch.float32).to(device)
-            lbl00 = torch.zeros(2000, dtype=torch.long).to(device) 
+            data0, lbl0 = prepare_data(['woman_black', 'woman_blond'], n_data_eval, 0)
+            data1, lbl1 = prepare_data(['man_black', 'man_blond'], n_data_eval, 1)
             
-            data11 = torch.tensor(np.concatenate([grouped_embs['man_black'][:1000],
-                                                 grouped_embs['man_blond'][:1000]]),
-                                                dtype=torch.float32).to(device)
-            lbl11 = torch.ones(2000, dtype=torch.long).to(device) 
-            data_ = torch.cat([data00, data11])
-            lbl_ = torch.cat([lbl00, lbl11])
-            pred = mlp_sp(data_).max(-1)[1]
-            acc = (pred == lbl_).float().mean().item()
+            data_np = np.concatenate([data0, data1])
+            lbl_np = np.concatenate([lbl0, lbl1]).astype(int)
+            
+            data_eval = torch.tensor(data_np, dtype=torch.float32).to(device)  
+            lbl_eval = torch.tensor(lbl_np, dtype=torch.long).to(device)  
+            
+            pred = mlp_sp(data_eval).max(-1)[1]
+            acc = (pred == lbl_eval).float().mean().item()
             print('train acc:', acc)
             
             
 weight = next(mlp_sp.parameters()).detach().cpu().numpy()
-n_feat = 100
 woman_feats = np.argsort(weight[0])[-n_feat:]
 man_feats = np.argsort(weight[1])[-n_feat:]
 negative_feats = {'woman': woman_feats, 'man': man_feats}
@@ -125,25 +129,16 @@ optimizer = torch.optim.Adam(mlp.parameters(), lr=1e-3)
 print('Train core feature classifier:')
 mlp.train()
     
-for e in tqdm.tqdm(range(500)):
+for e in tqdm.tqdm(range(n_steps)):
     
-    data_list = []
-    for name in ['man_blond', 'woman_blond']:
-        g_inds = np.random.choice(len(grouped_embs[name]), g_batch_size, replace=False)
-        data_list.append(grouped_embs[name][g_inds])
+    data0, lbl0 = prepare_data(['man_blond', 'woman_blond'], g_batch_size, 0)
+    data1, lbl1 = prepare_data(['man_black', 'woman_black'], g_batch_size, 1)
     
-    data0 = torch.tensor(np.concatenate(data_list), dtype=torch.float32).to(device)  
-    lbl0 = torch.zeros(2 * g_batch_size, dtype=torch.long).to(device)  
+    data_np = np.concatenate([data0, data1])[:, non_sp_feats]
+    lbl_np = np.concatenate([lbl0, lbl1]).astype(int)
     
-    data_list = []
-    for name in ['man_black', 'woman_black']:
-        g_inds = np.random.choice(len(grouped_embs[name]), g_batch_size, replace=False)
-        data_list.append(grouped_embs[name][g_inds])
-    
-    lbl1 = torch.ones(2 * g_batch_size, dtype=torch.long).to(device)  
-    
-    data = torch.cat([data0, data1])[:, non_sp_feats]
-    lbl = torch.cat([lbl0, lbl1])
+    data = torch.tensor(data_np, dtype=torch.float32).to(device)  
+    lbl = torch.tensor(lbl_np, dtype=torch.long).to(device)  
     
     optimizer.zero_grad()
     logits = mlp(data)
@@ -159,25 +154,22 @@ for e in tqdm.tqdm(range(500)):
             weight = next(mlp.parameters()).detach().cpu().numpy()
             plt.hist(np.abs(weight.ravel()), 100)
             plt.title(str(e))
+
+            data0, lbl0 = prepare_data(['man_blond', 'woman_blond'], n_data_eval, 0)
+            data1, lbl1 = prepare_data(['man_black', 'woman_black'], n_data_eval, 1)
             
-            data00 = torch.tensor(np.concatenate([grouped_embs['man_blond'][:1000],
-                                                 grouped_embs['woman_blond'][:1000]]),
-                                                dtype=torch.float32).to(device)
-            lbl00 = torch.zeros(2000, dtype=torch.long).to(device) 
+            data_np = np.concatenate([data0, data1])[:, non_sp_feats]
+            lbl_np = np.concatenate([lbl0, lbl1]).astype(int)
             
-            data11 = torch.tensor(np.concatenate([grouped_embs['man_black'][:1000],
-                                                 grouped_embs['woman_black'][:1000]]),
-                                                dtype=torch.float32).to(device)
-            lbl11 = torch.ones(2000, dtype=torch.long).to(device) 
-            data_ = torch.cat([data00, data11])[:, non_sp_feats]
-            lbl_ = torch.cat([lbl00, lbl11])
-            pred = mlp(data_).max(-1)[1]
-            acc = (pred == lbl_).float().mean().item()
+            data_eval = torch.tensor(data_np, dtype=torch.float32).to(device)  
+            lbl_eval = torch.tensor(lbl_np, dtype=torch.long).to(device)  
+            
+            pred = mlp(data_eval).max(-1)[1]
+            acc = (pred == lbl_eval).float().mean().item()
             print('train acc:', acc)
             
             
 weight = next(mlp.parameters()).detach().cpu().numpy()
-n_feat = 100
 blond_feats = np.argsort(weight[0])[-n_feat:]
 black_feats = np.argsort(weight[1])[-n_feat:]
 core_feats = {'blond': blond_feats, 'black': black_feats}
