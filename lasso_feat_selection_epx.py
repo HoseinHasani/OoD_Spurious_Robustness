@@ -8,7 +8,8 @@ from sklearn.linear_model import LogisticRegression
 import seaborn as sns
 import os
 import tqdm
-
+import warnings
+warnings.filterwarnings("ignore")
 
 
 # set seed
@@ -52,8 +53,7 @@ class MLP(nn.Module):
     
 ####################################################
 
-
-def prepare_data(group_names, len_g, lbl_val, inds=None):
+def prepare_class_data(group_names, len_g, lbl_val, inds=None):
     data_list = []
     for name in group_names:
         if inds is None:
@@ -70,6 +70,14 @@ def prepare_data(group_names, len_g, lbl_val, inds=None):
     
     return data, labels
 
+def prepare_data(names_0, names_1, len_g, inds=None):
+    data0, lbl0 = prepare_class_data(names_0, len_g, 0, inds)
+    data1, lbl1 = prepare_class_data(names_1, len_g, 1, inds)
+    
+    data_np = np.concatenate([data0, data1])
+    lbl_np = np.concatenate([lbl0, lbl1]).astype(int)
+    
+    return data_np, lbl_np
 
 def train(names_0, names_1, feat_inds, plot=True):
     mlp = MLP(n_feat=len(feat_inds)).to(device)  
@@ -80,14 +88,9 @@ def train(names_0, names_1, feat_inds, plot=True):
         
     for e in tqdm.tqdm(range(n_steps)):
         
+        data_np, lbl_np = prepare_data(names_0, names_1, g_batch_size)
         
-        data0, lbl0 = prepare_data(names_0, g_batch_size, 0)
-        data1, lbl1 = prepare_data(names_1, g_batch_size, 1)
-        
-        data_np = np.concatenate([data0, data1])[:, feat_inds]  
-        lbl_np = np.concatenate([lbl0, lbl1]).astype(int)
-        
-        data = torch.tensor(data_np, dtype=torch.float32).to(device)
+        data = torch.tensor(data_np, dtype=torch.float32).to(device)[:, feat_inds]  
         lbl = torch.tensor(lbl_np, dtype=torch.long).to(device)  
         
         optimizer.zero_grad()
@@ -106,13 +109,9 @@ def train(names_0, names_1, feat_inds, plot=True):
                     plt.hist(np.abs(weight.ravel()), 100)
                     plt.title(str(e))
                 
-                data0, lbl0 = prepare_data(names_0, n_data_eval, 0)
-                data1, lbl1 = prepare_data(names_1, n_data_eval, 1)
+                data_np, lbl_np = prepare_data(names_0, names_1, n_data_eval)
                 
-                data_np = np.concatenate([data0, data1])[:, feat_inds]  
-                lbl_np = np.concatenate([lbl0, lbl1]).astype(int)
-                
-                data_eval = torch.tensor(data_np, dtype=torch.float32).to(device)  
+                data_eval = torch.tensor(data_np, dtype=torch.float32).to(device)[:, feat_inds]    
                 lbl_eval = torch.tensor(lbl_np, dtype=torch.long).to(device)  
                 
                 pred = mlp(data_eval).max(-1)[1]
@@ -181,41 +180,32 @@ for group, ax in zip([group for group in grouped_embs if not 'bald' in group], a
 
 merged_core_feats = list(set(np.concatenate([blond_feats, black_feats])))
 
-data0, lbl0 = prepare_data(['man_blond', 'woman_blond'], 1000, 0, np.arange(1000))
-data1, lbl1 = prepare_data(['man_black', 'woman_black'], 1000, 1, np.arange(1000))
-
-x_train = np.concatenate([data0, data1])[:, non_sp_feats][:, merged_core_feats]
-y_train = np.concatenate([lbl0, lbl1])
+data_np, lbl_np = prepare_data(['man_blond', 'woman_blond'], ['man_black', 'woman_black'], 1000, np.arange(1000))
+x_train = data_np[:, non_sp_feats][:, merged_core_feats]
+y_train = lbl_np
 
 clf = LogisticRegression()
 clf.fit(x_train, y_train)
 
-data0, lbl0 = prepare_data(['woman_black', 'woman_blond'], 500, 0, np.arange(-500,0))
-data1, lbl1 = prepare_data(['man_black', 'man_blond'], 500, 1, np.arange(-500,0))
-
-x_eval = np.concatenate([data0, data1])[:, non_sp_feats][:, merged_core_feats]
-y_eval = np.concatenate([lbl0, lbl1])
+data_np, lbl_np = prepare_data(['man_blond', 'woman_blond'], ['man_black', 'woman_black'], 500, np.arange(-500,0))
+x_eval = data_np[:, non_sp_feats][:, merged_core_feats]
+y_eval = lbl_np
 
 preds = clf.predict(x_eval)
 eval_acc = 100 * (preds == y_eval).mean()
 
 print('BLOND / BLACK ACC:', eval_acc)
 
-
-data0, lbl0 = prepare_data(['woman_black', 'woman_blond'], 1000, 0, np.arange(1000))
-data1, lbl1 = prepare_data(['man_black', 'man_blond'], 1000, 1, np.arange(1000))
-
-x_train = np.concatenate([data0, data1])[:, non_sp_feats][:, merged_core_feats]
-y_train = np.concatenate([lbl0, lbl1])
+data_np, lbl_np = prepare_data(['woman_black', 'woman_blond'], ['man_black', 'man_blond'], 1000, np.arange(1000))
+x_train = data_np[:, non_sp_feats][:, merged_core_feats]
+y_train = lbl_np
 
 clf = LogisticRegression()
 clf.fit(x_train, y_train)
 
-data0, lbl0 = prepare_data(['woman_black', 'woman_blond'], 500, 0, np.arange(-500,0))
-data1, lbl1 = prepare_data(['man_black', 'man_blond'], 500, 1, np.arange(-500,0))
-
-x_eval = np.concatenate([data0, data1])[:, non_sp_feats][:, merged_core_feats]
-y_eval = np.concatenate([lbl0, lbl1])
+data_np, lbl_np = prepare_data(['woman_black', 'woman_blond'], ['man_black', 'man_blond'], 500, np.arange(-500,0))
+x_eval = data_np[:, non_sp_feats][:, merged_core_feats]
+y_eval = lbl_np
 
 preds = clf.predict(x_eval)
 eval_acc = 100 * (preds == y_eval).mean()
