@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.linear_model import LogisticRegression
 import seaborn as sns
 import os
 import tqdm
@@ -12,7 +13,7 @@ import tqdm
 
 # set seed
 seed = 8
-n_feat = 100
+n_feat_f = 100
 n_feats = 1024
 n_steps = 500
 n_data_eval = 1000
@@ -52,126 +53,96 @@ class MLP(nn.Module):
 ####################################################
 
 
-def prepare_data(group_names, len_g, lbl_val):
+def prepare_data(group_names, len_g, lbl_val, inds=None):
     data_list = []
     for name in group_names:
-        g_inds = np.random.choice(len(grouped_embs[name]), len_g, replace=False)
+        if inds is None:
+            g_inds = np.random.choice(len(grouped_embs[name]), len_g, replace=False)
+        else:
+            g_inds = inds
+            
+        assert len(g_inds) == len_g
+        
         data_list.append(grouped_embs[name][g_inds])
     
     data = np.concatenate(data_list)
     labels = lbl_val * np.ones(len(group_names) * len_g)
     
     return data, labels
-    
+
+
+def train(names_0, names_1, feat_inds, plot=True):
+    mlp = MLP(n_feat=len(feat_inds)).to(device)  
+    loss_function = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(mlp.parameters(), lr=1e-3)
+        
+    mlp.train()
+        
+    for e in tqdm.tqdm(range(n_steps)):
+        
+        
+        data0, lbl0 = prepare_data(names_0, g_batch_size, 0)
+        data1, lbl1 = prepare_data(names_1, g_batch_size, 1)
+        
+        data_np = np.concatenate([data0, data1])[:, feat_inds]  
+        lbl_np = np.concatenate([lbl0, lbl1]).astype(int)
+        
+        data = torch.tensor(data_np, dtype=torch.float32).to(device)
+        lbl = torch.tensor(lbl_np, dtype=torch.long).to(device)  
+        
+        optimizer.zero_grad()
+        logits = mlp(data)
+        weight = next(mlp.parameters())
+        l1_loss = torch.abs(weight).sum()
+        loss = loss_function(logits, lbl) + gamma * l1_loss
+        loss.backward()
+        optimizer.step()
+        
+        if e % int(n_steps / 5) == 0:
+            with torch.no_grad():
+                if plot:
+                    plt.figure()
+                    weight = next(mlp.parameters()).detach().cpu().numpy()
+                    plt.hist(np.abs(weight.ravel()), 100)
+                    plt.title(str(e))
+                
+                data0, lbl0 = prepare_data(names_0, n_data_eval, 0)
+                data1, lbl1 = prepare_data(names_1, n_data_eval, 1)
+                
+                data_np = np.concatenate([data0, data1])[:, feat_inds]  
+                lbl_np = np.concatenate([lbl0, lbl1]).astype(int)
+                
+                data_eval = torch.tensor(data_np, dtype=torch.float32).to(device)  
+                lbl_eval = torch.tensor(lbl_np, dtype=torch.long).to(device)  
+                
+                pred = mlp(data_eval).max(-1)[1]
+                acc = (pred == lbl_eval).float().mean().item()
+                print('train acc:', acc)
+            
+    return mlp
+
 ####################################################
 
-mlp_sp = MLP().to(device)  
-loss_function = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(mlp_sp.parameters(), lr=1e-3)
-    
 print('Train spurious feature classifier:')
-mlp_sp.train()
-    
-for e in tqdm.tqdm(range(n_steps)):
-    
-    
-    data0, lbl0 = prepare_data(['woman_black', 'woman_blond'], g_batch_size, 0)
-    data1, lbl1 = prepare_data(['man_black', 'man_blond'], g_batch_size, 1)
-    
-    data_np = np.concatenate([data0, data1])
-    lbl_np = np.concatenate([lbl0, lbl1]).astype(int)
-    
-    data = torch.tensor(data_np, dtype=torch.float32).to(device)  
-    lbl = torch.tensor(lbl_np, dtype=torch.long).to(device)  
-    
-    optimizer.zero_grad()
-    logits = mlp_sp(data)
-    weight = next(mlp_sp.parameters())
-    l1_loss = torch.abs(weight).sum()
-    loss = loss_function(logits, lbl) + gamma * l1_loss
-    loss.backward()
-    optimizer.step()
-    
-    if e % int(n_steps / 5) == 0:
-        with torch.no_grad():
-            plt.figure()
-            weight = next(mlp_sp.parameters()).detach().cpu().numpy()
-            plt.hist(np.abs(weight.ravel()), 100)
-            plt.title(str(e))
-            
-            data0, lbl0 = prepare_data(['woman_black', 'woman_blond'], n_data_eval, 0)
-            data1, lbl1 = prepare_data(['man_black', 'man_blond'], n_data_eval, 1)
-            
-            data_np = np.concatenate([data0, data1])
-            lbl_np = np.concatenate([lbl0, lbl1]).astype(int)
-            
-            data_eval = torch.tensor(data_np, dtype=torch.float32).to(device)  
-            lbl_eval = torch.tensor(lbl_np, dtype=torch.long).to(device)  
-            
-            pred = mlp_sp(data_eval).max(-1)[1]
-            acc = (pred == lbl_eval).float().mean().item()
-            print('train acc:', acc)
-            
+mlp_sp = train(['woman_black', 'woman_blond'], ['man_black', 'man_blond'], feat_inds=np.arange(n_feats))
             
 weight = next(mlp_sp.parameters()).detach().cpu().numpy()
-woman_feats = np.argsort(weight[0])[-n_feat:]
-man_feats = np.argsort(weight[1])[-n_feat:]
+woman_feats = np.argsort(weight[0])[-n_feat_f:]
+man_feats = np.argsort(weight[1])[-n_feat_f:]
 negative_feats = {'woman': woman_feats, 'man': man_feats}
 merged_sp_feats = list(set(np.concatenate([woman_feats, man_feats])))
 
 ####################################################
     
 non_sp_feats = np.delete(np.arange(n_feats), merged_sp_feats)
-mlp = MLP(n_feat=len(non_sp_feats)).to(device)  
-loss_function = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(mlp.parameters(), lr=1e-3)
     
 print('Train core feature classifier:')
-mlp.train()
-    
-for e in tqdm.tqdm(range(n_steps)):
-    
-    data0, lbl0 = prepare_data(['man_blond', 'woman_blond'], g_batch_size, 0)
-    data1, lbl1 = prepare_data(['man_black', 'woman_black'], g_batch_size, 1)
-    
-    data_np = np.concatenate([data0, data1])[:, non_sp_feats]
-    lbl_np = np.concatenate([lbl0, lbl1]).astype(int)
-    
-    data = torch.tensor(data_np, dtype=torch.float32).to(device)  
-    lbl = torch.tensor(lbl_np, dtype=torch.long).to(device)  
-    
-    optimizer.zero_grad()
-    logits = mlp(data)
-    weight = next(mlp.parameters())
-    l1_loss = torch.abs(weight).sum()
-    loss = loss_function(logits, lbl) + gamma * l1_loss
-    loss.backward()
-    optimizer.step()
-    
-    if e % 100 == 0:
-        with torch.no_grad():
-            plt.figure()
-            weight = next(mlp.parameters()).detach().cpu().numpy()
-            plt.hist(np.abs(weight.ravel()), 100)
-            plt.title(str(e))
-
-            data0, lbl0 = prepare_data(['man_blond', 'woman_blond'], n_data_eval, 0)
-            data1, lbl1 = prepare_data(['man_black', 'woman_black'], n_data_eval, 1)
+mlp_core = train(['man_blond', 'woman_blond'], ['man_black', 'woman_black'], feat_inds=non_sp_feats)
+         
             
-            data_np = np.concatenate([data0, data1])[:, non_sp_feats]
-            lbl_np = np.concatenate([lbl0, lbl1]).astype(int)
-            
-            data_eval = torch.tensor(data_np, dtype=torch.float32).to(device)  
-            lbl_eval = torch.tensor(lbl_np, dtype=torch.long).to(device)  
-            
-            pred = mlp(data_eval).max(-1)[1]
-            acc = (pred == lbl_eval).float().mean().item()
-            print('train acc:', acc)
-            
-            
-weight = next(mlp.parameters()).detach().cpu().numpy()
-blond_feats = np.argsort(weight[0])[-n_feat:]
-black_feats = np.argsort(weight[1])[-n_feat:]
+weight = next(mlp_core.parameters()).detach().cpu().numpy()
+blond_feats = np.argsort(weight[0])[-n_feat_f:]
+black_feats = np.argsort(weight[1])[-n_feat_f:]
 core_feats = {'blond': blond_feats, 'black': black_feats}
 
 
@@ -207,16 +178,11 @@ for group, ax in zip([group for group in grouped_embs if not 'bald' in group], a
     
 ####################################################
     
-from sklearn.linear_model import LogisticRegression
 
 merged_core_feats = list(set(np.concatenate([blond_feats, black_feats])))
 
-
-
-data0 = np.concatenate([grouped_embs['man_blond'][:1000], grouped_embs['woman_blond'][:1000]])
-lbl0 = np.zeros(2000)
-data1 = np.concatenate([grouped_embs['man_black'][:1000], grouped_embs['woman_black'][:1000]])
-lbl1 = np.ones(2000)
+data0, lbl0 = prepare_data(['man_blond', 'woman_blond'], 1000, 0, np.arange(1000))
+data1, lbl1 = prepare_data(['man_black', 'woman_black'], 1000, 1, np.arange(1000))
 
 x_train = np.concatenate([data0, data1])[:, non_sp_feats][:, merged_core_feats]
 y_train = np.concatenate([lbl0, lbl1])
@@ -224,22 +190,20 @@ y_train = np.concatenate([lbl0, lbl1])
 clf = LogisticRegression()
 clf.fit(x_train, y_train)
 
-data0 = np.concatenate([grouped_embs['man_blond'][-200:], grouped_embs['woman_blond'][-200:]])
-lbl0 = np.zeros(400)
-data1 = np.concatenate([grouped_embs['man_black'][-200:], grouped_embs['woman_black'][-200:]])
-lbl1 = np.ones(400)
+data0, lbl0 = prepare_data(['woman_black', 'woman_blond'], 500, 0, np.arange(-500,0))
+data1, lbl1 = prepare_data(['man_black', 'man_blond'], 500, 1, np.arange(-500,0))
 
 x_eval = np.concatenate([data0, data1])[:, non_sp_feats][:, merged_core_feats]
 y_eval = np.concatenate([lbl0, lbl1])
 
 preds = clf.predict(x_eval)
 eval_acc = 100 * (preds == y_eval).mean()
+
 print('BLOND / BLACK ACC:', eval_acc)
 
-data0 = np.concatenate([grouped_embs['woman_black'][:1000], grouped_embs['woman_blond'][:1000]])
-lbl0 = np.zeros(2000)
-data1 = np.concatenate([grouped_embs['man_black'][:1000], grouped_embs['man_blond'][:1000]])
-lbl1 = np.ones(2000)
+
+data0, lbl0 = prepare_data(['woman_black', 'woman_blond'], 1000, 0, np.arange(1000))
+data1, lbl1 = prepare_data(['man_black', 'man_blond'], 1000, 1, np.arange(1000))
 
 x_train = np.concatenate([data0, data1])[:, non_sp_feats][:, merged_core_feats]
 y_train = np.concatenate([lbl0, lbl1])
@@ -247,16 +211,15 @@ y_train = np.concatenate([lbl0, lbl1])
 clf = LogisticRegression()
 clf.fit(x_train, y_train)
 
-data0 = np.concatenate([grouped_embs['woman_black'][-200:], grouped_embs['woman_blond'][-200:]])
-lbl0 = np.zeros(400)
-data1 = np.concatenate([grouped_embs['man_black'][-200:], grouped_embs['man_blond'][-200:]])
-lbl1 = np.ones(400)
+data0, lbl0 = prepare_data(['woman_black', 'woman_blond'], 500, 0, np.arange(-500,0))
+data1, lbl1 = prepare_data(['man_black', 'man_blond'], 500, 1, np.arange(-500,0))
 
 x_eval = np.concatenate([data0, data1])[:, non_sp_feats][:, merged_core_feats]
 y_eval = np.concatenate([lbl0, lbl1])
 
 preds = clf.predict(x_eval)
 eval_acc = 100 * (preds == y_eval).mean()
+
 print('MAN / WOMAN ACC:', eval_acc)
 
 ####################################################
