@@ -14,8 +14,8 @@ warnings.filterwarnings("ignore")
 
 # set seed
 seed = 8
-n_feat_f = 10
-n_iteration = 10
+n_feat_per_iter = 20
+n_iteration = 7
 n_feats = 1024
 n_steps = 500
 n_data_eval = 1000
@@ -80,7 +80,7 @@ def prepare_data(names_0, names_1, len_g, inds=None):
     
     return data_np, lbl_np
 
-def train(names_0, names_1, feat_inds, plot=True):
+def train(names_0, names_1, feat_inds, plot=False):
     mlp = MLP(n_feat=len(feat_inds)).to(device)  
     loss_function = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(mlp.parameters(), lr=1e-3)
@@ -125,28 +125,47 @@ def train(names_0, names_1, feat_inds, plot=True):
 
 print('Train spurious feature classifier:')
 
+sp_feats = []
+
 for k in range(n_iteration):
-    mlp_sp = train(['woman_black', 'woman_blond'], ['man_black', 'man_blond'], feat_inds=np.arange(n_feats))
+    if k:
+        cur_feats = np.delete(np.arange(n_feats), np.concatenate(sp_feats))
+    else:
+        cur_feats = np.arange(n_feats)
+        
+    mlp_sp = train(['woman_black', 'woman_blond'], ['man_black', 'man_blond'], feat_inds=cur_feats)
             
     weight = next(mlp_sp.parameters()).detach().cpu().numpy()
-    woman_feats = np.argsort(weight[0])[-n_feat_f:]
-    man_feats = np.argsort(weight[1])[-n_feat_f:]
+    woman_feats = np.argsort(weight[0])[-n_feat_per_iter:]
+    man_feats = np.argsort(weight[1])[-n_feat_per_iter:]
     negative_feats = {'woman': woman_feats, 'man': man_feats}
     merged_sp_feats = list(set(np.concatenate([woman_feats, man_feats])))
+    sp_feats.append(merged_sp_feats)
+    
+
 
 ####################################################
     
-non_sp_feats = np.delete(np.arange(n_feats), merged_sp_feats)
+non_sp_feats = np.delete(np.arange(n_feats), sp_feats)
     
+core_feats = []
+
 print('Train core feature classifier:')
 for k in range(n_iteration):
-    mlp_core = train(['man_blond', 'woman_blond'], ['man_black', 'woman_black'], feat_inds=non_sp_feats)
+    if k:
+        cur_feats = np.delete(non_sp_feats, np.concatenate(core_feats))
+    else:
+        cur_feats = non_sp_feats
+    mlp_core = train(['man_blond', 'woman_blond'], ['man_black', 'woman_black'], feat_inds=cur_feats)
              
     weight = next(mlp_core.parameters()).detach().cpu().numpy()
-    blond_feats = np.argsort(weight[0])[-n_feat_f:]
-    black_feats = np.argsort(weight[1])[-n_feat_f:]
+    blond_feats = np.argsort(weight[0])[-n_feat_per_iter:]
+    black_feats = np.argsort(weight[1])[-n_feat_per_iter:]
     core_feats = {'blond': blond_feats, 'black': black_feats}
+    merged_core_feats = list(set(np.concatenate([blond_feats, black_feats])))
+    core_feats.append(merged_core_feats)
 
+core_feats = np.concatenate(core_feats)
 
 ####################################################
 
