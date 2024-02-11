@@ -85,9 +85,8 @@ for g_name in grouped_imgs.keys():
             in_data = transform(data.to(device)[None]/255.)
             embs = model_dino(in_data).squeeze().cpu().numpy()
             embs_list.append(embs)
-    embs_list = np.concatenate(embs_list)
+    embs_list = np.array(embs_list)
     grouped_embs[g_name] = embs_list
-
 
 
 #with open('Dominoes_grouped_embs.pkl', 'wb') as f:
