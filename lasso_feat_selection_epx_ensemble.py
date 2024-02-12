@@ -14,7 +14,9 @@ warnings.filterwarnings("ignore")
 
 # set seed
 seed = 8
-n_feat_per_iter = 20
+n_feat_per_iter_sp = 50
+n_feat_per_iter_core = 2
+
 n_iteration = 7
 n_feats = 1024
 n_steps = 500
@@ -136,13 +138,13 @@ for k in range(n_iteration):
     mlp_sp = train(['woman_black', 'woman_blond'], ['man_black', 'man_blond'], feat_inds=cur_feats)
             
     weight = next(mlp_sp.parameters()).detach().cpu().numpy()
-    woman_feats = np.argsort(weight[0])[-n_feat_per_iter:]
-    man_feats = np.argsort(weight[1])[-n_feat_per_iter:]
+    woman_feats = np.argsort(weight[0])[-n_feat_per_iter_sp:]
+    man_feats = np.argsort(weight[1])[-n_feat_per_iter_sp:]
     negative_feats = {'woman': woman_feats, 'man': man_feats}
     merged_sp_feats = list(set(np.concatenate([woman_feats, man_feats])))
     sp_feats.append(merged_sp_feats)
     
-
+sp_feats = np.unique(np.concatenate(sp_feats))
 
 ####################################################
     
@@ -159,42 +161,42 @@ for k in range(n_iteration):
     mlp_core = train(['man_blond', 'woman_blond'], ['man_black', 'woman_black'], feat_inds=cur_feats)
              
     weight = next(mlp_core.parameters()).detach().cpu().numpy()
-    blond_feats = np.argsort(weight[0])[-n_feat_per_iter:]
-    black_feats = np.argsort(weight[1])[-n_feat_per_iter:]
-    core_feats = {'blond': blond_feats, 'black': black_feats}
+    blond_feats = np.argsort(weight[0])[-n_feat_per_iter_core:]
+    black_feats = np.argsort(weight[1])[-n_feat_per_iter_core:]
+    positive_feats = {'blond': blond_feats, 'black': black_feats}
     merged_core_feats = list(set(np.concatenate([blond_feats, black_feats])))
     core_feats.append(merged_core_feats)
 
-core_feats = np.concatenate(core_feats)
+core_feats = np.unique(np.concatenate(core_feats))
 
 ####################################################
 
-def calc_cos_dist2(embs, prototypes, prototype_name):
-    if 'blond' in prototype_name:
-        feat_inds = core_feats['blond']
-    elif 'black' in prototype_name:
-        feat_inds = core_feats['black']
-    else:
-        print('WRONG NAME!')
-    embs = embs[:, non_sp_feats][:, feat_inds]
-    prototypes = prototypes[:, non_sp_feats][:, feat_inds]
-
-    embs_normalized = embs / np.linalg.norm(embs, axis=-1, keepdims=True)
-    prototypes_normalized = prototypes / np.linalg.norm(prototypes, axis=-1, keepdims=True)
-    cos_dist = (1 - (embs_normalized[:, None] * prototypes_normalized).sum(axis=-1)) / 2
-    return cos_dist.squeeze()
-
-
-grouped_cos_dist = {group: calc_cos_dist2(grouped_embs[group], grouped_prototypes[group], group) for group in list(grouped_embs.keys())[:-1]}
-
-
-fig, axes = plt.subplots(2, 2, figsize=(10, 10))
-axes = axes.flatten()
-for group, ax in zip([group for group in grouped_embs if not 'bald' in group], axes):
-    sns.kdeplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax)
-    sns.kdeplot(calc_cos_dist2(grouped_embs['bald'], grouped_prototypes[group], group), label='ood', ax=ax)
-    ax.legend()
-    ax.set_title(group)
+#def calc_cos_dist2(embs, prototypes, prototype_name):
+#    if 'blond' in prototype_name:
+#        feat_inds = core_feats['blond']
+#    elif 'black' in prototype_name:
+#        feat_inds = core_feats['black']
+#    else:
+#        print('WRONG NAME!')
+#    embs = embs[:, non_sp_feats][:, feat_inds]
+#    prototypes = prototypes[:, non_sp_feats][:, feat_inds]
+#
+#    embs_normalized = embs / np.linalg.norm(embs, axis=-1, keepdims=True)
+#    prototypes_normalized = prototypes / np.linalg.norm(prototypes, axis=-1, keepdims=True)
+#    cos_dist = (1 - (embs_normalized[:, None] * prototypes_normalized).sum(axis=-1)) / 2
+#    return cos_dist.squeeze()
+#
+#
+#grouped_cos_dist = {group: calc_cos_dist2(grouped_embs[group], grouped_prototypes[group], group) for group in list(grouped_embs.keys())[:-1]}
+#
+#
+#fig, axes = plt.subplots(2, 2, figsize=(10, 10))
+#axes = axes.flatten()
+#for group, ax in zip([group for group in grouped_embs if not 'bald' in group], axes):
+#    sns.kdeplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax)
+#    sns.kdeplot(calc_cos_dist2(grouped_embs['bald'], grouped_prototypes[group], group), label='ood', ax=ax)
+#    ax.legend()
+#    ax.set_title(group)
     
     
 ####################################################
@@ -203,14 +205,14 @@ for group, ax in zip([group for group in grouped_embs if not 'bald' in group], a
 merged_core_feats = list(set(np.concatenate([blond_feats, black_feats])))
 
 data_np, lbl_np = prepare_data(['man_blond', 'woman_blond'], ['man_black', 'woman_black'], 1000, np.arange(1000))
-x_train = data_np[:, non_sp_feats][:, merged_core_feats]
+x_train = data_np[:, non_sp_feats][:, core_feats]
 y_train = lbl_np
 
 clf = LogisticRegression()
 clf.fit(x_train, y_train)
 
 data_np, lbl_np = prepare_data(['man_blond', 'woman_blond'], ['man_black', 'woman_black'], 500, np.arange(-500,0))
-x_eval = data_np[:, non_sp_feats][:, merged_core_feats]
+x_eval = data_np[:, non_sp_feats][:, core_feats]
 y_eval = lbl_np
 
 preds = clf.predict(x_eval)
@@ -219,14 +221,14 @@ eval_acc = 100 * (preds == y_eval).mean()
 print('BLOND / BLACK ACC:', eval_acc)
 
 data_np, lbl_np = prepare_data(['woman_black', 'woman_blond'], ['man_black', 'man_blond'], 1000, np.arange(1000))
-x_train = data_np[:, non_sp_feats][:, merged_core_feats]
+x_train = data_np[:, non_sp_feats][:, core_feats]
 y_train = lbl_np
 
 clf = LogisticRegression()
 clf.fit(x_train, y_train)
 
 data_np, lbl_np = prepare_data(['woman_black', 'woman_blond'], ['man_black', 'man_blond'], 500, np.arange(-500,0))
-x_eval = data_np[:, non_sp_feats][:, merged_core_feats]
+x_eval = data_np[:, non_sp_feats][:, core_feats]
 y_eval = lbl_np
 
 preds = clf.predict(x_eval)
