@@ -13,7 +13,9 @@ warnings.filterwarnings("ignore")
 
 # set seed
 seed = 8
-n_feat_per_iter = 40
+n_feat_per_iter_sp = 200
+n_feat_per_iter_core = 1
+
 n_iteration = 7
 n_feats = 1024
 n_steps = 500
@@ -129,13 +131,13 @@ for k in range(n_iteration):
     mlp_sp = train(['0_airplane', '0_car'], ['1_airplane', '1_car'], feat_inds=cur_feats)
             
     weight = next(mlp_sp.parameters()).detach().cpu().numpy()
-    zero_feats = np.argsort(weight[0])[-n_feat_per_iter:]
-    one_feats = np.argsort(weight[1])[-n_feat_per_iter:]
+    zero_feats = np.argsort(weight[0])[-n_feat_per_iter_sp:]
+    one_feats = np.argsort(weight[1])[-n_feat_per_iter_sp:]
     negative_feats = {'zero': zero_feats, 'one': one_feats}
     merged_sp_feats = list(set(np.concatenate([zero_feats, one_feats])))
     sp_feats.append(merged_sp_feats)
     
-sp_feats = np.concatenate(sp_feats)
+sp_feats = np.unique(np.concatenate(sp_feats))
 
 ####################################################
     
@@ -152,45 +154,19 @@ for k in range(n_iteration):
     mlp_core = train(['0_airplane', '1_airplane'], ['0_car', '1_car'], feat_inds=cur_feats)
              
     weight = next(mlp_core.parameters()).detach().cpu().numpy()
-    airplane_feats = np.argsort(weight[0])[-n_feat_per_iter:]
-    car_feats = np.argsort(weight[1])[-n_feat_per_iter:]
+    airplane_feats = np.argsort(weight[0])[-n_feat_per_iter_core:]
+    car_feats = np.argsort(weight[1])[-n_feat_per_iter_core:]
     positive_feats = {'airplane': airplane_feats, 'car': car_feats}
     merged_core_feats = list(set(np.concatenate([airplane_feats, car_feats])))
     core_feats.append(merged_core_feats)
 
-core_feats = np.concatenate(core_feats)
+core_feats = np.unique(np.concatenate(core_feats))
+
+print('Feature sizes:', len(sp_feats), len(core_feats))
 
 ####################################################
 
-def calc_cos_dist2(embs, prototypes, prototype_name):
-    if 'blond' in prototype_name:
-        feat_inds = core_feats['blond']
-    elif 'black' in prototype_name:
-        feat_inds = core_feats['black']
-    else:
-        print('WRONG NAME!')
-    embs = embs[:, non_sp_feats][:, feat_inds]
-    prototypes = prototypes[:, non_sp_feats][:, feat_inds]
 
-    embs_normalized = embs / np.linalg.norm(embs, axis=-1, keepdims=True)
-    prototypes_normalized = prototypes / np.linalg.norm(prototypes, axis=-1, keepdims=True)
-    cos_dist = (1 - (embs_normalized[:, None] * prototypes_normalized).sum(axis=-1)) / 2
-    return cos_dist.squeeze()
-
-
-grouped_cos_dist = {group: calc_cos_dist2(grouped_embs[group], grouped_prototypes[group], group) for group in list(grouped_embs.keys())[:-1]}
-
-
-fig, axes = plt.subplots(2, 2, figsize=(10, 10))
-axes = axes.flatten()
-for group, ax in zip([group for group in grouped_embs if not 'bald' in group], axes):
-    sns.kdeplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax)
-    sns.kdeplot(calc_cos_dist2(grouped_embs['bald'], grouped_prototypes[group], group), label='ood', ax=ax)
-    ax.legend()
-    ax.set_title(group)
-    
-    
-####################################################
     
 
 
@@ -227,3 +203,34 @@ eval_acc = 100 * (preds == y_eval).mean()
 print('AIRPLANE / CAR ACC:', eval_acc)
 
 ####################################################
+
+
+def calc_cos_dist(embs, prototypes, prototype_name):
+    embs = embs[:, non_sp_feats][:, core_feats]
+    prototypes = prototypes[:, non_sp_feats][:, core_feats]
+
+    embs_normalized = embs / np.linalg.norm(embs, axis=-1, keepdims=True)
+    prototypes_normalized = prototypes / np.linalg.norm(prototypes, axis=-1, keepdims=True)
+    cos_dist = (1 - (embs_normalized[:, None] * prototypes_normalized).sum(axis=-1)) / 2
+    return cos_dist.squeeze()
+
+ood_class_names = ['ship', 'truck']
+selected_groups_names = ['0_airplane', '0_car', '1_airplane', '1_car']
+selected_grouped_embs = {name: grouped_embs[name] for name in selected_groups_names}
+grouped_cos_dist = {group: calc_cos_dist(grouped_embs[group], grouped_prototypes[group], group) for group in selected_groups_names}
+
+
+fig, axes = plt.subplots(2, 2, figsize=(10, 10))
+axes = axes.flatten()
+for group, ax in zip([group for group in selected_grouped_embs], axes):
+    sns.kdeplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax)
+    sp_name = group[:2]
+    ood_embs = np.concatenate([grouped_embs[sp_name + class_name] for class_name in ood_class_names])
+    sns.kdeplot(calc_cos_dist(ood_embs, grouped_prototypes[group], group), label='ood', ax=ax)
+    ax.legend()
+    ax.set_title(group)
+    
+    
+####################################################
+
+
