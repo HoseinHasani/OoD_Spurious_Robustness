@@ -20,6 +20,8 @@ all_prototypes = np.concatenate(list(grouped_prototypes.values()))
 group_names = list(grouped_embs.keys())
 
 
+##############################################################
+
 def normalize(x):
     return x / np.linalg.norm(x)
 
@@ -41,12 +43,6 @@ def refine_embs(embs):
     return refined
 
 
-def calc_cos_dist(embs, prototypes):
-    embs_normalized = embs / np.linalg.norm(embs, axis=-1, keepdims=True)
-    prototypes_normalized = prototypes / np.linalg.norm(prototypes, axis=-1, keepdims=True)
-    cos_dist = (1 - (embs_normalized[:, None] * prototypes_normalized).sum(axis=-1)) / 2
-    return cos_dist.squeeze()
-
 refined_grouped_embs = {}
 for key in grouped_embs.keys():
     refined_grouped_embs[key] = refine_embs(grouped_embs[key])
@@ -54,6 +50,94 @@ for key in grouped_embs.keys():
 refined_grouped_prototypes = {}
 for key in grouped_prototypes.keys():
     refined_grouped_prototypes[key] = refine_embs(grouped_prototypes[key])
+
+
+
+##############################################################
+
+def prepare_class_data(embs_dict, group_names, len_g, lbl_val, inds=None):
+    data_list = []
+    for name in group_names:
+        if inds is None:
+            g_inds = np.random.choice(len(grouped_embs[name]), len_g, replace=False)
+        else:
+            g_inds = inds
+            
+        assert len(g_inds) == len_g
+        
+        data_list.append(embs_dict[name][g_inds])
+    
+    data = np.concatenate(data_list)
+    labels = lbl_val * np.ones(len(group_names) * len_g)
+    
+    return data, labels
+
+def prepare_data(embs_dict, names_0, names_1, len_g, inds=None):
+    data0, lbl0 = prepare_class_data(embs_dict, names_0, len_g, 0, inds)
+    data1, lbl1 = prepare_class_data(embs_dict, names_1, len_g, 1, inds)
+    
+    data_np = np.concatenate([data0, data1])
+    lbl_np = np.concatenate([lbl0, lbl1]).astype(int)
+    
+    return data_np, lbl_np
+
+
+##############################################################
+
+
+x_train, y_train = prepare_data(grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 1000, np.arange(1000))
+clf = LogisticRegression()
+clf.fit(x_train, y_train)
+
+x_eval, y_eval = prepare_data(grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 500, np.arange(-500,0))
+preds = clf.predict(x_eval)
+eval_acc = 100 * (preds == y_eval).mean()
+
+print('ZERO / ONE ACC:', eval_acc)
+
+x_train, y_train = prepare_data(grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 1000, np.arange(1000))
+clf = LogisticRegression()
+clf.fit(x_train, y_train)
+
+x_eval, y_eval = prepare_data(grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 500, np.arange(-500,0))
+preds = clf.predict(x_eval)
+eval_acc = 100 * (preds == y_eval).mean()
+
+print('AIRPLANE / CAR ACC:', eval_acc)
+
+
+##############################################################
+
+
+x_train, y_train = prepare_data(refined_grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 300, np.arange(300))
+clf = LogisticRegression()
+clf.fit(x_train, y_train)
+
+x_eval, y_eval = prepare_data(refined_grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 200, np.arange(-200,0))
+preds = clf.predict(x_eval)
+eval_acc = 100 * (preds == y_eval).mean()
+
+print('Refined version: ZERO / ONE ACC:', eval_acc)
+
+x_train, y_train = prepare_data(refined_grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 300, np.arange(300))
+clf = LogisticRegression()
+clf.fit(x_train, y_train)
+
+x_eval, y_eval = prepare_data(refined_grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 200, np.arange(-200,0))
+preds = clf.predict(x_eval)
+eval_acc = 100 * (preds == y_eval).mean()
+
+print('Refined version: AIRPLANE / CAR ACC:', eval_acc)
+
+##############################################################
+
+
+def calc_cos_dist(embs, prototypes):
+    embs_normalized = embs / np.linalg.norm(embs, axis=-1, keepdims=True)
+    prototypes_normalized = prototypes / np.linalg.norm(prototypes, axis=-1, keepdims=True)
+    cos_dist = (1 - (embs_normalized[:, None] * prototypes_normalized).sum(axis=-1)) / 2
+    return cos_dist.squeeze()
+
 
 grouped_cos_dist = {group: calc_cos_dist(embs, refined_grouped_prototypes[group]) for group, embs in refined_grouped_embs.items()}
 
