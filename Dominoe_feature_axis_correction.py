@@ -11,8 +11,12 @@ seed = 8
 np.random.seed(seed)
 
 
-grouped_embs = np.load('Dominoes_grouped_embs.npy', allow_pickle=True).item()
+grouped_embs0 = np.load('Dominoes_grouped_embs.npy', allow_pickle=True).item()
     
+def normalize(x):
+    return x / np.linalg.norm(x, axis=-1, keepdims=True)
+
+grouped_embs = {name: normalize(grouped_embs0[name]) for name in grouped_embs0.keys()}
     
 grouped_prototypes = {group: embs.mean(axis=0, keepdims=True) for group, embs in grouped_embs.items()}
 all_embs = np.concatenate(list(grouped_embs.values()))
@@ -22,8 +26,7 @@ group_names = list(grouped_embs.keys())
 
 ##############################################################
 
-def normalize(x):
-    return x / np.linalg.norm(x)
+
 
 sp_ax1 = normalize(grouped_prototypes['1_airplane'] - grouped_prototypes['0_airplane'])
 sp_ax2 = normalize(grouped_prototypes['1_car'] - grouped_prototypes['0_car'])
@@ -31,25 +34,31 @@ core_ax1 = normalize(grouped_prototypes['1_car'] - grouped_prototypes['1_airplan
 core_ax2 = normalize(grouped_prototypes['0_car'] - grouped_prototypes['0_airplane'])
 
 
-def refine_embs(embs):
+def refine_embs(embs, ax1, ax2):
     #core = embs * core_ax_normal[None]
-    sp_coefs1 = np.dot(embs, sp_ax1.squeeze())
-    sp_coefs2 = np.dot(embs, sp_ax2.squeeze())
+    embs = normalize(embs)
+    sp_coefs1 = np.dot(embs, ax1.squeeze())
+    sp_coefs2 = np.dot(embs, ax2.squeeze())
 
     refined = embs.copy()
-    refined = refined - sp_coefs1[:, None] * np.repeat(sp_ax1, embs.shape[0], axis=0)
-    refined = refined - sp_coefs2[:, None] * np.repeat(sp_ax2, embs.shape[0], axis=0)
+    refined = refined - sp_coefs1[:, None] * np.repeat(ax1, embs.shape[0], axis=0)
+    refined = refined - sp_coefs2[:, None] * np.repeat(ax2, embs.shape[0], axis=0)
 
     return refined
 
 
 refined_grouped_embs = {}
 for key in grouped_embs.keys():
-    refined_grouped_embs[key] = refine_embs(grouped_embs[key])
+    refined_grouped_embs[key] = refine_embs(grouped_embs[key], sp_ax1, sp_ax2)
+
+corrupted_grouped_embs = {}
+for key in grouped_embs.keys():
+    corrupted_grouped_embs[key] = refine_embs(grouped_embs[key], core_ax1, core_ax2)
+
 
 refined_grouped_prototypes = {}
 for key in grouped_prototypes.keys():
-    refined_grouped_prototypes[key] = refine_embs(grouped_prototypes[key])
+    refined_grouped_prototypes[key] = refine_embs(grouped_prototypes[key], sp_ax1, sp_ax2)
 
 
 
@@ -59,7 +68,7 @@ def prepare_class_data(embs_dict, group_names, len_g, lbl_val, inds=None):
     data_list = []
     for name in group_names:
         if inds is None:
-            g_inds = np.random.choice(len(grouped_embs[name]), len_g, replace=False)
+            g_inds = np.random.choice(len(embs_dict[name]), len_g, replace=False)
         else:
             g_inds = inds
             
@@ -84,22 +93,23 @@ def prepare_data(embs_dict, names_0, names_1, len_g, inds=None):
 
 ##############################################################
 
+print('Neutral version:')
 
-x_train, y_train = prepare_data(grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 1000, np.arange(1000))
+x_train, y_train = prepare_data(grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 300, np.arange(300))
 clf = LogisticRegression()
 clf.fit(x_train, y_train)
 
-x_eval, y_eval = prepare_data(grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 500, np.arange(-500,0))
+x_eval, y_eval = prepare_data(grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 300, np.arange(-300,0))
 preds = clf.predict(x_eval)
 eval_acc = 100 * (preds == y_eval).mean()
 
 print('ZERO / ONE ACC:', eval_acc)
 
-x_train, y_train = prepare_data(grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 1000, np.arange(1000))
+x_train, y_train = prepare_data(grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 300, np.arange(300))
 clf = LogisticRegression()
 clf.fit(x_train, y_train)
 
-x_eval, y_eval = prepare_data(grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 500, np.arange(-500,0))
+x_eval, y_eval = prepare_data(grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 300, np.arange(-300,0))
 preds = clf.predict(x_eval)
 eval_acc = 100 * (preds == y_eval).mean()
 
@@ -108,28 +118,53 @@ print('AIRPLANE / CAR ACC:', eval_acc)
 
 ##############################################################
 
+print('Refined version:')
 
-x_train, y_train = prepare_data(refined_grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 300, np.arange(300))
+x_train, y_train = prepare_data(grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 300, np.arange(300))
 clf = LogisticRegression()
 clf.fit(x_train, y_train)
 
-x_eval, y_eval = prepare_data(refined_grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 200, np.arange(-200,0))
+x_eval, y_eval = prepare_data(refined_grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 300, np.arange(-300,0))
 preds = clf.predict(x_eval)
 eval_acc = 100 * (preds == y_eval).mean()
 
-print('Refined version: ZERO / ONE ACC:', eval_acc)
+print('ZERO / ONE ACC:', eval_acc)
 
-x_train, y_train = prepare_data(refined_grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 300, np.arange(300))
+x_train, y_train = prepare_data(grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 300, np.arange(300))
 clf = LogisticRegression()
 clf.fit(x_train, y_train)
 
-x_eval, y_eval = prepare_data(refined_grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 200, np.arange(-200,0))
+x_eval, y_eval = prepare_data(refined_grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 300, np.arange(-300,0))
 preds = clf.predict(x_eval)
 eval_acc = 100 * (preds == y_eval).mean()
 
-print('Refined version: AIRPLANE / CAR ACC:', eval_acc)
+print('AIRPLANE / CAR ACC:', eval_acc)
 
 ##############################################################
+print('Corrupted version:')
+
+x_train, y_train = prepare_data(grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 300, np.arange(300))
+clf = LogisticRegression()
+clf.fit(x_train, y_train)
+
+x_eval, y_eval = prepare_data(corrupted_grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 300, np.arange(-300,0))
+preds = clf.predict(x_eval)
+eval_acc = 100 * (preds == y_eval).mean()
+
+print('ZERO / ONE ACC:', eval_acc)
+
+x_train, y_train = prepare_data(grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 300, np.arange(300))
+clf = LogisticRegression()
+clf.fit(x_train, y_train)
+
+x_eval, y_eval = prepare_data(corrupted_grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 300, np.arange(-300,0))
+preds = clf.predict(x_eval)
+eval_acc = 100 * (preds == y_eval).mean()
+
+print('AIRPLANE / CAR ACC:', eval_acc)
+
+##############################################################
+
 
 
 def calc_cos_dist(embs, prototypes):
