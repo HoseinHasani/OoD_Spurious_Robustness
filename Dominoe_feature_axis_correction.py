@@ -34,32 +34,33 @@ core_ax1 = normalize(grouped_prototypes['1_car'] - grouped_prototypes['1_airplan
 core_ax2 = normalize(grouped_prototypes['0_car'] - grouped_prototypes['0_airplane'])
 
 
-def refine_embs(embs, ax1, ax2):
+def refine_embs(embs, sp1, sp2, cr1, cr2):
     #core = embs * core_ax_normal[None]
     embs = normalize(embs)
-    sp_coefs1 = np.dot(embs, ax1.squeeze())
-    sp_coefs2 = np.dot(embs, ax2.squeeze())
+    sp_coefs1 = np.dot(embs, sp1.squeeze())
+    sp_coefs2 = np.dot(embs, sp2.squeeze())
 
-    refined = embs.copy()
-    refined = refined - sp_coefs1[:, None] * np.repeat(ax1, embs.shape[0], axis=0)
-    refined = refined - sp_coefs2[:, None] * np.repeat(ax2, embs.shape[0], axis=0)
-
+    cr_coefs1 = np.dot(embs, cr1.squeeze())
+    cr_coefs2 = np.dot(embs, cr2.squeeze())
+    
+    #refined = embs.copy()
+    refined = cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0) - sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
+    refined += cr_coefs2[:, None] * np.repeat(cr2, embs.shape[0], axis=0) - sp_coefs2[:, None] * np.repeat(sp2, embs.shape[0], axis=0)
+    
+    refined = normalize(refined)
     return refined
 
 
 refined_grouped_embs = {}
 for key in grouped_embs.keys():
-    refined_grouped_embs[key] = refine_embs(grouped_embs[key], sp_ax1, sp_ax2)
+    refined_grouped_embs[key] = refine_embs(grouped_embs[key], sp_ax1, sp_ax2, core_ax1, core_ax2)
 
 corrupted_grouped_embs = {}
 for key in grouped_embs.keys():
-    corrupted_grouped_embs[key] = refine_embs(grouped_embs[key], core_ax1, core_ax2)
+    corrupted_grouped_embs[key] = refine_embs(grouped_embs[key], core_ax1, core_ax2, sp_ax1, sp_ax2)
 
 
-refined_grouped_prototypes = {}
-for key in grouped_prototypes.keys():
-    refined_grouped_prototypes[key] = refine_embs(grouped_prototypes[key], sp_ax1, sp_ax2)
-
+refined_grouped_prototypes = {group: embs.mean(axis=0, keepdims=True) for group, embs in refined_grouped_embs.items()}
 
 
 ##############################################################
@@ -164,14 +165,15 @@ eval_acc = 100 * (preds == y_eval).mean()
 print('AIRPLANE / CAR ACC:', eval_acc)
 
 ##############################################################
-
+print()
 
 
 def calc_cos_dist(embs, prototypes):
     embs_normalized = embs / np.linalg.norm(embs, axis=-1, keepdims=True)
     prototypes_normalized = prototypes / np.linalg.norm(prototypes, axis=-1, keepdims=True)
     cos_dist = (1 - (embs_normalized[:, None] * prototypes_normalized).sum(axis=-1)) / 2
-    return cos_dist.squeeze()
+    dist = np.abs(cos_dist.squeeze())
+    return dist
 
 
 grouped_cos_dist = {group: calc_cos_dist(embs, refined_grouped_prototypes[group]) for group, embs in refined_grouped_embs.items()}
@@ -183,10 +185,10 @@ selected_grouped_embs = {name: refined_grouped_embs[name] for name in selected_g
 fig, axes = plt.subplots(2, 2, figsize=(10, 10))
 axes = axes.flatten()
 for group, ax in zip([group for group in selected_grouped_embs], axes):
-    sns.kdeplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax)
+    sns.histplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax, element='step', fill=False)
     sp_name = group[:2]
     ood_embs = np.concatenate([refined_grouped_embs[sp_name + class_name] for class_name in ood_class_names])
-    sns.kdeplot(calc_cos_dist(ood_embs, refined_grouped_prototypes[group]), label='ood', ax=ax)
+    sns.histplot(calc_cos_dist(ood_embs, refined_grouped_prototypes[group]), label='ood', ax=ax, element='step', fill=False)
     ax.legend()
     ax.set_title(group)
     
@@ -200,9 +202,55 @@ selected_grouped_embs = {name: grouped_embs[name] for name in selected_groups_na
 fig, axes = plt.subplots(2, 2, figsize=(10, 10))
 axes = axes.flatten()
 for group, ax in zip([group for group in selected_grouped_embs], axes):
-    sns.kdeplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax)
+    sns.histplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax, element='step', fill=False)
     sp_name = group[:2]
     ood_embs = np.concatenate([grouped_embs[sp_name + class_name] for class_name in ood_class_names])
-    sns.kdeplot(calc_cos_dist(ood_embs, grouped_prototypes[group]), label='ood', ax=ax)
+    sns.histplot(calc_cos_dist(ood_embs, grouped_prototypes[group]), label='ood', ax=ax, element='step', fill=False)
     ax.legend()
     ax.set_title(group)
+    
+for ood_name in ['truck', 'ship']:
+    for core_name in ['car', 'airplane']:
+        print(f'core name: {core_name}, ood name: {ood_name}')
+
+        neutral_ood = np.mean(calc_cos_dist(grouped_embs['0_' + ood_name],
+                             grouped_prototypes['0_' + core_name])) \
+                + np.mean(calc_cos_dist(grouped_embs['1_' + ood_name],
+                                     grouped_prototypes['1_' + core_name])) 
+
+        refined_ood = np.mean(calc_cos_dist(refined_grouped_embs['0_' + ood_name],
+                             refined_grouped_prototypes['0_' + core_name])) \
+                + np.mean(calc_cos_dist(refined_grouped_embs['1_' + ood_name],
+                                     refined_grouped_prototypes['1_' + core_name])) 
+
+        neutral_id = np.mean(calc_cos_dist(grouped_embs['1_' + core_name],
+                             grouped_prototypes['1_' + core_name])) \
+                + np.mean(calc_cos_dist(grouped_embs['0_' + core_name],
+                                     grouped_prototypes['0_' + core_name])) 
+
+        refined_id = np.mean(calc_cos_dist(refined_grouped_embs['1_' + core_name],
+                             refined_grouped_prototypes['1_' + core_name])) \
+                + np.mean(calc_cos_dist(refined_grouped_embs['0_' + core_name],
+                                     refined_grouped_prototypes['0_' + core_name])) 
+                
+        neutral_sp = np.mean(calc_cos_dist(grouped_embs['1_' + core_name],
+                             grouped_prototypes['0_' + core_name])) \
+                + np.mean(calc_cos_dist(grouped_embs['1_' + core_name],
+                                     grouped_prototypes['0_' + core_name])) 
+
+        refined_sp = np.mean(calc_cos_dist(refined_grouped_embs['1_' + core_name],
+                             refined_grouped_prototypes['0_' + core_name])) \
+                + np.mean(calc_cos_dist(refined_grouped_embs['1_' + core_name],
+                                     refined_grouped_prototypes['0_' + core_name])) 
+
+
+        # print(neutral_ood, refined_ood)
+        # print(neutral_id, refined_id)
+        # print(neutral_sp, refined_sp)
+        
+        print(neutral_id / neutral_ood, neutral_sp / neutral_ood)
+        print(refined_id / refined_ood, refined_sp / refined_ood)
+        
+        print('***********************')
+        
+        
