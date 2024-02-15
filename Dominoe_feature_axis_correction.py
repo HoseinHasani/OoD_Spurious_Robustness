@@ -12,6 +12,8 @@ np.random.seed(seed)
 
 samples4prototype = 5
 
+filter_ood = True
+
 grouped_embs0 = np.load('Dominoes_grouped_embs.npy', allow_pickle=True).item()
     
 def normalize(x):
@@ -56,6 +58,10 @@ sp_ax2 = normalize(normalize(grouped_prototypes['0_airplane']) + normalize(group
 core_ax1 = normalize(normalize(grouped_prototypes['0_airplane']) + normalize(grouped_prototypes['1_airplane']))
 core_ax2 = normalize(normalize(grouped_prototypes['0_car']) + normalize(grouped_prototypes['1_car']))
 
+ood_ax1 = normalize(normalize(grouped_prototypes['0_ship']) + normalize(grouped_prototypes['1_ship']))
+ood_ax2 = normalize(normalize(grouped_prototypes['0_truck']) + normalize(grouped_prototypes['1_truck']))
+
+
 
 
 def refine_embs(embs, sp1, sp2, cr1, cr2):
@@ -70,6 +76,16 @@ def refine_embs(embs, sp1, sp2, cr1, cr2):
     #refined = embs.copy()
     refined = cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0) - sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
     refined += cr_coefs2[:, None] * np.repeat(cr2, embs.shape[0], axis=0) - sp_coefs2[:, None] * np.repeat(sp2, embs.shape[0], axis=0)
+    
+    if filter_ood:
+        
+        ood_coefs1 = np.dot(embs, ood_ax1.squeeze())
+        ood_coefs2 = np.dot(embs, ood_ax2.squeeze())
+        refined -= ood_coefs1[:, None] * np.repeat(ood_ax1, embs.shape[0], axis=0)
+        refined -= ood_coefs2[:, None] * np.repeat(ood_ax2, embs.shape[0], axis=0)
+        refined += cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
+        refined += cr_coefs2[:, None] * np.repeat(cr2, embs.shape[0], axis=0)
+                
     
     refined = normalize(refined)
     return refined
@@ -296,11 +312,11 @@ for ood_name in ['truck', 'ship']:
         refined_th = find_thresh_val(np.concatenate([refined_ind, refined_sp]))
         refined_err = refined_ood[refined_ood < refined_th].shape[0] / refined_ood.shape[0]
         
-        print('neutral:', neutral_err,
+        print('neutral:', 100 * neutral_err,
               np.mean(neutral_ind) / np.mean(neutral_ood),
               np.mean(neutral_sp) / np.mean(neutral_ood))
         
-        print('refined:', refined_err,
+        print('refined:', 100 * refined_err,
               np.mean(np.mean(refined_ind)) / np.mean(np.mean(refined_ood)),
               np.mean(refined_sp) / np.mean(refined_ood))
         
