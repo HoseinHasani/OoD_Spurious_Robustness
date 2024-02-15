@@ -235,47 +235,74 @@ for group, ax in zip([group for group in selected_grouped_embs], axes):
     ax.legend()
     ax.set_title(group)
     
+def get_dist_vals(emb_name1, emb_name2, pr_name1, pr_name2, refined=False):
+    
+    if refined:
+        embs = refined_grouped_embs
+        protos = refined_grouped_prototypes
+    else:
+        embs = grouped_embs
+        protos = grouped_prototypes
+        
+    dist_vals = calc_cos_dist(embs[emb_name1 + emb_name2],
+                              protos[pr_name1 + pr_name2])
+    return dist_vals
+    
+
+def find_thresh_val(main_vals, th=0.95):
+    thresh = np.sort(main_vals)[int(th * len(main_vals))]
+    return thresh
+    
+    
 for ood_name in ['truck', 'ship']:
     for core_name in ['car', 'airplane']:
         print(f'core name: {core_name}, ood name: {ood_name}')
 
-        neutral_ood = np.mean(calc_cos_dist(grouped_embs['0_' + ood_name],
-                             grouped_prototypes['0_' + core_name])) \
-                + np.mean(calc_cos_dist(grouped_embs['1_' + ood_name],
-                                     grouped_prototypes['1_' + core_name])) 
+        neutral_ood = np.concatenate([
+                get_dist_vals('0_', ood_name, '0_', core_name),
+                get_dist_vals('1_', ood_name, '1_', core_name)
+                ])
 
-        refined_ood = np.mean(calc_cos_dist(refined_grouped_embs['0_' + ood_name],
-                             refined_grouped_prototypes['0_' + core_name])) \
-                + np.mean(calc_cos_dist(refined_grouped_embs['1_' + ood_name],
-                                     refined_grouped_prototypes['1_' + core_name])) 
+        refined_ood = np.concatenate([
+                get_dist_vals('0_', ood_name, '0_', core_name, refined=True),
+                get_dist_vals('1_', ood_name, '1_', core_name, refined=True)
+                ])
+    
+        neutral_ind = np.concatenate([
+                get_dist_vals('0_', core_name, '0_', core_name),
+                get_dist_vals('1_', core_name, '1_', core_name)
+                ])
 
-        neutral_id = np.mean(calc_cos_dist(grouped_embs['1_' + core_name],
-                             grouped_prototypes['1_' + core_name])) \
-                + np.mean(calc_cos_dist(grouped_embs['0_' + core_name],
-                                     grouped_prototypes['0_' + core_name])) 
+        refined_ind = np.concatenate([
+                get_dist_vals('0_', core_name, '0_', core_name, refined=True),
+                get_dist_vals('1_', core_name, '1_', core_name, refined=True)
+                ])
+    
+        neutral_sp = np.concatenate([
+                get_dist_vals('0_', core_name, '1_', core_name),
+                get_dist_vals('1_', core_name, '0_', core_name)
+                ])
 
-        refined_id = np.mean(calc_cos_dist(refined_grouped_embs['1_' + core_name],
-                             refined_grouped_prototypes['1_' + core_name])) \
-                + np.mean(calc_cos_dist(refined_grouped_embs['0_' + core_name],
-                                     refined_grouped_prototypes['0_' + core_name])) 
+        refined_sp = np.concatenate([
+                get_dist_vals('0_', core_name, '1_', core_name, refined=True),
+                get_dist_vals('1_', core_name, '0_', core_name, refined=True)
+                ])
+
+    
                 
-        neutral_sp = np.mean(calc_cos_dist(grouped_embs['1_' + core_name],
-                             grouped_prototypes['0_' + core_name])) \
-                + np.mean(calc_cos_dist(grouped_embs['1_' + core_name],
-                                     grouped_prototypes['0_' + core_name])) 
+        neutral_th = find_thresh_val(np.concatenate([neutral_ind, neutral_sp]))
+        neutral_err = neutral_ood[neutral_ood < neutral_th].shape[0] / neutral_ood.shape[0]
 
-        refined_sp = np.mean(calc_cos_dist(refined_grouped_embs['1_' + core_name],
-                             refined_grouped_prototypes['0_' + core_name])) \
-                + np.mean(calc_cos_dist(refined_grouped_embs['1_' + core_name],
-                                     refined_grouped_prototypes['0_' + core_name])) 
-
-
-        # print(neutral_ood, refined_ood)
-        # print(neutral_id, refined_id)
-        # print(neutral_sp, refined_sp)
+        refined_th = find_thresh_val(np.concatenate([refined_ind, refined_sp]))
+        refined_err = refined_ood[refined_ood < refined_th].shape[0] / refined_ood.shape[0]
         
-        print(neutral_id / neutral_ood, neutral_sp / neutral_ood)
-        print(refined_id / refined_ood, refined_sp / refined_ood)
+        print('neutral:', neutral_err,
+              np.mean(neutral_ind) / np.mean(neutral_ood),
+              np.mean(neutral_sp) / np.mean(neutral_ood))
+        
+        print('refined:', refined_err,
+              np.mean(np.mean(refined_ind)) / np.mean(np.mean(refined_ood)),
+              np.mean(refined_sp) / np.mean(refined_ood))
         
         print('***********************')
         
