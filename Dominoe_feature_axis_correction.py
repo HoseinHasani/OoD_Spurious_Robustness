@@ -10,15 +10,33 @@ warnings.filterwarnings("ignore")
 seed = 8
 np.random.seed(seed)
 
+samples4prototype = 5
 
 grouped_embs0 = np.load('Dominoes_grouped_embs.npy', allow_pickle=True).item()
     
 def normalize(x):
     return x / np.linalg.norm(x, axis=-1, keepdims=True)
 
+def get_prototypes(embeddings, n_data=None):
+    
+    n = len(embeddings)
+    
+    if n_data is None:
+        inds = np.arange(n)
+    else:
+        assert n_data < n
+        inds = np.random.choice(n, n_data, replace=False)
+    
+    prototype = embeddings[inds].mean(axis=0, keepdims=True)
+    
+    return prototype
+
+
 grouped_embs = {name: normalize(grouped_embs0[name]) for name in grouped_embs0.keys()}
     
-grouped_prototypes = {group: embs.mean(axis=0, keepdims=True) for group, embs in grouped_embs.items()}
+grouped_prototypes = {group: get_prototypes(embs, samples4prototype)\
+                      for group, embs in grouped_embs.items()}
+
 all_embs = np.concatenate(list(grouped_embs.values()))
 all_prototypes = np.concatenate(list(grouped_prototypes.values()))
 group_names = list(grouped_embs.keys())
@@ -66,7 +84,8 @@ for key in grouped_embs.keys():
     corrupted_grouped_embs[key] = refine_embs(grouped_embs[key], core_ax1, core_ax2, sp_ax1, sp_ax2)
 
 
-refined_grouped_prototypes = {group: embs.mean(axis=0, keepdims=True) for group, embs in refined_grouped_embs.items()}
+refined_grouped_prototypes = {group: get_prototypes(embs, samples4prototype)\
+                              for group, embs in refined_grouped_embs.items()}
 
 
 ##############################################################
@@ -182,7 +201,8 @@ def calc_cos_dist(embs, prototypes):
     return dist
 
 
-grouped_cos_dist = {group: calc_cos_dist(embs, refined_grouped_prototypes[group]) for group, embs in refined_grouped_embs.items()}
+grouped_cos_dist = {group: calc_cos_dist(embs, refined_grouped_prototypes[group])\
+                    for group, embs in refined_grouped_embs.items()}
 
 ood_class_names = ['ship', 'truck']
 selected_groups_names = ['0_airplane', '0_car', '1_airplane', '1_car']
