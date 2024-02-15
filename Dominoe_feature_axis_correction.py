@@ -28,10 +28,16 @@ group_names = list(grouped_embs.keys())
 
 
 
-sp_ax1 = normalize(grouped_prototypes['1_airplane'] - grouped_prototypes['0_airplane'])
-sp_ax2 = normalize(grouped_prototypes['1_car'] - grouped_prototypes['0_car'])
-core_ax1 = normalize(grouped_prototypes['1_car'] - grouped_prototypes['1_airplane'])
-core_ax2 = normalize(grouped_prototypes['0_car'] - grouped_prototypes['0_airplane'])
+#sp_ax1 = normalize(grouped_prototypes['1_airplane'] - grouped_prototypes['0_airplane'])
+#sp_ax2 = normalize(grouped_prototypes['1_car'] - grouped_prototypes['0_car'])
+#core_ax1 = normalize(grouped_prototypes['1_car'] - grouped_prototypes['1_airplane'])
+#core_ax2 = normalize(grouped_prototypes['0_car'] - grouped_prototypes['0_airplane'])
+
+sp_ax1 = normalize(normalize(grouped_prototypes['1_airplane']) + normalize(grouped_prototypes['1_car']))
+sp_ax2 = normalize(normalize(grouped_prototypes['0_airplane']) + normalize(grouped_prototypes['0_car']))
+core_ax1 = normalize(normalize(grouped_prototypes['0_airplane']) + normalize(grouped_prototypes['1_airplane']))
+core_ax2 = normalize(normalize(grouped_prototypes['0_car']) + normalize(grouped_prototypes['1_car']))
+
 
 
 def refine_embs(embs, sp1, sp2, cr1, cr2):

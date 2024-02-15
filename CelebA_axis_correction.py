@@ -32,10 +32,16 @@ group_names = list(grouped_embs.keys())
 
 
 
-sp_ax1 = normalize(grouped_prototypes['woman_black'] - grouped_prototypes['man_black'])
-sp_ax2 = normalize(grouped_prototypes['woman_blond'] - grouped_prototypes['man_blond'])
-core_ax1 = normalize(grouped_prototypes['woman_blond'] - grouped_prototypes['woman_black'])
-core_ax2 = normalize(grouped_prototypes['man_blond'] - grouped_prototypes['man_black'])
+#sp_ax1 = normalize(grouped_prototypes['woman_black'] - grouped_prototypes['man_black'])
+#sp_ax2 = normalize(grouped_prototypes['woman_blond'] - grouped_prototypes['man_blond'])
+#core_ax1 = normalize(grouped_prototypes['woman_blond'] - grouped_prototypes['woman_black'])
+#core_ax2 = normalize(grouped_prototypes['man_blond'] - grouped_prototypes['man_black'])
+
+sp_ax1 = normalize(normalize(grouped_prototypes['woman_black']) + normalize(grouped_prototypes['woman_blond']))
+sp_ax2 = normalize(normalize(grouped_prototypes['man_black']) + normalize(grouped_prototypes['man_blond']))
+core_ax1 = normalize(normalize(grouped_prototypes['woman_blond']) + normalize(grouped_prototypes['man_blond']))
+core_ax2 = normalize(normalize(grouped_prototypes['woman_black']) + normalize(grouped_prototypes['man_black']))
+
 
 
 def refine_embs(embs, sp1, sp2, cr1, cr2):
