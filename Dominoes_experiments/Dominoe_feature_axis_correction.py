@@ -5,14 +5,17 @@ import seaborn as sns
 import os
 import warnings
 warnings.filterwarnings("ignore")
-
+sns.set_context("paper", font_scale=1.4)     
 
 seed = 8
 np.random.seed(seed)
 
-samples4prototype = 5
+samples4prototype = 500
 
-filter_ood = True
+filter_ood = False
+
+core_class_names = ['airplane', 'automobile']
+ood_class_names = ['ship', 'ship']
 
 grouped_embs0 = np.load('Dominoes_grouped_embs.npy', allow_pickle=True).item()
     
@@ -26,7 +29,7 @@ def get_prototypes(embeddings, n_data=None):
     if n_data is None:
         inds = np.arange(n)
     else:
-        assert n_data < n
+        assert n_data <= n
         inds = np.random.choice(n, n_data, replace=False)
     
     prototype = embeddings[inds].mean(axis=0, keepdims=True)
@@ -48,18 +51,18 @@ group_names = list(grouped_embs.keys())
 
 
 
-#sp_ax1 = normalize(grouped_prototypes['1_airplane'] - grouped_prototypes['0_airplane'])
-#sp_ax2 = normalize(grouped_prototypes['1_car'] - grouped_prototypes['0_car'])
-#core_ax1 = normalize(grouped_prototypes['1_car'] - grouped_prototypes['1_airplane'])
-#core_ax2 = normalize(grouped_prototypes['0_car'] - grouped_prototypes['0_airplane'])
+#sp_ax1 = normalize(grouped_prototypes[f'1_{core_class_names[0]}'] - grouped_prototypes[f'0_{core_class_names[0]}'])
+#sp_ax2 = normalize(grouped_prototypes[f'1_{core_class_names[1]}'] - grouped_prototypes[f'0_{core_class_names[1]}'])
+#core_ax1 = normalize(grouped_prototypes[f'1_{core_class_names[1]}'] - grouped_prototypes[f'1_{core_class_names[0]}'])
+#core_ax2 = normalize(grouped_prototypes[f'0_{core_class_names[1]}'] - grouped_prototypes[f'0_{core_class_names[0]}'])
 
-sp_ax1 = normalize(normalize(grouped_prototypes['1_airplane']) + normalize(grouped_prototypes['1_car']))
-sp_ax2 = normalize(normalize(grouped_prototypes['0_airplane']) + normalize(grouped_prototypes['0_car']))
-core_ax1 = normalize(normalize(grouped_prototypes['0_airplane']) + normalize(grouped_prototypes['1_airplane']))
-core_ax2 = normalize(normalize(grouped_prototypes['0_car']) + normalize(grouped_prototypes['1_car']))
+sp_ax1 = normalize(normalize(grouped_prototypes[f'1_{core_class_names[0]}']) + normalize(grouped_prototypes[f'1_{core_class_names[1]}']))
+sp_ax2 = normalize(normalize(grouped_prototypes[f'0_{core_class_names[0]}']) + normalize(grouped_prototypes[f'0_{core_class_names[1]}']))
+core_ax1 = normalize(normalize(grouped_prototypes[f'0_{core_class_names[0]}']) + normalize(grouped_prototypes[f'1_{core_class_names[0]}']))
+core_ax2 = normalize(normalize(grouped_prototypes[f'0_{core_class_names[1]}']) + normalize(grouped_prototypes[f'1_{core_class_names[1]}']))
 
-ood_ax1 = normalize(normalize(grouped_prototypes['0_ship']) + normalize(grouped_prototypes['1_ship']))
-ood_ax2 = normalize(normalize(grouped_prototypes['0_truck']) + normalize(grouped_prototypes['1_truck']))
+ood_ax1 = normalize(normalize(grouped_prototypes[f'0_{ood_class_names[0]}']) + normalize(grouped_prototypes[f'1_{ood_class_names[0]}']))
+ood_ax2 = normalize(normalize(grouped_prototypes[f'0_{ood_class_names[1]}']) + normalize(grouped_prototypes[f'1_{ood_class_names[1]}']))
 
 
 
@@ -137,73 +140,73 @@ def prepare_data(embs_dict, names_0, names_1, len_g, inds=None):
 
 print('Neutral version:')
 
-x_train, y_train = prepare_data(grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 300, np.arange(300))
+x_train, y_train = prepare_data(grouped_embs, [f'0_{core_class_names[0]}', f'0_{core_class_names[1]}'], [f'1_{core_class_names[0]}', f'1_{core_class_names[1]}'], 300, np.arange(300))
 clf = LogisticRegression()
 clf.fit(x_train, y_train)
 
-x_eval, y_eval = prepare_data(grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 300, np.arange(-300,0))
+x_eval, y_eval = prepare_data(grouped_embs, [f'0_{core_class_names[0]}', f'0_{core_class_names[1]}'], [f'1_{core_class_names[0]}', f'1_{core_class_names[1]}'], 300, np.arange(-300,0))
 preds = clf.predict(x_eval)
 eval_acc = 100 * (preds == y_eval).mean()
 
 print('ZERO / ONE ACC:', eval_acc)
 
-x_train, y_train = prepare_data(grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 300, np.arange(300))
+x_train, y_train = prepare_data(grouped_embs, [f'0_{core_class_names[0]}', f'1_{core_class_names[0]}'], [f'0_{core_class_names[1]}', f'1_{core_class_names[1]}'], 300, np.arange(300))
 clf = LogisticRegression()
 clf.fit(x_train, y_train)
 
-x_eval, y_eval = prepare_data(grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 300, np.arange(-300,0))
+x_eval, y_eval = prepare_data(grouped_embs, [f'0_{core_class_names[0]}', f'1_{core_class_names[0]}'], [f'0_{core_class_names[1]}', f'1_{core_class_names[1]}'], 300, np.arange(-300,0))
 preds = clf.predict(x_eval)
 eval_acc = 100 * (preds == y_eval).mean()
 
-print('AIRPLANE / CAR ACC:', eval_acc)
+print('{core_class_names[0]} / {core_class_names[1]} ACC:', eval_acc)
 
 
 ##############################################################
 
 print('Refined version:')
 
-x_train, y_train = prepare_data(grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 300, np.arange(300))
+x_train, y_train = prepare_data(grouped_embs, [f'0_{core_class_names[0]}', f'0_{core_class_names[1]}'], [f'1_{core_class_names[0]}', f'1_{core_class_names[1]}'], 300, np.arange(300))
 clf = LogisticRegression()
 clf.fit(x_train, y_train)
 
-x_eval, y_eval = prepare_data(refined_grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 300, np.arange(-300,0))
+x_eval, y_eval = prepare_data(refined_grouped_embs, [f'0_{core_class_names[0]}', f'0_{core_class_names[1]}'], [f'1_{core_class_names[0]}', f'1_{core_class_names[1]}'], 300, np.arange(-300,0))
 preds = clf.predict(x_eval)
 eval_acc = 100 * (preds == y_eval).mean()
 
 print('ZERO / ONE ACC:', eval_acc)
 
-x_train, y_train = prepare_data(grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 300, np.arange(300))
+x_train, y_train = prepare_data(grouped_embs, [f'0_{core_class_names[0]}', f'1_{core_class_names[0]}'], [f'0_{core_class_names[1]}', f'1_{core_class_names[1]}'], 300, np.arange(300))
 clf = LogisticRegression()
 clf.fit(x_train, y_train)
 
-x_eval, y_eval = prepare_data(refined_grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 300, np.arange(-300,0))
+x_eval, y_eval = prepare_data(refined_grouped_embs, [f'0_{core_class_names[0]}', f'1_{core_class_names[0]}'], [f'0_{core_class_names[1]}', f'1_{core_class_names[1]}'], 300, np.arange(-300,0))
 preds = clf.predict(x_eval)
 eval_acc = 100 * (preds == y_eval).mean()
 
-print('AIRPLANE / CAR ACC:', eval_acc)
+print('{core_class_names[0]} / {core_class_names[1]} ACC:', eval_acc)
 
 ##############################################################
 print('Corrupted version:')
 
-x_train, y_train = prepare_data(grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 300, np.arange(300))
+x_train, y_train = prepare_data(grouped_embs, [f'0_{core_class_names[0]}', f'0_{core_class_names[1]}'], [f'1_{core_class_names[0]}', f'1_{core_class_names[1]}'], 300, np.arange(300))
 clf = LogisticRegression()
 clf.fit(x_train, y_train)
 
-x_eval, y_eval = prepare_data(corrupted_grouped_embs, ['0_airplane', '0_car'], ['1_airplane', '1_car'], 300, np.arange(-300,0))
+x_eval, y_eval = prepare_data(corrupted_grouped_embs, [f'0_{core_class_names[0]}', f'0_{core_class_names[1]}'], [f'1_{core_class_names[0]}', f'1_{core_class_names[1]}'], 300, np.arange(-300,0))
 preds = clf.predict(x_eval)
 eval_acc = 100 * (preds == y_eval).mean()
 
 print('ZERO / ONE ACC:', eval_acc)
 
-x_train, y_train = prepare_data(grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 300, np.arange(300))
+x_train, y_train = prepare_data(grouped_embs, [f'0_{core_class_names[0]}', f'1_{core_class_names[0]}'], [f'0_{core_class_names[1]}', f'1_{core_class_names[1]}'], 300, np.arange(300))
 clf = LogisticRegression()
 clf.fit(x_train, y_train)
 
-x_eval, y_eval = prepare_data(corrupted_grouped_embs, ['0_airplane', '1_airplane'], ['0_car', '1_car'], 300, np.arange(-300,0))
+x_eval, y_eval = prepare_data(corrupted_grouped_embs, [f'0_{core_class_names[0]}', f'1_{core_class_names[0]}'], [f'0_{core_class_names[1]}', f'1_{core_class_names[1]}'], 300, np.arange(-300,0))
 preds = clf.predict(x_eval)
 eval_acc = 100 * (preds == y_eval).mean()
 
-print('AIRPLANE / CAR ACC:', eval_acc)
+print('{core_class_names[0]} / {core_class_names[1]} ACC:', eval_acc)
 
 ##############################################################
 print()
@@ -220,36 +223,34 @@ def calc_cos_dist(embs, prototypes):
 grouped_cos_dist = {group: calc_cos_dist(embs, refined_grouped_prototypes[group])\
                     for group, embs in refined_grouped_embs.items()}
 
-ood_class_names = ['ship', 'truck']
-selected_groups_names = ['0_airplane', '0_car', '1_airplane', '1_car']
+selected_groups_names = [f'0_{core_class_names[0]}', f'0_{core_class_names[1]}', f'1_{core_class_names[0]}', f'1_{core_class_names[1]}']
 selected_grouped_embs = {name: refined_grouped_embs[name] for name in selected_groups_names}
     
 fig, axes = plt.subplots(2, 2, figsize=(10, 10))
 axes = axes.flatten()
 for group, ax in zip([group for group in selected_grouped_embs], axes):
-    sns.histplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax, element='step', fill=False)
+    sns.histplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax, element='step', linewidth=2.5, fill=False)
     sp_name = group[:2]
     ood_embs = np.concatenate([refined_grouped_embs[sp_name + class_name] for class_name in ood_class_names])
-    sns.histplot(calc_cos_dist(ood_embs, refined_grouped_prototypes[group]), label='ood', ax=ax, element='step', fill=False)
+    sns.histplot(calc_cos_dist(ood_embs, refined_grouped_prototypes[group]), label='ood', ax=ax, element='step', linewidth=2.5, fill=False)
     ax.legend()
-    ax.set_title(group)
+    ax.set_title(group, fontsize=17)
     
     
 grouped_cos_dist = {group: calc_cos_dist(embs, grouped_prototypes[group]) for group, embs in grouped_embs.items()}
 
-ood_class_names = ['ship', 'truck']
-selected_groups_names = ['0_airplane', '0_car', '1_airplane', '1_car']
+selected_groups_names = [f'0_{core_class_names[0]}', f'0_{core_class_names[1]}', f'1_{core_class_names[0]}', f'1_{core_class_names[1]}']
 selected_grouped_embs = {name: grouped_embs[name] for name in selected_groups_names}
     
 fig, axes = plt.subplots(2, 2, figsize=(10, 10))
 axes = axes.flatten()
 for group, ax in zip([group for group in selected_grouped_embs], axes):
-    sns.histplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax, element='step', fill=False)
+    sns.histplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax, element='step', linewidth=2.5, fill=False)
     sp_name = group[:2]
     ood_embs = np.concatenate([grouped_embs[sp_name + class_name] for class_name in ood_class_names])
-    sns.histplot(calc_cos_dist(ood_embs, grouped_prototypes[group]), label='ood', ax=ax, element='step', fill=False)
+    sns.histplot(calc_cos_dist(ood_embs, grouped_prototypes[group]), label=f'ood', ax=ax, element='step', linewidth=2.5, fill=False)
     ax.legend()
-    ax.set_title(group)
+    ax.set_title(group, fontsize=17)
     
 def get_dist_vals(emb_name1, emb_name2, pr_name1, pr_name2, refined=False):
     
@@ -270,8 +271,8 @@ def find_thresh_val(main_vals, th=0.95):
     return thresh
     
     
-for ood_name in ['truck', 'ship']:
-    for core_name in ['car', 'airplane']:
+for ood_name in ood_class_names:
+    for core_name in core_class_names:
         print(f'core name: {core_name}, ood name: {ood_name}')
 
         neutral_ood = np.concatenate([
