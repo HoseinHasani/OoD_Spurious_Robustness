@@ -1,9 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import auc
 import seaborn as sns
 import os
 import warnings
+
 warnings.filterwarnings("ignore")
 sns.set_context("paper", font_scale=1.4)     
 
@@ -15,7 +17,7 @@ samples4prototype = 500
 filter_ood = False
 
 core_class_names = ['airplane', 'automobile']
-ood_class_names = ['ship', 'ship']
+ood_class_names = ['truck', 'truck']
 
 grouped_embs0 = np.load('Dominoes_grouped_embs.npy', allow_pickle=True).item()
     
@@ -270,6 +272,7 @@ def find_thresh_val(main_vals, th=0.95):
     thresh = np.sort(main_vals)[int(th * len(main_vals))]
     return thresh
     
+
     
 for ood_name in ood_class_names:
     for core_name in core_class_names:
@@ -306,11 +309,14 @@ for ood_name in ood_class_names:
                 ])
 
     
+        neutral_main = np.concatenate([neutral_ind, neutral_sp])
                 
-        neutral_th = find_thresh_val(np.concatenate([neutral_ind, neutral_sp]))
+        neutral_th = find_thresh_val(neutral_main)
         neutral_err = neutral_ood[neutral_ood < neutral_th].shape[0] / neutral_ood.shape[0]
 
-        refined_th = find_thresh_val(np.concatenate([refined_ind, refined_sp]))
+        refined_main = np.concatenate([refined_ind, refined_sp])
+        
+        refined_th = find_thresh_val(refined_main)
         refined_err = refined_ood[refined_ood < refined_th].shape[0] / refined_ood.shape[0]
         
         print('neutral:', 100 * neutral_err,
@@ -323,4 +329,47 @@ for ood_name in ood_class_names:
         
         print('***********************')
         
+        
+        thresholds = [th for th in np.arange(1, 100) / 100]
+        
+        n_fps = [0]
+        n_tps = [0]
+        
+        r_fps = [0]
+        r_tps = [0]
+        
+        for th in thresholds:
+            
+            neutral_th = find_thresh_val(np.concatenate([neutral_ind, neutral_sp]), th)
+            
+            neutral_fp = neutral_ood[neutral_ood < neutral_th].shape[0] / neutral_ood.shape[0]
+            neutral_tp = neutral_main[neutral_main < neutral_th].shape[0] / neutral_main.shape[0]
+            
+            n_fps.append(neutral_fp)
+            n_tps.append(neutral_tp)
+
+            refined_th = find_thresh_val(np.concatenate([refined_ind, refined_sp]), th)
+            
+            refined_fp = refined_ood[refined_ood < refined_th].shape[0] / refined_ood.shape[0]
+            refined_tp = refined_main[refined_main < refined_th].shape[0] / refined_main.shape[0]
+            
+            r_fps.append(refined_fp)
+            r_tps.append(refined_tp)
+                    
+        n_fps.append(1)
+        n_tps.append(1)
+        r_fps.append(1)
+        r_tps.append(1)
+        
+        n_auc = np.round(auc(n_fps, n_tps), 3)
+        r_auc = np.round(auc(r_fps, r_tps), 3)
+        
+        plt.figure()
+        plt.plot(n_fps, n_tps, label=f'before refinement, area={n_auc}', linewidth=2)
+        plt.plot(r_fps, r_tps, label=f'after refinement, area={r_auc}', linewidth=2)
+        plt.xlabel('FPR')
+        plt.ylabel('TPR')
+        plt.ylim([0.55, 1.001])
+        plt.legend()
+        plt.title(f'ROC ({core_name})', fontsize=17)
         
