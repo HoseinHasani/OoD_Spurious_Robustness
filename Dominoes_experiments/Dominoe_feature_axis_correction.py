@@ -17,7 +17,7 @@ samples4prototype = 500
 filter_ood = False
 
 core_class_names = ['airplane', 'automobile']
-ood_class_names = ['truck', 'truck']
+ood_class_names = ['ship', 'ship']
 
 grouped_embs0 = np.load('Dominoes_grouped_embs.npy', allow_pickle=True).item()
     
@@ -72,20 +72,26 @@ ood_ax2 = normalize(normalize(grouped_prototypes[f'0_{ood_class_names[1]}']) + n
 def refine_embs(embs, sp1, sp2, cr1, cr2):
     #core = embs * core_ax_normal[None]
     embs = normalize(embs)
-    sp_coefs1 = np.dot(embs, sp1.squeeze())
-    sp_coefs2 = np.dot(embs, sp2.squeeze())
+    #sp_coefs1 = np.dot(embs, sp1.squeeze())
+    #sp_coefs2 = np.dot(embs, sp2.squeeze())
 
     cr_coefs1 = np.dot(embs, cr1.squeeze())
     cr_coefs2 = np.dot(embs, cr2.squeeze())
     
     #refined = embs.copy()
-    refined = cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0) - sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
-    refined += cr_coefs2[:, None] * np.repeat(cr2, embs.shape[0], axis=0) - sp_coefs2[:, None] * np.repeat(sp2, embs.shape[0], axis=0)
+    refined = cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
+    refined += cr_coefs2[:, None] * np.repeat(cr2, embs.shape[0], axis=0)
+
+    sp_coefs1 = np.dot(refined, sp1.squeeze())
+    sp_coefs2 = np.dot(refined, sp2.squeeze())
+    
+    refined -= sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
+    refined -= sp_coefs2[:, None] * np.repeat(sp2, embs.shape[0], axis=0)
     
     if filter_ood:
         
-        ood_coefs1 = np.dot(embs, ood_ax1.squeeze())
-        ood_coefs2 = np.dot(embs, ood_ax2.squeeze())
+        ood_coefs1 = np.dot(refined, ood_ax1.squeeze())
+        ood_coefs2 = np.dot(refined, ood_ax2.squeeze())
         refined -= ood_coefs1[:, None] * np.repeat(ood_ax1, embs.shape[0], axis=0)
         refined -= ood_coefs2[:, None] * np.repeat(ood_ax2, embs.shape[0], axis=0)
         refined += cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
