@@ -12,6 +12,9 @@ N_samples = 4 # number of samples per group
 tsne_perplexity = int(N_groups * N_samples * 0.5)
 
 group_names = ['c11', 'c12', 'c21', 'c22', 'o1', 'o2']
+final_names = ['man_black', 'woman_black',
+               'man_blond', 'woman_blond',
+               'man_bald', 'woman_bald']
 
 result_path = 'results/DINO_pics/'
 image_path = 'face_toy_dataset/'
@@ -39,7 +42,8 @@ prototype_list = []
 
 ### Extract DINO embeddings: ####
 
-for name in group_names:
+grouped_embs = {}
+for i, name in enumerate(group_names):
     
     imgs = [transform(Image.open(image_path + name + f' ({k + 1}).jpg')) for k in range(N_samples)]
     with torch.no_grad():
@@ -48,7 +52,9 @@ for name in group_names:
     image_list.append(imgs)
     embs_list.append(np.array(embs))
     prototype_list.append(np.mean(embs, 0)[None])
-
+    grouped_embs[final_names[i]] = np.array(embs)
+    
+np.save('face_embs', grouped_embs)
 
 ### Euclidean distance ####
 
@@ -98,6 +104,6 @@ all_embs = np.concatenate([embs_normalized, protos_normalized])
 tsne = TSNE(n_components=2, learning_rate='auto', init='pca', perplexity=tsne_perplexity)
 tsne_embs = tsne.fit_transform(all_embs)
 
-utils.plot_tsne(tsne_embs, group_names, N_groups, N_samples, 'DINO t-SNE Embeddings', result_path)
+utils.plot_tsne(tsne_embs, final_names, N_groups, N_samples, 'DINO t-SNE Embeddings', result_path)
 
 
