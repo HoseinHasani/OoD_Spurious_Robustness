@@ -10,7 +10,7 @@ import pickle
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-n_g = 500
+n_g = 400
 
 dataset_path = 'datasets'
 
@@ -19,8 +19,8 @@ test_cifar = CIFAR10(dataset_path, train=False, download=True)
 train_mnist = MNIST(dataset_path, train=True, download=True)
 test_mnist = MNIST(dataset_path, train=False, download=True)
 
-mnist_classes = [0, 1]
-cifar_classes = np.arange(10)
+mnist_classes = np.arange(10)
+cifar_classes = np.arange(10) 
 
 cifar_class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer',
                      'dog', 'frog', 'horse', 'ship', 'truck']
