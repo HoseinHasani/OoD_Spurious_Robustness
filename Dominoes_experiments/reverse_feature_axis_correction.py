@@ -18,7 +18,7 @@ filter_ood = False
 
 core_class_names = ['0', '1']
 ood_class_names = ['2', '3']
-sp_class_names = ['ship', 'truck']
+sp_class_names = ['truck', 'frog']
 
 grouped_embs0 = np.load('Dominoes_grouped_embs.npy', allow_pickle=True).item()
     
@@ -54,12 +54,6 @@ group_names = list(grouped_embs.keys())
 
 
 
-#sp_ax1 = normalize(grouped_prototypes[f'1_{core_class_names[0]}'] - grouped_prototypes[f'0_{core_class_names[0]}'])
-#sp_ax2 = normalize(grouped_prototypes[f'1_{core_class_names[1]}'] - grouped_prototypes[f'0_{core_class_names[1]}'])
-#core_ax1 = normalize(grouped_prototypes[f'1_{core_class_names[1]}'] - grouped_prototypes[f'1_{core_class_names[0]}'])
-#core_ax2 = normalize(grouped_prototypes[f'0_{core_class_names[1]}'] - grouped_prototypes[f'0_{core_class_names[0]}'])
-
-
 sp_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
                    + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}']))
 
@@ -74,6 +68,14 @@ core_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_cl
                    + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}']))
 
 
+ood_ax1 = normalize(normalize(grouped_prototypes[f'{ood_class_names[0]}_{sp_class_names[0]}'])\
+                   + normalize(grouped_prototypes[f'{ood_class_names[0]}_{sp_class_names[1]}']))
+
+    
+ood_ax2 = normalize(normalize(grouped_prototypes[f'{ood_class_names[1]}_{sp_class_names[0]}'])\
+                   + normalize(grouped_prototypes[f'{ood_class_names[1]}_{sp_class_names[1]}']))
+
+    
 def refine_embs(embs, sp1, sp2, cr1, cr2):
     #core = embs * core_ax_normal[None]
     embs = normalize(embs)
@@ -239,7 +241,7 @@ grouped_cos_dist = {group: calc_cos_dist(embs, refined_grouped_prototypes[group]
 selected_groups_names = []
 for i in range(2):
   for j in range(2):
-    selected_group_names = [f'{core_class_names[i]}_{sp_class_names[j]}']
+    selected_groups_names.append(f'{core_class_names[i]}_{sp_class_names[j]}')
 selected_grouped_embs = {name: refined_grouped_embs[name] for name in selected_groups_names}
     
 fig, axes = plt.subplots(2, 2, figsize=(10, 10))
@@ -265,7 +267,7 @@ for group, ax in zip([group for group in selected_grouped_embs], axes):
     loc = group.find('_')
     sp_name = group[loc + 1:]
     ood_embs = np.concatenate([grouped_embs[class_name + '_' + sp_name] for class_name in ood_class_names])
-    sns.histplot(calc_cos_dist(ood_embs, grouped_prototypes[group]), label=f'ood', ax=ax, element='step', linewidth=2.5, fill=False)
+    sns.histplot(calc_cos_dist(ood_embs, grouped_prototypes[group]), label='ood', ax=ax, element='step', linewidth=2.5, fill=False)
     ax.legend()
     ax.set_title(group, fontsize=17)
     
@@ -278,8 +280,8 @@ def get_dist_vals(emb_name1, emb_name2, pr_name1, pr_name2, refined=False):
         embs = grouped_embs
         protos = grouped_prototypes
         
-    dist_vals = calc_cos_dist(embs[emb_name1 + emb_name2],
-                              protos[pr_name1 + pr_name2])
+    dist_vals = calc_cos_dist(embs[emb_name1 + '_' + emb_name2],
+                              protos[pr_name1 + '_' + pr_name2])
     return dist_vals
     
 
@@ -294,33 +296,33 @@ for ood_name in ood_class_names:
         print(f'core name: {core_name}, ood name: {ood_name}')
 
         neutral_ood = np.concatenate([
-                get_dist_vals('0_', ood_name, '0_', core_name),
-                get_dist_vals('1_', ood_name, '1_', core_name)
+                get_dist_vals(ood_name, sp_class_names[0], core_name, sp_class_names[0]),
+                get_dist_vals(ood_name, sp_class_names[1], core_name, sp_class_names[1])
                 ])
 
         refined_ood = np.concatenate([
-                get_dist_vals('0_', ood_name, '0_', core_name, refined=True),
-                get_dist_vals('1_', ood_name, '1_', core_name, refined=True)
+                get_dist_vals(ood_name, sp_class_names[0], core_name, sp_class_names[0], refined=True),
+                get_dist_vals(ood_name, sp_class_names[1], core_name, sp_class_names[1], refined=True)
                 ])
     
         neutral_ind = np.concatenate([
-                get_dist_vals('0_', core_name, '0_', core_name),
-                get_dist_vals('1_', core_name, '1_', core_name)
+                get_dist_vals(core_name, sp_class_names[0], core_name, sp_class_names[0]),
+                get_dist_vals(core_name, sp_class_names[1], core_name, sp_class_names[1])
                 ])
 
         refined_ind = np.concatenate([
-                get_dist_vals('0_', core_name, '0_', core_name, refined=True),
-                get_dist_vals('1_', core_name, '1_', core_name, refined=True)
+                get_dist_vals(core_name, sp_class_names[0], core_name, sp_class_names[0], refined=True),
+                get_dist_vals(core_name, sp_class_names[1], core_name, sp_class_names[1], refined=True)
                 ])
     
         neutral_sp = np.concatenate([
-                get_dist_vals('0_', core_name, '1_', core_name),
-                get_dist_vals('1_', core_name, '0_', core_name)
+                get_dist_vals(core_name, sp_class_names[0], core_name, sp_class_names[1]),
+                get_dist_vals(core_name, sp_class_names[1], core_name, sp_class_names[0])
                 ])
 
         refined_sp = np.concatenate([
-                get_dist_vals('0_', core_name, '1_', core_name, refined=True),
-                get_dist_vals('1_', core_name, '0_', core_name, refined=True)
+                get_dist_vals(core_name, sp_class_names[0], core_name, sp_class_names[1], refined=True),
+                get_dist_vals(core_name, sp_class_names[1], core_name, sp_class_names[0], refined=True)
                 ])
 
     
@@ -384,7 +386,7 @@ for ood_name in ood_class_names:
         plt.plot(r_fps, r_tps, label=f'after refinement, area={r_auc}', linewidth=2)
         plt.xlabel('FPR')
         plt.ylabel('TPR')
-        plt.ylim([0.55, 1.001])
+        #plt.ylim([0.55, 1.001])
         plt.legend()
         plt.title(f'ROC ({core_name})', fontsize=17)
         
