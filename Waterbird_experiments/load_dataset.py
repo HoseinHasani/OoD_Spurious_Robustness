@@ -4,7 +4,7 @@ import torch
 from PIL import Image
 from torchvision import transforms
 import pandas as pd
-
+import tqdm
 
 dataset_path = 'waterbird/'
 emb_path = 'waterbird_embs/'
@@ -26,14 +26,15 @@ model_dino = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitl14')
 model_dino.eval()
 
 def center_pad(img, target_size):
-    width, height = img.size
-    left_pad = max(0, (target_size - width) // 2)
-    right_pad = max(0, target_size - width - left_pad)
-    top_pad = max(0, (target_size - height) // 2)
-    bottom_pad = max(0, target_size - height - top_pad)
+    _, height, width = img.shape
+    larger_shape = max(width, height)
+    
+    w_pad = (larger_shape - width) // 2
+    h_pad = (larger_shape - height) // 2
 
-    return transforms.functional.pad(img, (left_pad, top_pad, right_pad, bottom_pad),
-                                     fill=111, padding_mode='constant')
+    padded = transforms.functional.pad(img, (w_pad, h_pad, w_pad, h_pad),
+                                     fill=0, padding_mode='constant')
+    return padded
 
 
 model_dino = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitl14')
@@ -44,21 +45,22 @@ model_dino.to(device)
 
 transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Resize((224,224)),
         transforms.Lambda(lambda img: center_pad(img, 224)),
+        transforms.Resize((224,224)),
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         ])
 
 emb_dict = {}
 
-for i in range(len(file_names)):
+for i in tqdm.tqdm(range(len(file_names))):
     name = f'{labels[i]}_{places[i]}_{splits[i]}'
     image_path = dataset_path + file_names[i]
-    image = Image.open(image_path)
-    transformed_image = transform(image)
-    emb = model_dino(transformed_image.unsqueeze(0).to(device)).squeeze().cpu().numpy()
-    emb_dict[name] = emb
-    np.save(emb_path + name + '.npy', emb)
+    with torch.no_grad():
+        image = Image.open(image_path)
+        image_tensor = transform(image)
+        emb = model_dino(image_tensor.unsqueeze(0).to(device)).squeeze().cpu().numpy()
+        emb_dict[name] = emb
+        np.save(emb_path + name + '.npy', emb)
     
 np.save('waterbird_embs.npy', emb_dict)
 
