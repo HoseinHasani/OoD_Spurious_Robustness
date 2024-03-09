@@ -14,6 +14,7 @@ os.makedirs(emb_path, exist_ok=True)
 
 metadata = pd.read_csv(dataset_path + 'metadata.csv')
 
+img_ids = metadata['img_id'].tolist()
 file_names = metadata['img_filename'].tolist()
 labels = metadata['y'].tolist()
 splits = metadata['split'].tolist()
@@ -53,7 +54,7 @@ transform = transforms.Compose([
 emb_dict = {}
 
 for i in tqdm.tqdm(range(len(file_names))):
-    name = f'{labels[i]}_{places[i]}_{splits[i]}'
+    name = f'{labels[i]}_{places[i]}_{splits[i]}_{img_ids[i]}'
     image_path = dataset_path + file_names[i]
     with torch.no_grad():
         image = Image.open(image_path)
