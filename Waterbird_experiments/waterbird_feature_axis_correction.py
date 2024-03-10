@@ -14,11 +14,7 @@ np.random.seed(seed)
 
 samples4prototype = 400
 
-filter_ood = False
-
-core_class_names = ['0', '1']
-ood_class_names = ['2', '3']
-sp_class_names = ['truck', 'frog']
+filter_ood = True
 
 
 core_class_names = ['0', '1']
@@ -37,7 +33,7 @@ dict_ = np.load(data_path + 'water.npy', allow_pickle=True).item()
 ood_embs0['1'] = np.array([dict_[key] for key in dict_.keys()])
 
 grouped_embs0 = {}
-grouped_embs_eval0 = {}
+grouped_embs_train0 = {}
 
 for key in in_data_embs0.keys():
     emb = in_data_embs0[key]
@@ -46,19 +42,19 @@ for key in in_data_embs0.keys():
     split = key[4]
     name = f'{label}_{place}'
     
-    if split == '0':
+    if split != '0':
         if name not in grouped_embs0.keys():
             grouped_embs0[name] = []
         
         grouped_embs0[name].append(emb)
     else:
-        if name not in grouped_embs_eval0.keys():
-            grouped_embs_eval0[name] = []
+        if name not in grouped_embs_train0.keys():
+            grouped_embs_train0[name] = []
         
-        grouped_embs_eval0[name].append(emb)
+        grouped_embs_train0[name].append(emb)
 
 grouped_embs0 = {name: np.array(grouped_embs0[name]) for name in grouped_embs0.keys()}
-grouped_embs_eval0 = {name: np.array(grouped_embs_eval0[name]) for name in grouped_embs_eval0.keys()}
+grouped_embs_train0 = {name: np.array(grouped_embs_train0[name]) for name in grouped_embs_train0.keys()}
 
 def normalize(x):
     return x / np.linalg.norm(x, axis=-1, keepdims=True)
@@ -79,25 +75,17 @@ def get_prototypes(embeddings, n_data=None):
 
 
 grouped_embs = {name: normalize(grouped_embs0[name]) for name in grouped_embs0.keys()}
-grouped_embs_eval = {name: normalize(grouped_embs_eval0[name]) for name in grouped_embs0.keys()}
+grouped_embs_train = {name: normalize(grouped_embs_train0[name]) for name in grouped_embs_train0.keys()}
 ood_embs = {name: normalize(ood_embs0[name]) for name in ood_embs0.keys()}
     
 grouped_prototypes = {group: get_prototypes(embs)\
-                      for group, embs in grouped_embs.items()}
+                      for group, embs in grouped_embs_train.items()}
 
 group_names = list(grouped_embs.keys())
 
 
+
 ##############################################################
-
-
-
-sp_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
-                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}']))
-
-sp_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
-                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}']))
-
 
 core_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
                    + normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}']))
@@ -106,11 +94,56 @@ core_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_cl
                    + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}']))
 
 
-ood_ax1 = normalize(normalize(ood_embs[ood_class_names[0]]))
-ood_ax2 = normalize(normalize(ood_embs[ood_class_names[1]]))
+
+sp_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
+                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
+                   - core_ax1 - core_ax2)
+                   
     
+sp_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
+                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
+                   - core_ax1 - core_ax2)
+
+core_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
+                   + normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
+                   - sp_ax1 - sp_ax2)
     
-def refine_embs(embs, sp1, sp2, cr1, cr2):
+core_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
+                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
+                   - sp_ax1 - sp_ax2)
+
+ood_ax1 = normalize(normalize(ood_embs[ood_class_names[0]].mean(axis=0, keepdims=True)))
+ood_ax2 = normalize(normalize(ood_embs[ood_class_names[1]].mean(axis=0, keepdims=True)))
+    
+
+print('***********************')
+
+
+print('sp - core:')
+
+print(np.dot(sp_ax1[0], core_ax1[0]))    
+print(np.dot(sp_ax2[0], core_ax1[0]))
+print(np.dot(sp_ax1[0], core_ax2[0]))    
+print(np.dot(sp_ax2[0], core_ax2[0]))
+
+print('sp - ood:')
+
+print(np.dot(sp_ax1[0], ood_ax1[0]))    
+print(np.dot(sp_ax2[0], ood_ax1[0]))
+print(np.dot(sp_ax1[0], ood_ax2[0]))    
+print(np.dot(sp_ax2[0], ood_ax2[0]))
+
+print('core - ood:')
+
+print(np.dot(core_ax1[0], ood_ax1[0]))    
+print(np.dot(core_ax1[0], ood_ax1[0]))
+print(np.dot(core_ax2[0], ood_ax2[0]))    
+print(np.dot(core_ax2[0], ood_ax2[0]))
+
+print('***********************')
+
+
+def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=1., beta=1.):
     #core = embs * core_ax_normal[None]
     embs = normalize(embs)
     #sp_coefs1 = np.dot(embs, sp1.squeeze())
@@ -119,15 +152,15 @@ def refine_embs(embs, sp1, sp2, cr1, cr2):
     cr_coefs1 = np.dot(embs, cr1.squeeze())
     cr_coefs2 = np.dot(embs, cr2.squeeze())
     
-    #refined = embs.copy()
-    refined = cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
+    refined = 1. * embs.copy()
+    refined += cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
     refined += cr_coefs2[:, None] * np.repeat(cr2, embs.shape[0], axis=0)
 
-    sp_coefs1 = np.dot(refined, sp1.squeeze())
-    sp_coefs2 = np.dot(refined, sp2.squeeze())
+    sp_coefs1 = beta * np.dot(refined, sp1.squeeze())
+    sp_coefs2 = beta * np.dot(refined, sp2.squeeze())
     
-    refined -= sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
-    refined -= sp_coefs2[:, None] * np.repeat(sp2, embs.shape[0], axis=0)
+    refined -= alpha * sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
+    refined -= alpha * sp_coefs2[:, None] * np.repeat(sp2, embs.shape[0], axis=0)
     
     if filter_ood:
         
@@ -148,9 +181,11 @@ for key in grouped_embs.keys():
     refined_grouped_embs[key] = refine_embs(grouped_embs[key], sp_ax1, sp_ax2, core_ax1, core_ax2)
 
 
-refined_grouped_prototypes = {group: get_prototypes(embs)\
-                              for group, embs in refined_grouped_embs.items()}
-    
+refined_grouped_prototypes = {}
+for key in grouped_prototypes.keys():
+    refined_grouped_prototypes[key] = refine_embs(grouped_prototypes[key], sp_ax1, sp_ax2, core_ax1, core_ax2)
+
+
     
 refined_ood_embs = {}
 for key in ood_embs.keys():
@@ -209,32 +244,37 @@ for i in range(2):
     selected_groups_names.append(f'{core_class_names[i]}_{sp_class_names[j]}')
 selected_grouped_embs = {name: refined_grouped_embs[name] for name in selected_groups_names}
     
+print('refined:')
 fig, axes = plt.subplots(2, 2, figsize=(10, 10))
 axes = axes.flatten()
 for group, ax in zip([group for group in selected_grouped_embs], axes):
     sns.histplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax, element='step', linewidth=2.5, fill=False)
     loc = group.find('_')
     sp_name = group[loc + 1:]
-    ood_embs_arr = np.concatenate([refined_ood_embs[class_name] for class_name in ood_class_names])
-    sns.histplot(calc_cos_dist(ood_embs_arr, refined_grouped_prototypes[group]), label='ood', ax=ax, element='step', linewidth=2.5, fill=False)
+    ood_embs_arr = refined_ood_embs[sp_name]
+    ood_dists = calc_cos_dist(ood_embs_arr, refined_grouped_prototypes[group])
+    sns.histplot(ood_dists, label='ood', ax=ax, element='step', linewidth=2.5, fill=False)
     ax.legend()
     ax.set_title(group, fontsize=17)
-    
+    print(group, sp_name, np.mean(ood_dists) / np.mean(grouped_cos_dist[group]))
     
 grouped_cos_dist = {group: calc_cos_dist(embs, grouped_prototypes[group]) for group, embs in grouped_embs.items()}
 
 selected_grouped_embs = {name: grouped_embs[name] for name in selected_groups_names}
     
+print('neutral:')
 fig, axes = plt.subplots(2, 2, figsize=(10, 10))
 axes = axes.flatten()
 for group, ax in zip([group for group in selected_grouped_embs], axes):
     sns.histplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax, element='step', linewidth=2.5, fill=False)
     loc = group.find('_')
     sp_name = group[loc + 1:]
-    ood_embs_arr = np.concatenate([ood_embs[class_name] for class_name in ood_class_names])
-    sns.histplot(calc_cos_dist(ood_embs_arr, grouped_prototypes[group]), label='ood', ax=ax, element='step', linewidth=2.5, fill=False)
+    ood_embs_arr = ood_embs[sp_name]
+    ood_dists = calc_cos_dist(ood_embs_arr, grouped_prototypes[group])
+    sns.histplot(ood_dists, label='ood', ax=ax, element='step', linewidth=2.5, fill=False)
     ax.legend()
     ax.set_title(group, fontsize=17)
+    print(group, sp_name, np.mean(ood_dists) / np.mean(grouped_cos_dist[group]))
     
 def get_dist_vals(emb_name1, emb_name2, pr_name1, pr_name2, refined=False):
     
