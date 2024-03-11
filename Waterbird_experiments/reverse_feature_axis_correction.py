@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression
+from scipy.stats import wasserstein_distance
 from sklearn.metrics import auc
 import seaborn as sns
 import os
@@ -14,14 +15,48 @@ np.random.seed(seed)
 
 samples4prototype = 400
 
-filter_ood = False
+filter_ood = True
+
 
 core_class_names = ['0', '1']
-ood_class_names = ['2', '3']
-sp_class_names = ['truck', 'frog']
+ood_class_names = ['0', '1']
+sp_class_names = ['0', '1']
+place_names = ['land', 'water']
 
-grouped_embs0 = np.load('Dominoes_grouped_embs.npy', allow_pickle=True).item()
+data_path = 'embeddings/'
+
+
+in_data_embs0 = np.load(data_path + 'waterbird_embs.npy', allow_pickle=True).item()
+ood_embs0 = {}
+dict_ = np.load(data_path + 'w.npy', allow_pickle=True).item()
+ood_embs0['0'] = np.array([dict_[key] for key in dict_.keys()])
+dict_ = np.load(data_path + 'w.npy', allow_pickle=True).item()
+ood_embs0['1'] = np.array([dict_[key] for key in dict_.keys()])
+
+grouped_embs0 = {}
+grouped_embs_train0 = {}
+
+for key in in_data_embs0.keys():
+    emb = in_data_embs0[key]
+    label = key[2]
+    place = key[0]
+    split = key[4]
+    name = f'{label}_{place}'
     
+    if split != '0':
+        if name not in grouped_embs0.keys():
+            grouped_embs0[name] = []
+        
+        grouped_embs0[name].append(emb)
+    else:
+        if name not in grouped_embs_train0.keys():
+            grouped_embs_train0[name] = []
+        
+        grouped_embs_train0[name].append(emb)
+
+grouped_embs0 = {name: np.array(grouped_embs0[name]) for name in grouped_embs0.keys()}
+grouped_embs_train0 = {name: np.array(grouped_embs_train0[name]) for name in grouped_embs_train0.keys()}
+
 def normalize(x):
     return x / np.linalg.norm(x, axis=-1, keepdims=True)
 
@@ -41,25 +76,17 @@ def get_prototypes(embeddings, n_data=None):
 
 
 grouped_embs = {name: normalize(grouped_embs0[name]) for name in grouped_embs0.keys()}
+grouped_embs_train = {name: normalize(grouped_embs_train0[name]) for name in grouped_embs_train0.keys()}
+ood_embs = {name: normalize(ood_embs0[name]) for name in ood_embs0.keys()}
     
-grouped_prototypes = {group: get_prototypes(embs, samples4prototype)\
-                      for group, embs in grouped_embs.items()}
+grouped_prototypes = {group: get_prototypes(embs)\
+                      for group, embs in grouped_embs_train.items()}
 
-all_embs = np.concatenate(list(grouped_embs.values()))
-all_prototypes = np.concatenate(list(grouped_prototypes.values()))
 group_names = list(grouped_embs.keys())
 
 
+
 ##############################################################
-
-
-
-sp_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
-                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}']))
-
-sp_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
-                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}']))
-
 
 core_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
                    + normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}']))
@@ -68,15 +95,56 @@ core_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_cl
                    + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}']))
 
 
-ood_ax1 = normalize(normalize(grouped_prototypes[f'{ood_class_names[0]}_{sp_class_names[0]}'])\
-                   + normalize(grouped_prototypes[f'{ood_class_names[0]}_{sp_class_names[1]}']))
 
+sp_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
+                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
+                   - core_ax1 - core_ax2)
+                   
     
-ood_ax2 = normalize(normalize(grouped_prototypes[f'{ood_class_names[1]}_{sp_class_names[0]}'])\
-                   + normalize(grouped_prototypes[f'{ood_class_names[1]}_{sp_class_names[1]}']))
+sp_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
+                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
+                   - core_ax1 - core_ax2)
 
+core_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
+                   + normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
+                   - sp_ax1 - sp_ax2)
     
-def refine_embs(embs, sp1, sp2, cr1, cr2):
+core_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
+                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
+                   - sp_ax1 - sp_ax2)
+
+ood_ax1 = normalize(normalize(ood_embs[ood_class_names[0]].mean(axis=0, keepdims=True)))
+ood_ax2 = normalize(normalize(ood_embs[ood_class_names[1]].mean(axis=0, keepdims=True)))
+    
+
+print('***********************')
+
+
+print('sp - core:')
+
+print(np.dot(sp_ax1[0], core_ax1[0]))    
+print(np.dot(sp_ax2[0], core_ax1[0]))
+print(np.dot(sp_ax1[0], core_ax2[0]))    
+print(np.dot(sp_ax2[0], core_ax2[0]))
+
+print('sp - ood:')
+
+print(np.dot(sp_ax1[0], ood_ax1[0]))    
+print(np.dot(sp_ax2[0], ood_ax1[0]))
+print(np.dot(sp_ax1[0], ood_ax2[0]))    
+print(np.dot(sp_ax2[0], ood_ax2[0]))
+
+print('core - ood:')
+
+print(np.dot(core_ax1[0], ood_ax1[0]))    
+print(np.dot(core_ax1[0], ood_ax1[0]))
+print(np.dot(core_ax2[0], ood_ax2[0]))    
+print(np.dot(core_ax2[0], ood_ax2[0]))
+
+print('***********************')
+
+
+def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=1., beta=1.):
     #core = embs * core_ax_normal[None]
     embs = normalize(embs)
     #sp_coefs1 = np.dot(embs, sp1.squeeze())
@@ -85,15 +153,15 @@ def refine_embs(embs, sp1, sp2, cr1, cr2):
     cr_coefs1 = np.dot(embs, cr1.squeeze())
     cr_coefs2 = np.dot(embs, cr2.squeeze())
     
-    #refined = embs.copy()
-    refined = cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
+    refined = 1. * embs.copy()
+    refined += cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
     refined += cr_coefs2[:, None] * np.repeat(cr2, embs.shape[0], axis=0)
 
-    sp_coefs1 = np.dot(refined, sp1.squeeze())
-    sp_coefs2 = np.dot(refined, sp2.squeeze())
+    sp_coefs1 = beta * np.dot(refined, sp1.squeeze())
+    sp_coefs2 = beta * np.dot(refined, sp2.squeeze())
     
-    refined -= sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
-    refined -= sp_coefs2[:, None] * np.repeat(sp2, embs.shape[0], axis=0)
+    refined -= alpha * sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
+    refined -= alpha * sp_coefs2[:, None] * np.repeat(sp2, embs.shape[0], axis=0)
     
     if filter_ood:
         
@@ -113,13 +181,20 @@ refined_grouped_embs = {}
 for key in grouped_embs.keys():
     refined_grouped_embs[key] = refine_embs(grouped_embs[key], sp_ax1, sp_ax2, core_ax1, core_ax2)
 
-corrupted_grouped_embs = {}
-for key in grouped_embs.keys():
-    corrupted_grouped_embs[key] = refine_embs(grouped_embs[key], core_ax1, core_ax2, sp_ax1, sp_ax2)
+
+refined_grouped_prototypes = {}
+for key in grouped_prototypes.keys():
+    refined_grouped_prototypes[key] = refine_embs(grouped_prototypes[key], sp_ax1, sp_ax2, core_ax1, core_ax2)
 
 
-refined_grouped_prototypes = {group: get_prototypes(embs, samples4prototype)\
-                              for group, embs in refined_grouped_embs.items()}
+    
+refined_ood_embs = {}
+for key in ood_embs.keys():
+    refined_ood_embs[key] = refine_embs(ood_embs[key], sp_ax1, sp_ax2, core_ax1, core_ax2)
+
+
+refined_ood_prototypes = {group: get_prototypes(embs)\
+                              for group, embs in refined_ood_embs.items()}
 
 
 ##############################################################
@@ -151,80 +226,6 @@ def prepare_data(embs_dict, names_0, names_1, len_g, inds=None):
     return data_np, lbl_np
 
 
-# ##############################################################
-
-# print('Neutral version:')
-
-# x_train, y_train = prepare_data(grouped_embs, [f'0_{core_class_names[0]}', f'0_{core_class_names[1]}'], [f'1_{core_class_names[0]}', f'1_{core_class_names[1]}'], 300, np.arange(300))
-# clf = LogisticRegression()
-# clf.fit(x_train, y_train)
-
-# x_eval, y_eval = prepare_data(grouped_embs, [f'0_{core_class_names[0]}', f'0_{core_class_names[1]}'], [f'1_{core_class_names[0]}', f'1_{core_class_names[1]}'], 300, np.arange(-300,0))
-# preds = clf.predict(x_eval)
-# eval_acc = 100 * (preds == y_eval).mean()
-
-# print('ZERO / ONE ACC:', eval_acc)
-
-# x_train, y_train = prepare_data(grouped_embs, [f'0_{core_class_names[0]}', f'1_{core_class_names[0]}'], [f'0_{core_class_names[1]}', f'1_{core_class_names[1]}'], 300, np.arange(300))
-# clf = LogisticRegression()
-# clf.fit(x_train, y_train)
-
-# x_eval, y_eval = prepare_data(grouped_embs, [f'0_{core_class_names[0]}', f'1_{core_class_names[0]}'], [f'0_{core_class_names[1]}', f'1_{core_class_names[1]}'], 300, np.arange(-300,0))
-# preds = clf.predict(x_eval)
-# eval_acc = 100 * (preds == y_eval).mean()
-
-# print('{core_class_names[0]} / {core_class_names[1]} ACC:', eval_acc)
-
-
-# ##############################################################
-
-# print('Refined version:')
-
-# x_train, y_train = prepare_data(grouped_embs, [f'0_{core_class_names[0]}', f'0_{core_class_names[1]}'], [f'1_{core_class_names[0]}', f'1_{core_class_names[1]}'], 300, np.arange(300))
-# clf = LogisticRegression()
-# clf.fit(x_train, y_train)
-
-# x_eval, y_eval = prepare_data(refined_grouped_embs, [f'0_{core_class_names[0]}', f'0_{core_class_names[1]}'], [f'1_{core_class_names[0]}', f'1_{core_class_names[1]}'], 300, np.arange(-300,0))
-# preds = clf.predict(x_eval)
-# eval_acc = 100 * (preds == y_eval).mean()
-
-# print('ZERO / ONE ACC:', eval_acc)
-
-# x_train, y_train = prepare_data(grouped_embs, [f'0_{core_class_names[0]}', f'1_{core_class_names[0]}'], [f'0_{core_class_names[1]}', f'1_{core_class_names[1]}'], 300, np.arange(300))
-# clf = LogisticRegression()
-# clf.fit(x_train, y_train)
-
-# x_eval, y_eval = prepare_data(refined_grouped_embs, [f'0_{core_class_names[0]}', f'1_{core_class_names[0]}'], [f'0_{core_class_names[1]}', f'1_{core_class_names[1]}'], 300, np.arange(-300,0))
-# preds = clf.predict(x_eval)
-# eval_acc = 100 * (preds == y_eval).mean()
-
-# print('{core_class_names[0]} / {core_class_names[1]} ACC:', eval_acc)
-
-# ##############################################################
-# print('Corrupted version:')
-
-# x_train, y_train = prepare_data(grouped_embs, [f'0_{core_class_names[0]}', f'0_{core_class_names[1]}'], [f'1_{core_class_names[0]}', f'1_{core_class_names[1]}'], 300, np.arange(300))
-# clf = LogisticRegression()
-# clf.fit(x_train, y_train)
-
-# x_eval, y_eval = prepare_data(corrupted_grouped_embs, [f'0_{core_class_names[0]}', f'0_{core_class_names[1]}'], [f'1_{core_class_names[0]}', f'1_{core_class_names[1]}'], 300, np.arange(-300,0))
-# preds = clf.predict(x_eval)
-# eval_acc = 100 * (preds == y_eval).mean()
-
-# print('ZERO / ONE ACC:', eval_acc)
-
-# x_train, y_train = prepare_data(grouped_embs, [f'0_{core_class_names[0]}', f'1_{core_class_names[0]}'], [f'0_{core_class_names[1]}', f'1_{core_class_names[1]}'], 300, np.arange(300))
-# clf = LogisticRegression()
-# clf.fit(x_train, y_train)
-
-# x_eval, y_eval = prepare_data(corrupted_grouped_embs, [f'0_{core_class_names[0]}', f'1_{core_class_names[0]}'], [f'0_{core_class_names[1]}', f'1_{core_class_names[1]}'], 300, np.arange(-300,0))
-# preds = clf.predict(x_eval)
-# eval_acc = 100 * (preds == y_eval).mean()
-
-# print('{core_class_names[0]} / {core_class_names[1]} ACC:', eval_acc)
-
-# ##############################################################
-print()
 
 
 def calc_cos_dist(embs, prototypes):
@@ -244,32 +245,39 @@ for i in range(2):
     selected_groups_names.append(f'{core_class_names[i]}_{sp_class_names[j]}')
 selected_grouped_embs = {name: refined_grouped_embs[name] for name in selected_groups_names}
     
+print('refined:')
 fig, axes = plt.subplots(2, 2, figsize=(10, 10))
 axes = axes.flatten()
 for group, ax in zip([group for group in selected_grouped_embs], axes):
     sns.histplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax, element='step', linewidth=2.5, fill=False)
     loc = group.find('_')
     sp_name = group[loc + 1:]
-    ood_embs = np.concatenate([refined_grouped_embs[class_name + '_' + sp_name] for class_name in ood_class_names])
-    sns.histplot(calc_cos_dist(ood_embs, refined_grouped_prototypes[group]), label='ood', ax=ax, element='step', linewidth=2.5, fill=False)
+    ood_embs_arr = refined_ood_embs[sp_name]
+    ood_dists = calc_cos_dist(ood_embs_arr, refined_grouped_prototypes[group])
+    sns.histplot(ood_dists, label='ood', ax=ax, element='step', linewidth=2.5, fill=False)
     ax.legend()
     ax.set_title(group, fontsize=17)
-    
+    print(group, sp_name, np.mean(ood_dists) / np.mean(grouped_cos_dist[group]),
+          wasserstein_distance(ood_dists, grouped_cos_dist[group]))
     
 grouped_cos_dist = {group: calc_cos_dist(embs, grouped_prototypes[group]) for group, embs in grouped_embs.items()}
 
 selected_grouped_embs = {name: grouped_embs[name] for name in selected_groups_names}
     
+print('neutral:')
 fig, axes = plt.subplots(2, 2, figsize=(10, 10))
 axes = axes.flatten()
 for group, ax in zip([group for group in selected_grouped_embs], axes):
     sns.histplot(grouped_cos_dist[group], label=group, palette=['red'], ax=ax, element='step', linewidth=2.5, fill=False)
     loc = group.find('_')
     sp_name = group[loc + 1:]
-    ood_embs = np.concatenate([grouped_embs[class_name + '_' + sp_name] for class_name in ood_class_names])
-    sns.histplot(calc_cos_dist(ood_embs, grouped_prototypes[group]), label='ood', ax=ax, element='step', linewidth=2.5, fill=False)
+    ood_embs_arr = ood_embs[sp_name]
+    ood_dists = calc_cos_dist(ood_embs_arr, grouped_prototypes[group])
+    sns.histplot(ood_dists, label='ood', ax=ax, element='step', linewidth=2.5, fill=False)
     ax.legend()
     ax.set_title(group, fontsize=17)
+    print(group, sp_name, np.mean(ood_dists) / np.mean(grouped_cos_dist[group]),
+          wasserstein_distance(ood_dists, grouped_cos_dist[group]))
     
 def get_dist_vals(emb_name1, emb_name2, pr_name1, pr_name2, refined=False):
     
@@ -285,6 +293,20 @@ def get_dist_vals(emb_name1, emb_name2, pr_name1, pr_name2, refined=False):
     return dist_vals
     
 
+def get_dist_vals_ood(emb_name1, emb_name2, pr_name1, pr_name2, refined=False):
+    
+    if refined:
+        embs = refined_ood_embs
+        protos = refined_grouped_prototypes
+    else:
+        embs = ood_embs
+        protos = grouped_prototypes
+        
+    dist_vals = calc_cos_dist(embs[emb_name1],
+                              protos[pr_name1 + '_' + pr_name2])
+    return dist_vals
+
+
 def find_thresh_val(main_vals, th=0.95):
     thresh = np.sort(main_vals)[int(th * len(main_vals))]
     return thresh
@@ -296,13 +318,13 @@ for ood_name in ood_class_names:
         print(f'core name: {core_name}, ood name: {ood_name}')
 
         neutral_ood = np.concatenate([
-                get_dist_vals(ood_name, sp_class_names[0], core_name, sp_class_names[0]),
-                get_dist_vals(ood_name, sp_class_names[1], core_name, sp_class_names[1])
+                get_dist_vals_ood(ood_name, sp_class_names[0], core_name, sp_class_names[0]),
+                get_dist_vals_ood(ood_name, sp_class_names[1], core_name, sp_class_names[1])
                 ])
 
         refined_ood = np.concatenate([
-                get_dist_vals(ood_name, sp_class_names[0], core_name, sp_class_names[0], refined=True),
-                get_dist_vals(ood_name, sp_class_names[1], core_name, sp_class_names[1], refined=True)
+                get_dist_vals_ood(ood_name, sp_class_names[0], core_name, sp_class_names[0], refined=True),
+                get_dist_vals_ood(ood_name, sp_class_names[1], core_name, sp_class_names[1], refined=True)
                 ])
     
         neutral_ind = np.concatenate([
