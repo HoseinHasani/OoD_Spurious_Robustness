@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression
+from scipy.stats import wasserstein_distance
 from sklearn.metrics import auc
 import seaborn as sns
 import os
@@ -256,7 +257,8 @@ for group, ax in zip([group for group in selected_grouped_embs], axes):
     sns.histplot(ood_dists, label='ood', ax=ax, element='step', linewidth=2.5, fill=False)
     ax.legend()
     ax.set_title(group, fontsize=17)
-    print(group, sp_name, np.mean(ood_dists) / np.mean(grouped_cos_dist[group]))
+    print(group, sp_name, np.mean(ood_dists) / np.mean(grouped_cos_dist[group]),
+          wasserstein_distance(ood_dists, grouped_cos_dist[group]))
     
 grouped_cos_dist = {group: calc_cos_dist(embs, grouped_prototypes[group]) for group, embs in grouped_embs.items()}
 
@@ -274,7 +276,8 @@ for group, ax in zip([group for group in selected_grouped_embs], axes):
     sns.histplot(ood_dists, label='ood', ax=ax, element='step', linewidth=2.5, fill=False)
     ax.legend()
     ax.set_title(group, fontsize=17)
-    print(group, sp_name, np.mean(ood_dists) / np.mean(grouped_cos_dist[group]))
+    print(group, sp_name, np.mean(ood_dists) / np.mean(grouped_cos_dist[group]),
+          wasserstein_distance(ood_dists, grouped_cos_dist[group]))
     
 def get_dist_vals(emb_name1, emb_name2, pr_name1, pr_name2, refined=False):
     
