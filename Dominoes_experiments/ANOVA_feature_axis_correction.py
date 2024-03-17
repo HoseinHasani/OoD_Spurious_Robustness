@@ -71,25 +71,49 @@ def std_ratio(name1, name2, name3, name4, eps=1e-6, n_select=600):
     return sorted_args[:n_select]
 
 
+def std(name1, name2, name3, name4):
+    embs1 = grouped_prototypes[f'{name1}_{name2}']
+    embs2 = grouped_prototypes[f'{name3}_{name4}']
+    embs_all = np.concatenate([embs1, embs2])
+    
+    std_all = embs_all.std(0)
+    return std_all
 
-core_ax1 = std_ratio('0', core_class_names[0], '1', core_class_names[0])
-core_ax2 = std_ratio('0', core_class_names[1], '1', core_class_names[1])
+core_ax1 = std('0', core_class_names[0], '1', core_class_names[0])
+core_ax2 = std('0', core_class_names[1], '1', core_class_names[1])
 
-sp_ax1 = std_ratio('0', core_class_names[0], '0', core_class_names[1], n_select=800)
-sp_ax2 = std_ratio('1', core_class_names[0], '1', core_class_names[1], n_select=800)
+sp_ax1 = std('0', core_class_names[0], '0', core_class_names[1])
+sp_ax2 = std('1', core_class_names[0], '1', core_class_names[1])
+
+
+
+#core_ax1 = std_ratio('0', core_class_names[0], '1', core_class_names[0])
+#core_ax2 = std_ratio('0', core_class_names[1], '1', core_class_names[1])
+#
+#sp_ax1 = std_ratio('0', core_class_names[0], '0', core_class_names[1], n_select=800)
+#sp_ax2 = std_ratio('1', core_class_names[0], '1', core_class_names[1], n_select=800)
 
 
 
 print('***********************')
 
 
-def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=1., beta=1.):
+def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=1.0):
     embs = normalize(embs)
 
-    core_inds = np.unique(np.concatenate([cr1, cr2]))
-    sp_inds = np.unique(np.concatenate([sp1, sp2]))
+    inds11 = np.argwhere(cr1 < alpha * sp1).ravel()
+    inds12 = np.argwhere(cr1 < alpha * sp2).ravel()
     
-    selected_inds = [ind for ind in core_inds if ind not in sp_inds]
+    inds21 = np.argwhere(cr2 < alpha * sp1).ravel()
+    inds22 = np.argwhere(cr2 < alpha * sp2).ravel()
+    
+    selected_inds = np.unique(np.concatenate([inds11, inds12, inds21, inds22]))
+    print(selected_inds.shape)
+    
+#    core_inds = np.unique(np.concatenate([cr1, cr2]))
+#    sp_inds = np.unique(np.concatenate([sp1, sp2]))
+#    
+#    selected_inds = [ind for ind in core_inds if ind not in sp_inds]
     refined = embs[:, selected_inds]
     
     refined = normalize(refined)
