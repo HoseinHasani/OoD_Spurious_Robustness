@@ -18,7 +18,7 @@ samples4prototype = 400
 filter_ood = False
 
 backbones = ['dino', 'res50']
-backbone = backbones[1]
+backbone = backbones[0]
 
 core_class_names = ['0', '1']
 ood_class_names = ['0', '1']
@@ -126,16 +126,8 @@ group_names = list(grouped_embs.keys())
 #core_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
 #                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
 #                   - sp_ax1 - sp_ax2)
-#
-#
-#sp_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
-#                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
-#                   - core_ax1 - core_ax2)
-#                   
-#    
-#sp_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
-#                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
-#                   - core_ax1 - core_ax2)
+
+
 
 sp_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
                    - normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}']))

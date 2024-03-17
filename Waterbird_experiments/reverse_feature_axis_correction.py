@@ -15,7 +15,7 @@ np.random.seed(seed)
 
 samples4prototype = 400
 
-filter_ood = True
+filter_ood = False
 
 
 core_class_names = ['0', '1']
@@ -88,30 +88,43 @@ group_names = list(grouped_embs.keys())
 
 ##############################################################
 
-core_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
-                   + normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}']))
+#core_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
+#                   + normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}']))
+#
+#core_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
+#                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}']))
+#
+#
+#
+#sp_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
+#                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
+#                   - core_ax1 - core_ax2)
+#                   
+#    
+#sp_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
+#                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
+#                   - core_ax1 - core_ax2)
+#
+#core_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
+#                   + normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
+#                   - sp_ax1 - sp_ax2)
+#    
+#core_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
+#                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
+#                   - sp_ax1 - sp_ax2)
 
-core_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
-                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}']))
+sp_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
+                   - normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}']))
 
+sp_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
+                   - normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}']))
 
+core_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
+                   - normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}']))
 
-sp_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
-                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
-                   - core_ax1 - core_ax2)
-                   
-    
-sp_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
-                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
-                   - core_ax1 - core_ax2)
+core_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
+                   - normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}']))
 
-core_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
-                   + normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
-                   - sp_ax1 - sp_ax2)
-    
-core_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
-                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
-                   - sp_ax1 - sp_ax2)
 
 ood_ax1 = normalize(normalize(ood_embs[ood_class_names[0]].mean(axis=0, keepdims=True)))
 ood_ax2 = normalize(normalize(ood_embs[ood_class_names[1]].mean(axis=0, keepdims=True)))
@@ -145,23 +158,31 @@ print('***********************')
 
 
 def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=1., beta=1.):
-    #core = embs * core_ax_normal[None]
     embs = normalize(embs)
-    #sp_coefs1 = np.dot(embs, sp1.squeeze())
-    #sp_coefs2 = np.dot(embs, sp2.squeeze())
 
+    
+    
+    refined = 1.0 * embs.copy()
+    
     cr_coefs1 = np.dot(embs, cr1.squeeze())
+    
+#    refined += cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
+    
+    
     cr_coefs2 = np.dot(embs, cr2.squeeze())
     
-    refined = 1. * embs.copy()
-    refined += cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
-    refined += cr_coefs2[:, None] * np.repeat(cr2, embs.shape[0], axis=0)
+#    refined += cr_coefs2[:, None] * np.repeat(cr2, embs.shape[0], axis=0)
+
 
     sp_coefs1 = beta * np.dot(refined, sp1.squeeze())
-    sp_coefs2 = beta * np.dot(refined, sp2.squeeze())
     
     refined -= alpha * sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
+    
+    
+    sp_coefs2 = beta * np.dot(refined, sp2.squeeze())
+    
     refined -= alpha * sp_coefs2[:, None] * np.repeat(sp2, embs.shape[0], axis=0)
+    
     
     if filter_ood:
         
