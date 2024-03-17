@@ -18,7 +18,7 @@ samples4prototype = 400
 filter_ood = False
 
 backbones = ['dino', 'res50']
-backbone = backbones[0]
+backbone = backbones[1]
 
 core_class_names = ['0', '1']
 ood_class_names = ['0', '1']
@@ -32,7 +32,7 @@ if backbone == 'dino':
     in_data_embs0 = np.load(data_path + 'waterbird_embs.npy', allow_pickle=True).item()
 elif backbone == 'res50':
     in_data_embs0 = np.load(data_path + 'wb_embs_res50_pretrained.npy', allow_pickle=True).item()
-    
+
 ood_embs0 = {}
 if backbone == 'dino':
     dict_ = np.load(data_path + 'land.npy', allow_pickle=True).item()

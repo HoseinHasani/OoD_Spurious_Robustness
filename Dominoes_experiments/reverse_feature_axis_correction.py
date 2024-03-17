@@ -54,18 +54,32 @@ group_names = list(grouped_embs.keys())
 
 
 
-sp_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
-                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}']))
+#sp_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
+#                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}']))
+#
+#sp_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
+#                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}']))
+#
+#
+#core_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
+#                   + normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}']))
+#
+#core_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
+#                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}']))
 
-sp_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
-                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}']))
+
+sp_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
+                   - normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}']))
+
+sp_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
+                   - normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}']))
 
 
-core_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
-                   + normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}']))
+core_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
+                   - normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}']))
 
-core_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
-                   + normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}']))
+core_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
+                   - normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}']))
 
 
 ood_ax1 = normalize(normalize(grouped_prototypes[f'{ood_class_names[0]}_{sp_class_names[0]}'])\
@@ -76,24 +90,32 @@ ood_ax2 = normalize(normalize(grouped_prototypes[f'{ood_class_names[1]}_{sp_clas
                    + normalize(grouped_prototypes[f'{ood_class_names[1]}_{sp_class_names[1]}']))
 
     
-def refine_embs(embs, sp1, sp2, cr1, cr2):
-    #core = embs * core_ax_normal[None]
+def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=1., beta=1.):
     embs = normalize(embs)
-    #sp_coefs1 = np.dot(embs, sp1.squeeze())
-    #sp_coefs2 = np.dot(embs, sp2.squeeze())
 
+    
+    
+    refined = 1.0 * embs.copy()
+    
     cr_coefs1 = np.dot(embs, cr1.squeeze())
+    
+#    refined += cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
+    
+    
     cr_coefs2 = np.dot(embs, cr2.squeeze())
     
-    #refined = embs.copy()
-    refined = cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
-    refined += cr_coefs2[:, None] * np.repeat(cr2, embs.shape[0], axis=0)
+#    refined += cr_coefs2[:, None] * np.repeat(cr2, embs.shape[0], axis=0)
 
-    sp_coefs1 = np.dot(refined, sp1.squeeze())
-    sp_coefs2 = np.dot(refined, sp2.squeeze())
+
+    sp_coefs1 = beta * np.dot(refined, sp1.squeeze())
     
-    refined -= sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
-    refined -= sp_coefs2[:, None] * np.repeat(sp2, embs.shape[0], axis=0)
+    refined -= alpha * sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
+    
+    
+    sp_coefs2 = beta * np.dot(refined, sp2.squeeze())
+    
+    refined -= alpha * sp_coefs2[:, None] * np.repeat(sp2, embs.shape[0], axis=0)
+    
     
     if filter_ood:
         

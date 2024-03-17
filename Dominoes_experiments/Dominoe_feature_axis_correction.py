@@ -12,7 +12,7 @@ sns.set_context("paper", font_scale=1.4)
 seed = 8
 np.random.seed(seed)
 
-samples4prototype = 500
+samples4prototype = 400
 
 filter_ood = False
 
