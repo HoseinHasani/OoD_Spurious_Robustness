@@ -42,10 +42,10 @@ class GaussianDataset():
         
         
 class GaussianDataset3D():
-    def __init__(self, seed=None, maj_size=3000, min_size=1000, std=0.2):
+    def __init__(self, seed=None, maj_size=3000, min_size=1000, std=0.25):
         
         self.std_maj = std
-        self.std_min = std / 2
+        self.std_min = std * 0.7
         self.maj_size = maj_size
         self.min_size = min_size
         self.grouped_embs = {}
@@ -53,7 +53,7 @@ class GaussianDataset3D():
         if seed is not None:
             self.set_seed(seed)
         
-        self.core_ax, self.sp_ax = self.generate_random_axes()
+        self.core_ax, self.sp_ax, self.perp_ax = self.generate_random_axes()
         self.generate_dataset()
 
     def set_seed(self, seed):
@@ -65,7 +65,8 @@ class GaussianDataset3D():
     def generate_random_axes(self):
         core_axis = self.normalize(2 * np.random.rand(3) - 1)
         sp_axis = self.normalize(2 * np.random.rand(3) - 1)
-        return core_axis, sp_axis
+        perpendicular_axis = self.normalize(np.cross(core_axis, sp_axis))
+        return core_axis, sp_axis, perpendicular_axis
     
     def generate_dataset(self, alpha=0.6):
         
@@ -85,9 +86,12 @@ class GaussianDataset3D():
         maj1 = np.random.normal(mean, self.std_maj, size=(self.maj_size, 3))
         maj1 = self.normalize(maj1)
         
-        ood0 = np.random.normal(self.sp_ax, self.std_maj, size=(self.maj_size, 3))
+        mean = alpha * self.sp_ax + (1 - alpha) * self.perp_ax
+        ood0 = np.random.normal(mean, self.std_maj, size=(self.maj_size, 3))
         ood0 = self.normalize(ood0)
-        ood1 = np.random.normal(-self.sp_ax, self.std_maj, size=(self.maj_size, 3))
+        
+        mean = - alpha * self.sp_ax - (1 - alpha) * self.perp_ax
+        ood1 = np.random.normal(mean, self.std_maj, size=(self.maj_size, 3))
         ood1 = self.normalize(ood1)
         
         
