@@ -18,7 +18,7 @@ samples4prototype = 400
 filter_ood = False
 
 backbones = ['dino', 'res50']
-backbone = backbones[1]
+backbone = backbones[0]
 
 core_class_names = ['0', '1']
 ood_class_names = ['0', '1']
@@ -128,6 +128,13 @@ group_names = list(grouped_embs.keys())
 #                   - sp_ax1 - sp_ax2)
 
 
+core_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
+                   - normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}']))
+
+core_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
+                   - normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}']))
+
+
 
 sp_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}'])\
                    - normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}']))
@@ -135,12 +142,14 @@ sp_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_clas
 sp_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
                    - normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}']))
 
-core_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[0]}'])\
-                   - normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}']))
 
-core_ax2 = normalize(normalize(grouped_prototypes[f'{core_class_names[1]}_{sp_class_names[1]}'])\
-                   - normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}']))
+sp_coefs1 = np.dot(sp_ax1, core_ax1.squeeze())
+sp_ax1 = sp_ax1 - sp_coefs1 * core_ax1
+sp_ax1 = normalize(sp_ax1)
 
+sp_coefs2 = np.dot(sp_ax2, core_ax2.squeeze())
+sp_ax2 = sp_ax2 - sp_coefs2 * core_ax2
+sp_ax2 = normalize(sp_ax2)
 
 ood_ax1 = normalize(normalize(ood_embs[ood_class_names[0]].mean(axis=0, keepdims=True)))
 ood_ax2 = normalize(normalize(ood_embs[ood_class_names[1]].mean(axis=0, keepdims=True)))

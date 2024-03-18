@@ -89,6 +89,14 @@ ood_ax1 = normalize(normalize(grouped_prototypes[f'{ood_class_names[0]}_{sp_clas
 ood_ax2 = normalize(normalize(grouped_prototypes[f'{ood_class_names[1]}_{sp_class_names[0]}'])\
                    + normalize(grouped_prototypes[f'{ood_class_names[1]}_{sp_class_names[1]}']))
 
+
+sp_coefs1 = np.dot(sp_ax1, core_ax1.squeeze())
+sp_ax1 = sp_ax1 - sp_coefs1 * core_ax1
+sp_ax1 = normalize(sp_ax1)
+
+sp_coefs2 = np.dot(sp_ax2, core_ax2.squeeze())
+sp_ax2 = sp_ax2 - sp_coefs2 * core_ax2
+sp_ax2 = normalize(sp_ax2)
     
 def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=1., beta=1.):
     embs = normalize(embs)

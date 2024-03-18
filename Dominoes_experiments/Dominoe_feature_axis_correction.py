@@ -63,6 +63,13 @@ core_ax2 = normalize(grouped_prototypes[f'0_{core_class_names[1]}'] - grouped_pr
 #core_ax1 = normalize(normalize(grouped_prototypes[f'0_{core_class_names[0]}']) + normalize(grouped_prototypes[f'1_{core_class_names[0]}']))
 #core_ax2 = normalize(normalize(grouped_prototypes[f'0_{core_class_names[1]}']) + normalize(grouped_prototypes[f'1_{core_class_names[1]}']))
 
+sp_coefs1 = np.dot(sp_ax1, core_ax1.squeeze())
+sp_ax1 = sp_ax1 - sp_coefs1 * core_ax1
+sp_ax1 = normalize(sp_ax1)
+
+sp_coefs2 = np.dot(sp_ax2, core_ax2.squeeze())
+sp_ax2 = sp_ax2 - sp_coefs2 * core_ax2
+sp_ax2 = normalize(sp_ax2)
 
 
 ood_ax1 = normalize(normalize(grouped_prototypes[f'0_{ood_class_names[0]}']) + normalize(grouped_prototypes[f'1_{ood_class_names[0]}']))
