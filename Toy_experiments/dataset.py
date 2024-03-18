@@ -65,10 +65,11 @@ class GaussianDataset3D():
     def generate_random_axes(self):
         core_axis = self.normalize(2 * np.random.rand(3) - 1)
         sp_axis = self.normalize(2 * np.random.rand(3) - 1)
-        perpendicular_axis = self.normalize(np.cross(core_axis, sp_axis))
+        dummy_axis = self.normalize(2 * np.random.rand(3) - 1)
+        perpendicular_axis = self.normalize(np.cross(core_axis, dummy_axis))
         return core_axis, sp_axis, perpendicular_axis
     
-    def generate_dataset(self, alpha=0.6):
+    def generate_dataset(self, alpha=0.5):
         
         mean = -alpha * self.sp_ax + (1 - alpha) * self.core_ax
         min0 = np.random.normal(mean, self.std_min, size=(self.min_size, 3))
@@ -86,13 +87,8 @@ class GaussianDataset3D():
         maj1 = np.random.normal(mean, self.std_maj, size=(self.maj_size, 3))
         maj1 = self.normalize(maj1)
         
-        mean = alpha * self.sp_ax + (1 - alpha) * self.perp_ax
-        ood0 = np.random.normal(mean, self.std_maj, size=(self.maj_size, 3))
+        ood0 = np.random.normal(self.perp_ax, self.std_maj, size=(self.maj_size, 3))
         ood0 = self.normalize(ood0)
-        
-        mean = - alpha * self.sp_ax - (1 - alpha) * self.perp_ax
-        ood1 = np.random.normal(mean, self.std_maj, size=(self.maj_size, 3))
-        ood1 = self.normalize(ood1)
         
         
         self.grouped_embs['0_0'] = maj0
@@ -110,6 +106,6 @@ class GaussianDataset3D():
         self.x = data[permutation]
         self.y = labels[permutation]
         self.g = group_labels[permutation]
-        self.o = [ood0, ood1]
+        self.o = [ood0]
         
 
