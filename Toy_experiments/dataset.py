@@ -41,4 +41,57 @@ class GaussianDataset():
         self.o = [ood0, ood1]
         
         
+class GaussianDataset3D():
+    def __init__(self, maj_size=1000, min_size=200, std=0.3):
+        
+        self.std_maj = std
+        self.std_min = std / 2
+        self.maj_size = maj_size
+        self.min_size = min_size
+        
+        self.core_ax, self.sp_ax = self.generate_random_axes()
+        self.generate_dataset()
+        
+    def normalize(self, x):
+        return x / np.linalg.norm(x, axis=-1, keepdims=True)
+
+    def generate_random_axes(self):
+        core_axis = self.normalize(np.random.rand(3))
+        sp_axis = self.normalize(np.random.rand(3))
+        return core_axis, sp_axis
+    
+    def generate_dataset(self):
+        
+        mean = 0.8 * self.sp_ax + 0.2 * self.core_ax
+        min0 = np.random.normal(mean, self.std_min, size=(self.min_size, 3))
+        min0 = self.normalize(min0)
+        
+        mean = 0.2 * self.sp_ax + 0.8 * self.core_ax
+        maj0 = np.random.normal(mean, self.std_maj, size=(self.maj_size, 3))
+        maj0 = self.normalize(maj0)
+
+        mean = -0.8 * self.sp_ax - 0.2 * self.core_ax
+        min1 = np.random.normal(mean, self.std_min, size=(self.min_size, 3))
+        min1 = self.normalize(min1)
+        
+        mean = -0.2 * self.sp_ax - 0.8 * self.core_ax
+        maj1 = np.random.normal(mean, self.std_maj, size=(self.maj_size, 3))
+        maj1 = self.normalize(maj1)
+        
+        ood0 = np.random.normal(self.sp_ax, self.std_maj, size=(self.maj_size, 3))
+        ood0 = self.normalize(ood0)
+        ood1 = np.random.normal(-self.sp_ax, self.std_maj, size=(self.maj_size, 3))
+        ood1 = self.normalize(ood1)
+        
+        data = np.concatenate([min0, maj0, min1, maj1], 0)
+        labels = np.concatenate([np.zeros(self.min_size + self.maj_size), np.ones(self.min_size + self.maj_size)])
+        group_labels = np.concatenate([0 * np.ones(self.min_size), 1 * np.ones(self.maj_size), 2 * np.ones(self.min_size), 3 * np.ones(self.maj_size)])
+        
+        permutation = np.random.permutation(2 * (self.min_size + self.maj_size))
+
+        self.x = data[permutation]
+        self.y = labels[permutation]
+        self.g = group_labels[permutation]
+        self.o = [ood0, ood1]
+        
 
