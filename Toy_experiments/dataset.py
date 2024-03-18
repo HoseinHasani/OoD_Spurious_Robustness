@@ -42,39 +42,46 @@ class GaussianDataset():
         
         
 class GaussianDataset3D():
-    def __init__(self, maj_size=1000, min_size=200, std=0.3):
+    def __init__(self, seed=None, maj_size=3000, min_size=1000, std=0.2):
         
         self.std_maj = std
         self.std_min = std / 2
         self.maj_size = maj_size
         self.min_size = min_size
+        self.grouped_embs = {}
+        
+        if seed is not None:
+            self.set_seed(seed)
         
         self.core_ax, self.sp_ax = self.generate_random_axes()
         self.generate_dataset()
+
+    def set_seed(self, seed):
+        np.random.seed(seed)
         
     def normalize(self, x):
         return x / np.linalg.norm(x, axis=-1, keepdims=True)
 
     def generate_random_axes(self):
-        core_axis = self.normalize(np.random.rand(3))
-        sp_axis = self.normalize(np.random.rand(3))
+        core_axis = self.normalize(2 * np.random.rand(3) - 1)
+        sp_axis = self.normalize(2 * np.random.rand(3) - 1)
         return core_axis, sp_axis
     
-    def generate_dataset(self):
+    def generate_dataset(self, alpha=0.6):
         
-        mean = 0.8 * self.sp_ax + 0.2 * self.core_ax
+        mean = -alpha * self.sp_ax + (1 - alpha) * self.core_ax
         min0 = np.random.normal(mean, self.std_min, size=(self.min_size, 3))
         min0 = self.normalize(min0)
         
-        mean = 0.2 * self.sp_ax + 0.8 * self.core_ax
+        mean = (1 - alpha) * self.sp_ax + alpha * self.core_ax
         maj0 = np.random.normal(mean, self.std_maj, size=(self.maj_size, 3))
         maj0 = self.normalize(maj0)
 
-        mean = -0.8 * self.sp_ax - 0.2 * self.core_ax
+        mean = alpha * self.sp_ax - (1 - alpha) * self.core_ax
         min1 = np.random.normal(mean, self.std_min, size=(self.min_size, 3))
         min1 = self.normalize(min1)
         
-        mean = -0.2 * self.sp_ax - 0.8 * self.core_ax
+        mean = -(1 - alpha) * self.sp_ax - alpha * self.core_ax
         maj1 = np.random.normal(mean, self.std_maj, size=(self.maj_size, 3))
         maj1 = self.normalize(maj1)
         
@@ -82,6 +89,13 @@ class GaussianDataset3D():
         ood0 = self.normalize(ood0)
         ood1 = np.random.normal(-self.sp_ax, self.std_maj, size=(self.maj_size, 3))
         ood1 = self.normalize(ood1)
+        
+        
+        self.grouped_embs['0_0'] = maj0
+        self.grouped_embs['0_1'] = min0
+
+        self.grouped_embs['1_0'] = min1
+        self.grouped_embs['1_1'] = maj1
         
         data = np.concatenate([min0, maj0, min1, maj1], 0)
         labels = np.concatenate([np.zeros(self.min_size + self.maj_size), np.ones(self.min_size + self.maj_size)])
