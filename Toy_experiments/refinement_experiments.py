@@ -8,9 +8,10 @@ from sklearn.metrics import auc
 
 #%matplotlib qt
 
-dataset = GaussianDataset3D(7)
+dataset = GaussianDataset3D(9)
 g_embs = dataset.grouped_embs
 ood_embs = dataset.o[0]
+print(np.dot(dataset.sp_ax, dataset.core_ax))
 
 core_class_names = ['0', '1']
 sp_class_names = ['0', '1']
@@ -74,12 +75,38 @@ draw_arrow3D(ax, dataset.sp_ax, 'spurious axis', 'orange', 'dashed')
 #draw_arrow3D(ax, dataset.perp_ax, 'perp axis', 'gray', 'dashed')
 
 
-
 fig.tight_layout()
 plt.legend()
 
 
+def project_points_to_plane(points_3d):
+    cr_coefs1 = np.dot(dataset.sp_ax, dataset.core_ax)
+    sp_ax = dataset.sp_ax - cr_coefs1 * dataset.core_ax
+    normal_vector = normalize(sp_ax)
+    #normal_vector = dataset.sp_ax
+    projection_matrix = np.eye(3) - np.outer(normal_vector, normal_vector)
+    points_2d = np.dot(points_3d, projection_matrix)
+    
+    return points_2d
 
+
+figsize = 10
+fig = plt.figure(figsize=(figsize, figsize))
+
+ax = fig.add_subplot(projection='3d')
+
+draw_point_cloud3D(ax, project_points_to_plane(g_embs['0_0']), 'maj 0', 'tab:blue')
+draw_point_cloud3D(ax, project_points_to_plane(g_embs['0_1']), 'min 0', 'tab:green')
+draw_point_cloud3D(ax, project_points_to_plane(g_embs['1_0']), 'maj 1', 'tab:orange')
+draw_point_cloud3D(ax, project_points_to_plane(g_embs['1_1']), 'min 1', 'tab:red')
+
+draw_point_cloud3D(ax, project_points_to_plane(ood_embs), 'OoD', 'tab:gray')
+
+
+
+
+fig.tight_layout()
+plt.legend()
 
 def calc_cos_dist(embs, prototypes):
 #    embs = embs / np.linalg.norm(embs, axis=-1, keepdims=True)
