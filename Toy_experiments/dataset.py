@@ -97,7 +97,7 @@ class GaussianDataset3D():
         ood0 = np.random.normal(self.perp_ax, self.std_maj, size=(self.maj_size, 3))
         
         cr_coefs = np.dot(ood0, self.core_ax)
-        ood0 -= 0.9 * cr_coefs[:, None] * np.repeat(self.core_ax[None], ood0.shape[0], axis=0)
+        ood0 -= 0.5 * cr_coefs[:, None] * np.repeat(self.core_ax[None], ood0.shape[0], axis=0)
         ood0 = self.normalize(ood0)
         
         
