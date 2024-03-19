@@ -8,7 +8,7 @@ from sklearn.metrics import auc
 
 #%matplotlib qt
 
-dataset = GaussianDataset3D(10)
+dataset = GaussianDataset3D(8, normal=False)
 g_embs = dataset.grouped_embs
 ood_embs = dataset.o[0]
 print(np.dot(dataset.sp_ax, dataset.core_ax))
@@ -31,7 +31,6 @@ def normalize(x):
     return x / np.linalg.norm(x, axis=-1, keepdims=True)
     
 def refine_embs(embs, sp1, sp2, cr1, cr2):
-    embs = normalize(embs)
     
     refined = 1.0 * embs.copy()
 
@@ -49,7 +48,7 @@ def refine_embs(embs, sp1, sp2, cr1, cr2):
 #    sp1 = normalize(sp_ax)[None]
     
     sp_coefs1 = np.dot(refined, sp1.squeeze())
-    refined -= 0.2 * sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
+    refined -= 0.1 * sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
 
     
 #    refined = normalize(refined)
@@ -84,7 +83,7 @@ def project_points_to_plane(points_3d):
     cr_coefs1 = np.dot(dataset.sp_ax, dataset.core_ax)
     sp_ax = dataset.sp_ax - cr_coefs1 * dataset.core_ax
     normal_vector = normalize(sp_ax)
-    #normal_vector = dataset.sp_ax
+    normal_vector = dataset.sp_ax
     projection_matrix = np.eye(3) - np.outer(normal_vector, normal_vector)
     points_2d = np.dot(points_3d, projection_matrix)
     
@@ -138,19 +137,18 @@ draw_arrow3D(ax, dataset.sp_ax, 'spurious axis', 'orange', 'dashed')
 fig.tight_layout()
 plt.legend()
 
-
-def calc_cos_dist(embs, prototypes):
-#    embs = embs / np.linalg.norm(embs, axis=-1, keepdims=True)
-#    prototypes = prototypes / np.linalg.norm(prototypes, axis=-1, keepdims=True)
-    cos_dist = (1 - (embs * prototypes).sum(axis=-1)) / 2
-    #cos_dist = np.abs(cos_dist)
-    return cos_dist.squeeze()
-
 #def calc_cos_dist(embs, prototypes):
-#    euc_dist = np.linalg.norm(embs - prototypes, axis=-1)
-#    return euc_dist
+##    embs = embs / np.linalg.norm(embs, axis=-1, keepdims=True)
+##    prototypes = prototypes / np.linalg.norm(prototypes, axis=-1, keepdims=True)
+#    cos_dist = (1 - (embs * prototypes).sum(axis=-1)) / 2
+#    #cos_dist = np.abs(cos_dist)
+#    return cos_dist.squeeze()
 
-grouped_cos_dist = {group: calc_cos_dist(embs, g_embs[group].mean(0)) for group, embs in g_embs.items()}
+def calc_euc_dist(embs, prototypes):
+    euc_dist = np.linalg.norm(embs - prototypes, axis=-1)
+    return euc_dist
+
+grouped_cos_dist = {group: calc_euc_dist(embs, g_embs[group].mean(0)) for group, embs in g_embs.items()}
 
 
 print('neutral:')
@@ -161,7 +159,7 @@ for group, ax in zip([group for group in g_embs], axes):
     loc = group.find('_')
     sp_name = group[loc + 1:]
     ood_embs_arr = ood_embs
-    ood_dists = calc_cos_dist(ood_embs_arr, g_embs[group].mean(0))
+    ood_dists = calc_euc_dist(ood_embs_arr, g_embs[group].mean(0))
     sns.histplot(ood_dists, label='ood', ax=ax, element='step', linewidth=2.5, fill=False)
     ax.legend()
     ax.set_title(group, fontsize=17)
@@ -170,7 +168,7 @@ for group, ax in zip([group for group in g_embs], axes):
     
     
 
-grouped_cos_dist = {group: calc_cos_dist(embs, refined_g_embs[group].mean(0)) for group, embs in refined_g_embs.items()}
+grouped_cos_dist = {group: calc_euc_dist(embs, refined_g_embs[group].mean(0)) for group, embs in refined_g_embs.items()}
 
 
 print('refined:')
@@ -181,7 +179,7 @@ for group, ax in zip([group for group in refined_g_embs], axes):
     loc = group.find('_')
     sp_name = group[loc + 1:]
     ood_embs_arr = refined_ood_embs
-    ood_dists = calc_cos_dist(ood_embs_arr, refined_g_embs[group].mean(0))
+    ood_dists = calc_euc_dist(ood_embs_arr, refined_g_embs[group].mean(0))
     sns.histplot(ood_dists, label='ood', ax=ax, element='step', linewidth=2.5, fill=False)
     ax.legend()
     ax.set_title(group, fontsize=17)
@@ -200,7 +198,7 @@ def get_dist_vals(emb_name1, emb_name2, pr_name1, pr_name2, refined=False):
     else:
         embs = g_embs
         
-    dist_vals = calc_cos_dist(embs[emb_name1 + '_' + emb_name2],
+    dist_vals = calc_euc_dist(embs[emb_name1 + '_' + emb_name2],
                               embs[pr_name1 + '_' + pr_name2].mean(0))
     return dist_vals
     
@@ -214,7 +212,7 @@ def get_dist_vals_ood(pr_name1, pr_name2, refined=False):
         embs = ood_embs
         p_embs = g_embs
         
-    dist_vals = calc_cos_dist(embs,
+    dist_vals = calc_euc_dist(embs,
                               p_embs[pr_name1 + '_' + pr_name2].mean(0))
     return dist_vals
 

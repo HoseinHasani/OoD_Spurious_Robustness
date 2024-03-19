@@ -42,13 +42,14 @@ class GaussianDataset():
         
         
 class GaussianDataset3D():
-    def __init__(self, seed=None, maj_size=3000, min_size=1000, std=0.35):
+    def __init__(self, seed=None, maj_size=3000, min_size=1000, std=0.35, normal=True):
         
         self.std_maj = std
         self.std_min = std * 0.7
         self.maj_size = maj_size
         self.min_size = min_size
         self.grouped_embs = {}
+        self.normal = normal
         
         if seed is not None:
             self.set_seed(seed)
@@ -59,17 +60,23 @@ class GaussianDataset3D():
     def set_seed(self, seed):
         np.random.seed(seed)
         
-    def normalize(self, x):
-        return x / np.linalg.norm(x, axis=-1, keepdims=True)
+    def normalize(self, x, axis=False):
+        
+        normal = self.normal or axis
+        
+        if normal:
+            return x / np.linalg.norm(x, axis=-1, keepdims=True)
+        else:
+            return x
 
     def generate_random_axes(self):
-        core_axis = self.normalize(2 * np.random.rand(3) - 1)
-        sp_axis = self.normalize(2 * np.random.rand(3) - 1)
-        dummy_axis = self.normalize(2 * np.random.rand(3) - 1)
-        perpendicular_axis = self.normalize(np.cross(core_axis, dummy_axis))
+        core_axis = self.normalize(2 * np.random.rand(3) - 1, True)
+        sp_axis = self.normalize(2 * np.random.rand(3) - 1, True)
+        dummy_axis = self.normalize(2 * np.random.rand(3) - 1, True)
+        perpendicular_axis = self.normalize(np.cross(core_axis, dummy_axis), True)
         return core_axis, sp_axis, perpendicular_axis
     
-    def generate_dataset(self, alpha=0.5):
+    def generate_dataset(self, alpha=0.6):
         
         mean = -alpha * self.sp_ax + 1 * self.core_ax
         min0 = np.random.normal(mean, self.std_min, size=(self.min_size, 3))
@@ -88,6 +95,9 @@ class GaussianDataset3D():
         maj1 = self.normalize(maj1)
         
         ood0 = np.random.normal(self.perp_ax, self.std_maj, size=(self.maj_size, 3))
+        
+        cr_coefs = np.dot(ood0, self.core_ax)
+        ood0 -= 0.9 * cr_coefs[:, None] * np.repeat(self.core_ax[None], ood0.shape[0], axis=0)
         ood0 = self.normalize(ood0)
         
         
