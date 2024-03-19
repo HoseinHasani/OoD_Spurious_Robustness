@@ -8,7 +8,7 @@ from sklearn.metrics import auc
 
 #%matplotlib qt
 
-dataset = GaussianDataset3D(9)
+dataset = GaussianDataset3D(5)
 g_embs = dataset.grouped_embs
 ood_embs = dataset.o[0]
 print(np.dot(dataset.sp_ax, dataset.core_ax))
@@ -30,25 +30,27 @@ def draw_arrow3D(ax, arrow, label, color, linestyle):
 def normalize(x):
     return x / np.linalg.norm(x, axis=-1, keepdims=True)
     
-def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=1., beta=1.):
+def refine_embs(embs, sp1, sp2, cr1, cr2):
     embs = normalize(embs)
     
-    refined = 0.1 * embs.copy()
+    refined = 1.0 * embs.copy()
+
+#    cr_coefs1 = np.dot(dataset.sp_ax, dataset.core_ax)
+#    core_ax = dataset.core_ax - cr_coefs1 * dataset.sp_ax
+#    cr1 = normalize(core_ax)[None]
     
     cr_coefs1 = np.dot(embs, cr1.squeeze())
-    refined += cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
+    refined += 2 * cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
     
     
-#    cr_coefs2 = np.dot(embs, cr2.squeeze())
-#    refined += cr_coefs2[:, None] * np.repeat(cr2, embs.shape[0], axis=0)
 
+#    cr_coefs1 = np.dot(dataset.sp_ax, dataset.core_ax)
+#    sp_ax = dataset.sp_ax - cr_coefs1 * dataset.core_ax
+#    sp1 = normalize(sp_ax)[None]
+    
+    sp_coefs1 = np.dot(refined, sp1.squeeze())
+    refined -= 0.5 * sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
 
-#    sp_coefs1 = beta * np.dot(refined, sp1.squeeze())
-#    refined -= alpha * sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
-#    
-#    
-#    sp_coefs2 = beta * np.dot(refined, sp2.squeeze())
-#    refined -= alpha * sp_coefs2[:, None] * np.repeat(sp2, embs.shape[0], axis=0)
     
 #    refined = normalize(refined)
     return refined
@@ -78,7 +80,6 @@ draw_arrow3D(ax, dataset.sp_ax, 'spurious axis', 'orange', 'dashed')
 fig.tight_layout()
 plt.legend()
 
-
 def project_points_to_plane(points_3d):
     cr_coefs1 = np.dot(dataset.sp_ax, dataset.core_ax)
     sp_ax = dataset.sp_ax - cr_coefs1 * dataset.core_ax
@@ -90,7 +91,6 @@ def project_points_to_plane(points_3d):
     return points_2d
 
 
-figsize = 10
 fig = plt.figure(figsize=(figsize, figsize))
 
 ax = fig.add_subplot(projection='3d')
@@ -103,10 +103,41 @@ draw_point_cloud3D(ax, project_points_to_plane(g_embs['1_1']), 'min 1', 'tab:red
 draw_point_cloud3D(ax, project_points_to_plane(ood_embs), 'OoD', 'tab:gray')
 
 
+fig.tight_layout()
+plt.legend()
+
+
+
+refined_g_embs = {}
+for key in g_embs.keys():
+    refined_g_embs[key] = refine_embs(g_embs[key], dataset.sp_ax[None], dataset.sp_ax[None], dataset.core_ax[None], dataset.core_ax[None])
+
+refined_ood_embs = refine_embs(ood_embs, dataset.sp_ax[None], dataset.sp_ax[None], dataset.core_ax[None], dataset.core_ax[None])
+
+
+fig = plt.figure(figsize=(figsize, figsize))
+
+ax = fig.add_subplot(projection='3d')
+
+draw_point_cloud3D(ax, refined_g_embs['0_0'], 'maj 0', 'tab:blue')
+draw_point_cloud3D(ax, refined_g_embs['0_1'], 'min 0', 'tab:green')
+draw_point_cloud3D(ax, refined_g_embs['1_0'], 'maj 1', 'tab:orange')
+draw_point_cloud3D(ax, refined_g_embs['1_1'], 'min 1', 'tab:red')
+
+draw_point_cloud3D(ax, refined_ood_embs, 'OoD', 'tab:gray')
+
+plot_prototype3D(ax, refined_g_embs['0_0'].mean(0), 'maj 0 - prototype', 'blue')
+plot_prototype3D(ax, refined_g_embs['0_1'].mean(0), 'maj 0 - prototype', 'green')
+plot_prototype3D(ax, refined_g_embs['1_0'].mean(0), 'maj 1 - prototype', 'orange')
+plot_prototype3D(ax, refined_g_embs['1_1'].mean(0), 'maj 1 - prototype', 'red')
+
+draw_arrow3D(ax, dataset.core_ax, 'core axis', 'red', 'solid')
+draw_arrow3D(ax, dataset.sp_ax, 'spurious axis', 'orange', 'dashed')
 
 
 fig.tight_layout()
 plt.legend()
+
 
 def calc_cos_dist(embs, prototypes):
 #    embs = embs / np.linalg.norm(embs, axis=-1, keepdims=True)
@@ -138,12 +169,6 @@ for group, ax in zip([group for group in g_embs], axes):
           wasserstein_distance(ood_dists, grouped_cos_dist[group]))
     
     
-refined_g_embs = {}
-for key in g_embs.keys():
-    refined_g_embs[key] = refine_embs(g_embs[key], dataset.sp_ax[None], dataset.sp_ax[None], dataset.core_ax[None], dataset.core_ax[None])
-
-refined_ood_embs = refine_embs(ood_embs, dataset.sp_ax[None], dataset.sp_ax[None], dataset.core_ax[None], dataset.core_ax[None])
-
 
 grouped_cos_dist = {group: calc_cos_dist(embs, refined_g_embs[group].mean(0)) for group, embs in refined_g_embs.items()}
 

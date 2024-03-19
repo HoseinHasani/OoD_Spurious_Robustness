@@ -42,7 +42,7 @@ class GaussianDataset():
         
         
 class GaussianDataset3D():
-    def __init__(self, seed=None, maj_size=3000, min_size=1000, std=0.25):
+    def __init__(self, seed=None, maj_size=3000, min_size=1000, std=0.35):
         
         self.std_maj = std
         self.std_min = std * 0.7
@@ -71,19 +71,19 @@ class GaussianDataset3D():
     
     def generate_dataset(self, alpha=0.5):
         
-        mean = -alpha * self.sp_ax + (1 - alpha) * self.core_ax
+        mean = -alpha * self.sp_ax + 1 * self.core_ax
         min0 = np.random.normal(mean, self.std_min, size=(self.min_size, 3))
         min0 = self.normalize(min0)
         
-        mean = (1 - alpha) * self.sp_ax + alpha * self.core_ax
+        mean = (1 - alpha) * self.sp_ax + 1 * self.core_ax
         maj0 = np.random.normal(mean, self.std_maj, size=(self.maj_size, 3))
         maj0 = self.normalize(maj0)
 
-        mean = alpha * self.sp_ax - (1 - alpha) * self.core_ax
+        mean = alpha * self.sp_ax - 1 * self.core_ax
         min1 = np.random.normal(mean, self.std_min, size=(self.min_size, 3))
         min1 = self.normalize(min1)
         
-        mean = -(1 - alpha) * self.sp_ax - alpha * self.core_ax
+        mean = -(1 - alpha) * self.sp_ax - 1 * self.core_ax
         maj1 = np.random.normal(mean, self.std_maj, size=(self.maj_size, 3))
         maj1 = self.normalize(maj1)
         
