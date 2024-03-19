@@ -8,10 +8,13 @@ from sklearn.metrics import auc
 
 #%matplotlib qt
 
-dataset = GaussianDataset3D(8, normal=False)
+dataset = GaussianDataset3D(5, normal=False)
 g_embs = dataset.grouped_embs
 ood_embs = dataset.o[0]
 print(np.dot(dataset.sp_ax, dataset.core_ax))
+
+core_ax_th = 0.5
+sp_ax_th = 0.8
 
 core_class_names = ['0', '1']
 sp_class_names = ['0', '1']
@@ -39,7 +42,8 @@ def refine_embs(embs, sp1, sp2, cr1, cr2):
 #    cr1 = normalize(core_ax)[None]
     
     cr_coefs1 = np.dot(embs, cr1.squeeze())
-    refined += 2 * cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
+    cr_coefs1 = np.clip(cr_coefs1, -core_ax_th, core_ax_th)
+    refined += 4 * cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
     
     
 
@@ -48,6 +52,7 @@ def refine_embs(embs, sp1, sp2, cr1, cr2):
 #    sp1 = normalize(sp_ax)[None]
     
     sp_coefs1 = np.dot(refined, sp1.squeeze())
+    sp_coefs1 = np.clip(sp_coefs1, -sp_ax_th, sp_ax_th)
     refined -= 0.1 * sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
 
     
