@@ -4,6 +4,7 @@ from dataset import GaussianDataset2D
 from scipy.stats import wasserstein_distance
 import seaborn as sns
 from sklearn.metrics import auc
+from scipy import integrate
 
 #%matplotlib qt
 
@@ -32,9 +33,47 @@ def draw_arrow3D(ax, arrow, label, color, linestyle):
     
 def normalize(x):
     return x / np.linalg.norm(x, axis=-1, keepdims=True)
-    
 
-def refine_embs(embs, sp1, sp2, cr1, cr2):
+def calc_stats(data, cr_ax, sp_ax):
+    
+    cr_coefs = []
+    sp_coefs = []
+    for key in data.keys():
+        cr_coefs.append(np.abs(np.dot(data[key], cr_ax)))
+        sp_coefs.append(np.abs(np.dot(data[key], sp_ax)))
+    
+    return np.concatenate(cr_coefs), np.concatenate(sp_coefs)
+
+def calc_CDF(data):
+    h, x = np.histogram(data, bins=1000, normed=True)
+    F = np.cumsum(h) * (x[1] - x[0])
+    return F, x[1:]
+
+
+def find_nearest(array, value):
+    idx = (np.abs(array - value)).argmin()
+    return idx
+
+def calc_nonlin_coefs(coefs, F, x, alpha=1):
+    f = integrate.cumtrapz(1 - F ** (0.3))
+    f = f / f.max() * alpha
+    coef_vals = []
+    for coef in coefs:
+        
+        if np.abs(coef) > x.max():
+            coef_vals.append(alpha * coef / np.abs(coef))
+        else:
+            ind = find_nearest(x[:-1], np.abs(coef))
+            coef_vals.append(f[ind] * coef / np.abs(coef) * alpha)
+            
+    return np.array(coef_vals)
+
+    
+c_vals, s_vals = calc_stats(g_embs, dataset.core_ax, dataset.sp_ax)
+f_c, x_c = calc_CDF(c_vals)
+f_s, x_s = calc_CDF(s_vals)
+
+def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=4., beta=0.2):
     
     refined = 1.0 * embs.copy()
 
@@ -43,8 +82,9 @@ def refine_embs(embs, sp1, sp2, cr1, cr2):
 #    cr1 = normalize(core_ax)[None]
     
     cr_coefs1 = np.dot(embs, cr1.squeeze())
-    cr_coefs1 = np.clip(cr_coefs1, -core_ax_th, core_ax_th)
-    refined += 4 * cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
+    #cr_coefs1 = alpha * np.clip(cr_coefs1, -core_ax_th, core_ax_th)
+    cr_coefs1 = calc_nonlin_coefs(cr_coefs1, f_c, x_c, alpha=alpha)
+    refined += cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
     
     
 
@@ -53,8 +93,9 @@ def refine_embs(embs, sp1, sp2, cr1, cr2):
 #    sp1 = normalize(sp_ax)[None]
     
     sp_coefs1 = np.dot(refined, sp1.squeeze())
-    sp_coefs1 = np.clip(sp_coefs1, -sp_ax_th, sp_ax_th)
-    refined -= 0.2 * sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
+    #sp_coefs1 = beta * np.clip(sp_coefs1, -sp_ax_th, sp_ax_th)
+    sp_coefs1 = calc_nonlin_coefs(sp_coefs1, f_s, x_s, alpha=beta)
+    refined -= sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
 
     
 #    refined = normalize(refined)
