@@ -42,7 +42,7 @@ class GaussianDataset():
         
         
 class GaussianDataset2D():
-    def __init__(self, seed=None, maj_size=5000, min_size=3000, std=0.35, normal=True):
+    def __init__(self, seed=None, maj_size=10000, min_size=6000, std=0.35, normal=True):
         
         self.std_maj = std
         self.std_min = std * 0.7
@@ -97,7 +97,7 @@ class GaussianDataset2D():
         ood0 = np.random.normal(self.sp_ax, self.std_maj, size=(self.maj_size, 2))
         
         cr_coefs = np.dot(ood0, self.core_ax)
-        ood0 -= 0.5 * cr_coefs[:, None] * np.repeat(self.core_ax[None], ood0.shape[0], axis=0)
+        ood0 -= 0.4 * cr_coefs[:, None] * np.repeat(self.core_ax[None], ood0.shape[0], axis=0)
         ood0 = self.normalize(ood0)
         
         
