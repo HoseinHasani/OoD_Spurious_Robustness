@@ -18,7 +18,7 @@ samples4prototype = 400
 filter_ood = False
 
 backbones = ['dino', 'res50']
-backbone = backbones[1]
+backbone = backbones[0]
 
 core_class_names = ['0', '1']
 ood_class_names = ['0', '1']
@@ -182,7 +182,7 @@ print(np.dot(core_ax2[0], ood_ax2[0]))
 print('***********************')
 
 
-def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=0.1, beta=0.9):
+def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=0.0, beta=0.9):
     embs = normalize(embs)
 
     
@@ -219,7 +219,7 @@ def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=0.1, beta=0.9):
         refined += cr_coefs2[:, None] * np.repeat(cr2, embs.shape[0], axis=0)
                 
     
-#    refined = normalize(refined)
+    refined = normalize(refined)
     return refined
 
 
@@ -323,31 +323,37 @@ for group, ax in zip([group for group in selected_grouped_embs], axes):
     print(group, sp_name, np.mean(ood_dists) / np.mean(grouped_cos_dist[group]),
           wasserstein_distance(ood_dists, grouped_cos_dist[group]))
     
-def get_dist_vals(emb_name1, emb_name2, pr_name1, pr_name2, refined=False):
+def get_dist_vals(core_name, refined=False):
     
     if refined:
         embs = refined_grouped_embs
-        protos = refined_grouped_prototypes
     else:
         embs = grouped_embs
-        protos = grouped_prototypes
         
-    dist_vals = calc_cos_dist(embs[emb_name1 + '_' + emb_name2],
-                              protos[pr_name1 + '_' + pr_name2])
-    return dist_vals
+    all_dist_vals = []
+
+    for sp in sp_class_names:
+        dist_vals = [calc_cos_dist(embs[core_name + '_' + sp],
+                                  embs[core_name + '_' + sp_name].mean(0)) for sp_name in sp_class_names]
+        dist_vals = np.min(dist_vals, axis=0)
+        all_dist_vals.append(dist_vals)
+    
+    return np.concatenate(all_dist_vals)
     
 
-def get_dist_vals_ood(emb_name1, emb_name2, pr_name1, pr_name2, refined=False):
+def get_dist_vals_ood(core_name, refined=False):
     
     if refined:
-        embs = refined_ood_embs
-        protos = refined_grouped_prototypes
+        embs = np.concatenate([refined_ood_embs[ood_class_names[0]], refined_ood_embs[ood_class_names[1]]])
+        p_embs = refined_grouped_prototypes
     else:
-        embs = ood_embs
-        protos = grouped_prototypes
+        embs = np.concatenate([ood_embs[ood_class_names[0]], ood_embs[ood_class_names[1]]])
+        p_embs = grouped_prototypes
         
-    dist_vals = calc_cos_dist(embs[emb_name1],
-                              protos[pr_name1 + '_' + pr_name2])
+    dist_vals = [calc_cos_dist(embs,
+                              p_embs[core_name + '_' + sp_name].mean(0)) for sp_name in sp_class_names]
+    dist_vals = np.min(dist_vals, axis=0)
+    
     return dist_vals
 
 
@@ -356,81 +362,73 @@ def find_thresh_val(main_vals, th=0.95):
     return thresh
     
 
+
+for core_name in core_class_names:
     
-for ood_name in ood_class_names[0]:
-    for core_name in core_class_names:
-        for sp_name in sp_class_names:
-            print(f'core name: {core_name}, ood name: {ood_name}')
+    neutral_ood = get_dist_vals_ood(core_name)
+    refined_ood = get_dist_vals_ood(core_name, refined=True)
+
+    neutral_ind = get_dist_vals(core_name)
+    refined_ind = get_dist_vals(core_name, refined=True)
+
+            
+    neutral_th = find_thresh_val(neutral_ind)
+    neutral_err = neutral_ood[neutral_ood < neutral_th].shape[0] / neutral_ood.shape[0]
+
     
-            neutral_ood = get_dist_vals_ood(ood_name, sp_name, core_name, sp_name)
+    refined_th = find_thresh_val(refined_ind)
+    refined_err = refined_ood[refined_ood < refined_th].shape[0] / refined_ood.shape[0]
     
-            refined_ood = get_dist_vals_ood(ood_name, sp_name, core_name, sp_name, refined=True)
+    print('neutral:', 100 * neutral_err,
+          np.mean(neutral_ind) / np.mean(neutral_ood))
+    
+    print('refined:', 100 * refined_err,
+          np.mean(np.mean(refined_ind)) / np.mean(np.mean(refined_ood)))
+    
+    print('***********************')
+    
+    
+    thresholds = [th for th in np.arange(1, 100) / 100]
+    
+    n_fps = [0]
+    n_tps = [0]
+    
+    r_fps = [0]
+    r_tps = [0]
+    
+    for th in thresholds:
         
-            neutral_ind = get_dist_vals(core_name, sp_name, core_name, sp_name)
-    
-            refined_ind = get_dist_vals(core_name, sp_name, core_name, sp_name, refined=True)
+        neutral_th = find_thresh_val(neutral_ind, th)
         
-    
+        neutral_fp = neutral_ood[neutral_ood < neutral_th].shape[0] / neutral_ood.shape[0]
+        neutral_tp = neutral_ind[neutral_ind < neutral_th].shape[0] / neutral_ind.shape[0]
         
-            neutral_main = neutral_ind
-                    
-            neutral_th = find_thresh_val(neutral_main)
-            neutral_err = neutral_ood[neutral_ood < neutral_th].shape[0] / neutral_ood.shape[0]
+        n_fps.append(neutral_fp)
+        n_tps.append(neutral_tp)
+
+        refined_th = find_thresh_val(refined_ind, th)
+        
+        refined_fp = refined_ood[refined_ood < refined_th].shape[0] / refined_ood.shape[0]
+        refined_tp = refined_ind[refined_ind < refined_th].shape[0] / refined_ind.shape[0]
+        
+        r_fps.append(refined_fp)
+        r_tps.append(refined_tp)
+                
+    n_fps.append(1)
+    n_tps.append(1)
+    r_fps.append(1)
+    r_tps.append(1)
     
-            refined_main = refined_ind
-            
-            refined_th = find_thresh_val(refined_main)
-            refined_err = refined_ood[refined_ood < refined_th].shape[0] / refined_ood.shape[0]
-            
-            print('neutral:', 100 * neutral_err,
-                  np.mean(neutral_ind) / np.mean(neutral_ood))
-            
-            print('refined:', 100 * refined_err,
-                  np.mean(np.mean(refined_ind)) / np.mean(np.mean(refined_ood)))
-            
-            print('***********************')
-            
-            
-            thresholds = [th for th in np.arange(1, 100) / 100]
-            
-            n_fps = [0]
-            n_tps = [0]
-            
-            r_fps = [0]
-            r_tps = [0]
-            
-            for th in thresholds:
-                
-                neutral_th = find_thresh_val(neutral_ind, th)
-                
-                neutral_fp = neutral_ood[neutral_ood < neutral_th].shape[0] / neutral_ood.shape[0]
-                neutral_tp = neutral_main[neutral_main < neutral_th].shape[0] / neutral_main.shape[0]
-                
-                n_fps.append(neutral_fp)
-                n_tps.append(neutral_tp)
+    n_auc = np.round(auc(n_fps, n_tps), 4)
+    r_auc = np.round(auc(r_fps, r_tps), 4)
     
-                refined_th = find_thresh_val(refined_ind, th)
-                
-                refined_fp = refined_ood[refined_ood < refined_th].shape[0] / refined_ood.shape[0]
-                refined_tp = refined_main[refined_main < refined_th].shape[0] / refined_main.shape[0]
-                
-                r_fps.append(refined_fp)
-                r_tps.append(refined_tp)
-                        
-            n_fps.append(1)
-            n_tps.append(1)
-            r_fps.append(1)
-            r_tps.append(1)
-            
-            n_auc = np.round(auc(n_fps, n_tps), 4)
-            r_auc = np.round(auc(r_fps, r_tps), 4)
-            
-            plt.figure()
-            plt.plot(n_fps, n_tps, label=f'before refinement, area={n_auc}', linewidth=2)
-            plt.plot(r_fps, r_tps, label=f'after refinement, area={r_auc}', linewidth=2)
-            plt.xlabel('FPR')
-            plt.ylabel('TPR')
-            #plt.ylim([0.55, 1.001])
-            plt.legend()
-            plt.title(f'ROC ({core_name}_{sp_name})', fontsize=17)
+    plt.figure()
+    plt.plot(n_fps, n_tps, label=f'before refinement, area={n_auc}', linewidth=2)
+    plt.plot(r_fps, r_tps, label=f'after refinement, area={r_auc}', linewidth=2)
+    plt.xlabel('FPR')
+    plt.ylabel('TPR')
+    #plt.ylim([0.55, 1.001])
+    plt.legend()
+    plt.title(f'ROC ({core_name})', fontsize=17)
+        
         

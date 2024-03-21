@@ -348,10 +348,10 @@ def get_dist_vals(core_name, refined=False):
 def get_dist_vals_ood(core_name, refined=False):
     
     if refined:
-        embs = refined_ood_embs[ood_class_names[0]]
+        embs = np.concatenate([refined_ood_embs[ood_class_names[0]], refined_ood_embs[ood_class_names[1]]])
         p_embs = refined_grouped_prototypes
     else:
-        embs = ood_embs[ood_class_names[0]]
+        embs = np.concatenate([ood_embs[ood_class_names[0]], ood_embs[ood_class_names[1]]])
         p_embs = grouped_prototypes
         
     dist_vals = [calc_euc_dist(embs,
