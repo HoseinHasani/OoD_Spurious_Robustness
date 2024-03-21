@@ -6,6 +6,7 @@ from sklearn.metrics import auc
 import seaborn as sns
 import os
 import warnings
+from scipy import integrate
 
 warnings.filterwarnings("ignore")
 sns.set_context("paper", font_scale=1.4)     
@@ -21,7 +22,7 @@ samples4prototype = 400
 filter_ood = False
 
 backbones = ['dino', 'res50']
-backbone = backbones[0]
+backbone = backbones[1]
 
 core_class_names = ['0', '1']
 ood_class_names = ['0', '1']
@@ -101,9 +102,9 @@ grouped_prototypes = {group: get_prototypes(embs)\
 
 group_names = list(grouped_embs.keys())
 
-
-
 ##############################################################
+
+
 
 #core_ax1 = normalize(normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[0]}'])\
 #                   + normalize(grouped_prototypes[f'{core_class_names[0]}_{sp_class_names[1]}']))
@@ -184,8 +185,51 @@ print(np.dot(core_ax2[0], ood_ax2[0]))
 
 print('***********************')
 
+##############################################################
 
-def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=0.1, beta=0.6):
+
+def calc_stats(data, cr_ax, sp_ax):
+    
+    cr_coefs = []
+    sp_coefs = []
+    for key in data.keys():
+        cr_coefs.append(np.abs(np.dot(data[key], cr_ax.squeeze())))
+        sp_coefs.append(np.abs(np.dot(data[key], sp_ax.squeeze())))
+    
+    return np.concatenate(cr_coefs), np.concatenate(sp_coefs)
+
+def calc_CDF(data):
+    h, x = np.histogram(data, bins=1000, normed=True)
+    F = np.cumsum(h) * (x[1] - x[0])
+    return F, x[1:]
+
+
+def find_nearest(array, value):
+    idx = (np.abs(array - value)).argmin()
+    return idx
+
+def calc_nonlin_coefs(coefs, F, x, alpha=1):
+    f = integrate.cumtrapz(1 - F ** (0.2))
+    f = f / f.max() * alpha
+    coef_vals = []
+    for coef in coefs:
+        
+        if np.abs(coef) > x.max():
+            coef_vals.append(alpha * coef / np.abs(coef))
+        else:
+            ind = find_nearest(x[:-1], np.abs(coef))
+            coef_vals.append(f[ind] * coef / np.abs(coef) * alpha)
+            
+    return np.array(coef_vals)
+
+
+c_vals, s_vals = calc_stats(grouped_embs, 0.5 * core_ax1 + 0.5 * core_ax2, 0.5 * sp_ax1 + 0.5 * sp_ax2)
+f_c, x_c = calc_CDF(c_vals)
+f_s, x_s = calc_CDF(s_vals)
+
+##############################################################
+
+def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=1.5, beta=0.1):
 
 
     
@@ -193,22 +237,26 @@ def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=0.1, beta=0.6):
     refined = 1.0 * embs.copy()
     
     cr_coefs1 = np.dot(embs, cr1.squeeze())
-    cr_coefs1 = alpha * np.clip(cr_coefs1, -core_ax_th, core_ax_th)
+    #cr_coefs1 = alpha * np.clip(cr_coefs1, -core_ax_th, core_ax_th)
+    cr_coefs1 = calc_nonlin_coefs(cr_coefs1, f_c, x_c, alpha=alpha)
     refined += cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
     
     
     cr_coefs2 = np.dot(embs, cr2.squeeze())
-    cr_coefs2 = alpha * np.clip(cr_coefs2, -core_ax_th, core_ax_th)
+    #cr_coefs2 = alpha * np.clip(cr_coefs2, -core_ax_th, core_ax_th)
+    cr_coefs2 = calc_nonlin_coefs(cr_coefs2, f_c, x_c, alpha=alpha)
     refined += cr_coefs2[:, None] * np.repeat(cr2, embs.shape[0], axis=0)
 
 
     sp_coefs1 = np.dot(refined, sp1.squeeze())
-    sp_coefs1 = beta * np.clip(sp_coefs1, -sp_ax_th, sp_ax_th)
+    #sp_coefs1 = beta * np.clip(sp_coefs1, -sp_ax_th, sp_ax_th)
+    sp_coefs1 = calc_nonlin_coefs(sp_coefs1, f_s, x_s, alpha=beta)
     refined -= sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
     
     
     sp_coefs2 = np.dot(refined, sp2.squeeze())
-    sp_coefs2 = beta * np.clip(sp_coefs2, -sp_ax_th, sp_ax_th)
+    #sp_coefs2 = beta * np.clip(sp_coefs2, -sp_ax_th, sp_ax_th)
+    sp_coefs2 = calc_nonlin_coefs(sp_coefs2, f_s, x_s, alpha=beta)
     refined -= sp_coefs2[:, None] * np.repeat(sp2, embs.shape[0], axis=0)
     
     
