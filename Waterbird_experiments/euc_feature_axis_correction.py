@@ -10,6 +10,9 @@ import warnings
 warnings.filterwarnings("ignore")
 sns.set_context("paper", font_scale=1.4)     
 
+core_ax_th = 0.05
+sp_ax_th = 0.15
+
 seed = 8
 np.random.seed(seed)
 
@@ -18,7 +21,7 @@ samples4prototype = 400
 filter_ood = False
 
 backbones = ['dino', 'res50']
-backbone = backbones[1]
+backbone = backbones[0]
 
 core_class_names = ['0', '1']
 ood_class_names = ['0', '1']
@@ -182,7 +185,7 @@ print(np.dot(core_ax2[0], ood_ax2[0]))
 print('***********************')
 
 
-def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=0.1, beta=0.9):
+def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=0.2, beta=0.9):
     embs = normalize(embs)
 
     
@@ -190,23 +193,23 @@ def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=0.1, beta=0.9):
     refined = 1.0 * embs.copy()
     
     cr_coefs1 = np.dot(embs, cr1.squeeze())
-    
-    refined += alpha * cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
+    cr_coefs1 = alpha * np.clip(cr_coefs1, -core_ax_th, core_ax_th)
+    refined += cr_coefs1[:, None] * np.repeat(cr1, embs.shape[0], axis=0)
     
     
     cr_coefs2 = np.dot(embs, cr2.squeeze())
-    
-    refined += alpha * cr_coefs2[:, None] * np.repeat(cr2, embs.shape[0], axis=0)
+    cr_coefs2 = alpha * np.clip(cr_coefs2, -core_ax_th, core_ax_th)
+    refined += cr_coefs2[:, None] * np.repeat(cr2, embs.shape[0], axis=0)
 
 
     sp_coefs1 = np.dot(refined, sp1.squeeze())
-    
-    refined -= beta * sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
+    sp_coefs1 = beta * np.clip(sp_coefs1, -sp_ax_th, sp_ax_th)
+    refined -= sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
     
     
     sp_coefs2 = np.dot(refined, sp2.squeeze())
-    
-    refined -= beta * sp_coefs2[:, None] * np.repeat(sp2, embs.shape[0], axis=0)
+    sp_coefs2 = beta * np.clip(sp_coefs2, -sp_ax_th, sp_ax_th)
+    refined -= sp_coefs2[:, None] * np.repeat(sp2, embs.shape[0], axis=0)
     
     
     if filter_ood:
