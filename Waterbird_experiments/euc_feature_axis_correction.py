@@ -93,7 +93,7 @@ def get_prototypes(embeddings, n_data=None):
     return prototype
 
 
-grouped_embs = {name: grouped_embs0[name] for name in grouped_embs0.keys()}
+grouped_embs = {name: np.concatenate([grouped_embs0[name], grouped_embs_train0[name]]) for name in grouped_embs0.keys()}
 grouped_embs_train = {name: grouped_embs_train0[name] for name in grouped_embs_train0.keys()}
 ood_embs = {name: ood_embs0[name] for name in ood_embs0.keys()}
     
@@ -159,6 +159,7 @@ ood_ax1 = normalize(normalize(ood_embs[ood_class_names[0]].mean(axis=0, keepdims
 ood_ax2 = normalize(normalize(ood_embs[ood_class_names[1]].mean(axis=0, keepdims=True)))
     
 
+
 print('***********************')
 
 
@@ -209,7 +210,7 @@ def find_nearest(array, value):
     return idx
 
 def calc_nonlin_coefs(coefs, F, x, alpha=1):
-    f = integrate.cumtrapz(1 - F ** (0.2))
+    f = integrate.cumtrapz(1 - F ** (0.9))
     f = f / f.max() * alpha
     coef_vals = []
     for coef in coefs:
@@ -227,9 +228,25 @@ c_vals, s_vals = calc_stats(grouped_embs, 0.5 * core_ax1 + 0.5 * core_ax2, 0.5 *
 f_c, x_c = calc_CDF(c_vals)
 f_s, x_s = calc_CDF(s_vals)
 
+c_vals_ood, s_vals_ood = calc_stats(ood_embs, 0.5 * core_ax1 + 0.5 * core_ax2, 0.5 * sp_ax1 + 0.5 * sp_ax2)
+f_c_ood, x_c_ood = calc_CDF(c_vals_ood)
+f_s_ood, x_s_ood = calc_CDF(s_vals_ood)
+
+plt.figure()
+plt.hist(c_vals, 50, histtype='step', normed=True, linewidth=2.5, label='embs')
+plt.hist(c_vals_ood, 50, histtype='step', normed=True, linewidth=2.5, label='ood')
+plt.title('core alignment')
+plt.legend()
+
+plt.figure()
+plt.hist(s_vals, 50, histtype='step', normed=True, linewidth=2.5, label='embs')
+plt.hist(s_vals_ood, 50, histtype='step', normed=True, linewidth=2.5, label='ood')
+plt.title('sp alignment')
+plt.legend()
+
 ##############################################################
 
-def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=1.5, beta=0.1):
+def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=3., beta=0.1):
 
 
     
