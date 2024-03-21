@@ -10,8 +10,8 @@ import warnings
 warnings.filterwarnings("ignore")
 sns.set_context("paper", font_scale=1.4)     
 
-core_ax_th = 0.05
-sp_ax_th = 0.15
+core_ax_th = 7 # 0.05
+sp_ax_th = 5 # 0.15
 
 seed = 8
 np.random.seed(seed)
@@ -92,9 +92,9 @@ def get_prototypes(embeddings, n_data=None):
     return prototype
 
 
-grouped_embs = {name: normalize(grouped_embs0[name]) for name in grouped_embs0.keys()}
-grouped_embs_train = {name: normalize(grouped_embs_train0[name]) for name in grouped_embs_train0.keys()}
-ood_embs = {name: normalize(ood_embs0[name]) for name in ood_embs0.keys()}
+grouped_embs = {name: grouped_embs0[name] for name in grouped_embs0.keys()}
+grouped_embs_train = {name: grouped_embs_train0[name] for name in grouped_embs_train0.keys()}
+ood_embs = {name: ood_embs0[name] for name in ood_embs0.keys()}
     
 grouped_prototypes = {group: get_prototypes(embs)\
                       for group, embs in grouped_embs_train.items()}
@@ -185,8 +185,8 @@ print(np.dot(core_ax2[0], ood_ax2[0]))
 print('***********************')
 
 
-def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=0.2, beta=0.9):
-    embs = normalize(embs)
+def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=0.1, beta=0.6):
+
 
     
     
@@ -331,14 +331,16 @@ def get_dist_vals(core_name, refined=False):
     
     if refined:
         embs = refined_grouped_embs
+        p_embs = refined_grouped_prototypes
     else:
         embs = grouped_embs
+        p_embs = grouped_prototypes
         
     all_dist_vals = []
 
     for sp in sp_class_names:
         dist_vals = [calc_euc_dist(embs[core_name + '_' + sp],
-                                  embs[core_name + '_' + sp_name].mean(0)) for sp_name in sp_class_names]
+                                  p_embs[core_name + '_' + sp_name]) for sp_name in sp_class_names]
         dist_vals = np.min(dist_vals, axis=0)
         all_dist_vals.append(dist_vals)
     
@@ -355,7 +357,7 @@ def get_dist_vals_ood(core_name, refined=False):
         p_embs = grouped_prototypes
         
     dist_vals = [calc_euc_dist(embs,
-                              p_embs[core_name + '_' + sp_name].mean(0)) for sp_name in sp_class_names]
+                              p_embs[core_name + '_' + sp_name]) for sp_name in sp_class_names]
     dist_vals = np.min(dist_vals, axis=0)
     
     return dist_vals

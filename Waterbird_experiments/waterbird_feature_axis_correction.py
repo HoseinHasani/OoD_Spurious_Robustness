@@ -182,7 +182,7 @@ print(np.dot(core_ax2[0], ood_ax2[0]))
 print('***********************')
 
 
-def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=0.0, beta=0.9):
+def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=0.0, beta=0.99):
     embs = normalize(embs)
 
     
@@ -327,14 +327,16 @@ def get_dist_vals(core_name, refined=False):
     
     if refined:
         embs = refined_grouped_embs
+        p_embs = refined_grouped_prototypes
     else:
         embs = grouped_embs
+        p_embs = grouped_prototypes
         
     all_dist_vals = []
 
     for sp in sp_class_names:
         dist_vals = [calc_cos_dist(embs[core_name + '_' + sp],
-                                  embs[core_name + '_' + sp_name].mean(0)) for sp_name in sp_class_names]
+                                  p_embs[core_name + '_' + sp_name]) for sp_name in sp_class_names]
         dist_vals = np.min(dist_vals, axis=0)
         all_dist_vals.append(dist_vals)
     
@@ -351,7 +353,7 @@ def get_dist_vals_ood(core_name, refined=False):
         p_embs = grouped_prototypes
         
     dist_vals = [calc_cos_dist(embs,
-                              p_embs[core_name + '_' + sp_name].mean(0)) for sp_name in sp_class_names]
+                              p_embs[core_name + '_' + sp_name]) for sp_name in sp_class_names]
     dist_vals = np.min(dist_vals, axis=0)
     
     return dist_vals
