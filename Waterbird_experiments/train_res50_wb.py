@@ -20,7 +20,7 @@ class ResNet50(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.model = torchvision.models.resnet50(pretrained=False)
+        self.model = torchvision.models.resnet50(pretrained=True)
         d = self.model.fc.in_features
         self.model.fc = nn.Linear(d, 2)
 
@@ -92,8 +92,6 @@ class ResNet50(nn.Module):
 
 # Load pre-trained ResNet-50 model
 custom_model = ResNet50()
-
-
 
 
 
@@ -274,37 +272,38 @@ def train_and_test_erm(args):
     val_acc = []
     test_acc = []
     best_acc = 0
-    for epoch in range(1, 100):
+    for epoch in range(1, args.epoch_size):
         erm_train(model, device, all_train_loader, optimizer, epoch)
         train_acc.append(test_model(model, device, all_train_loader, set_name=f'train set epoch {epoch}'))
         val_acc.append(test_model(model, device, val_loader, set_name=f'validation set epoch {epoch}'))
         if val_acc[-1] > best_acc:
             best_acc = val_acc[-1]
-            torch.save(model.state_dict(), os.path.join('/home/user01/OpenOODv1.5/checkpoints/waterbirds/resnet50',
+            torch.save(model.state_dict(), os.path.join('resnet50_exps',
                                                         'resnet50_waterbirds_'+ str(args.r)+'_best_checkpoint_seed' + str(
                                                             args.seed) +  '_scratch.model'))
 
         test_acc.append(test_model(model, device, test_loader, set_name=f'test set epoch {epoch}'))
 
-    torch.save(model.state_dict(), os.path.join('/home/user01/OpenOODv1.5/checkpoints/waterbirds/resnet50',
+    torch.save(model.state_dict(), os.path.join('resnet50_exps',
                                                         'resnet50_waterbirds_'+ str(args.r)+'_best_checkpoint_seed' + str(
                                                             args.seed) +  '_scratch.model'))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    default_data_path = '/home/user01/SP_OOD_Experiments/Waterbirds_dataset/waterbird_complete90_forest2water2'
+    default_data_path = 'waterbird'
     parser.add_argument("--data_path", type=str, default=default_data_path, help="data path")
     parser.add_argument("--dataset", type=str, default='Waterbirds')
     parser.add_argument("--batch_size", type=int, default=32, help="batch_size")
     parser.add_argument("--backbone_size", type=int, default=64)
     parser.add_argument("--num_classes", type=int, default=2)
+    parser.add_argument("--epoch_size", type=int, default=20)
     parser.add_argument("--sampling_mode", type=str, default='top-k')
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--seed", type=int, default=10)
     parser.add_argument("--r", type=int, default=95)
 
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
     args = (args)
 
     torch.manual_seed(args.seed)
