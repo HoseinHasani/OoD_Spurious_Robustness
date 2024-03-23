@@ -24,7 +24,7 @@ def draw_point_cloud3D(ax, data, label, color, alpha=0.15):
     ax.scatter(data[:, 0], data[:, 1], color=color, label=label, alpha=alpha, s=2)
 
 def plot_prototype3D(ax, data, label, color):
-    ax.scatter(data[0], data[1], color=color, label=label, alpha=1, s=12)
+    ax.scatter(data[0], data[1], color=color, label=label, marker='*', alpha=1, s=65)
     
 def draw_arrow3D(ax, arrow, label, color, linestyle):
     ax.quiver(0, 0, arrow[0], arrow[1],
@@ -112,14 +112,14 @@ ax = fig.add_subplot()
 
 draw_point_cloud3D(ax, g_embs['0_0'], 'maj 0', 'tab:blue')
 draw_point_cloud3D(ax, g_embs['0_1'], 'min 0', 'tab:green')
-draw_point_cloud3D(ax, g_embs['1_0'], 'maj 1', 'tab:orange')
-draw_point_cloud3D(ax, g_embs['1_1'], 'min 1', 'tab:red')
+draw_point_cloud3D(ax, g_embs['1_0'], 'min 1', 'tab:orange')
+draw_point_cloud3D(ax, g_embs['1_1'], 'maj 1', 'tab:red')
 
 draw_point_cloud3D(ax, ood_embs, 'OoD', 'tab:gray')
 
 plot_prototype3D(ax, g_embs['0_0'].mean(0), 'maj 0 - prototype', 'blue')
-plot_prototype3D(ax, g_embs['0_1'].mean(0), 'maj 0 - prototype', 'green')
-plot_prototype3D(ax, g_embs['1_0'].mean(0), 'maj 1 - prototype', 'orange')
+plot_prototype3D(ax, g_embs['0_1'].mean(0), 'min 0 - prototype', 'green')
+plot_prototype3D(ax, g_embs['1_0'].mean(0), 'min 1 - prototype', 'orange')
 plot_prototype3D(ax, g_embs['1_1'].mean(0), 'maj 1 - prototype', 'red')
 
 draw_arrow3D(ax, dataset.core_ax, 'core axis', 'red', 'solid')
@@ -145,14 +145,14 @@ ax = fig.add_subplot()
 
 draw_point_cloud3D(ax, refined_g_embs['0_0'], 'maj 0', 'tab:blue')
 draw_point_cloud3D(ax, refined_g_embs['0_1'], 'min 0', 'tab:green')
-draw_point_cloud3D(ax, refined_g_embs['1_0'], 'maj 1', 'tab:orange')
-draw_point_cloud3D(ax, refined_g_embs['1_1'], 'min 1', 'tab:red')
+draw_point_cloud3D(ax, refined_g_embs['1_0'], 'min 1', 'tab:orange')
+draw_point_cloud3D(ax, refined_g_embs['1_1'], 'maj 1', 'tab:red')
 
 draw_point_cloud3D(ax, refined_ood_embs, 'OoD', 'tab:gray')
 
 plot_prototype3D(ax, refined_g_embs['0_0'].mean(0), 'maj 0 - prototype', 'blue')
-plot_prototype3D(ax, refined_g_embs['0_1'].mean(0), 'maj 0 - prototype', 'green')
-plot_prototype3D(ax, refined_g_embs['1_0'].mean(0), 'maj 1 - prototype', 'orange')
+plot_prototype3D(ax, refined_g_embs['0_1'].mean(0), 'min 0 - prototype', 'green')
+plot_prototype3D(ax, refined_g_embs['1_0'].mean(0), 'min 1 - prototype', 'orange')
 plot_prototype3D(ax, refined_g_embs['1_1'].mean(0), 'maj 1 - prototype', 'red')
 
 draw_arrow3D(ax, dataset.core_ax, 'core axis', 'red', 'solid')
