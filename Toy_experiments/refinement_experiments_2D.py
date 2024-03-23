@@ -55,7 +55,7 @@ def find_nearest(array, value):
     return idx
 
 def calc_nonlin_coefs(coefs, F, x, alpha=1):
-    f = integrate.cumtrapz(1 - F ** (0.3))
+    f = integrate.cumtrapz(1 - F ** (0.5))
     f = f / f.max() * alpha
     coef_vals = []
     for coef in coefs:
@@ -73,7 +73,7 @@ c_vals, s_vals = calc_stats(g_embs, dataset.core_ax, dataset.sp_ax)
 f_c, x_c = calc_CDF(c_vals)
 f_s, x_s = calc_CDF(s_vals)
 
-def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=4., beta=0.2):
+def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=4., beta=0.5):
     
     refined = 1.0 * embs.copy()
 
@@ -95,11 +95,13 @@ def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=4., beta=0.2):
     sp_coefs1 = np.dot(refined, sp1.squeeze())
     #sp_coefs1 = beta * np.clip(sp_coefs1, -sp_ax_th, sp_ax_th)
     sp_coefs1 = calc_nonlin_coefs(sp_coefs1, f_s, x_s, alpha=beta)
-    refined -= sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
-
+    final_refined = refined - sp_coefs1[:, None] * np.repeat(sp1, embs.shape[0], axis=0)
+    signs = np.sign(final_refined / refined)
+    signs[signs < 1] = 0.
+    final_refined = final_refined * signs
     
-#    refined = normalize(refined)
-    return refined
+#    final_refined = normalize(final_refined)
+    return final_refined
    
     
    
