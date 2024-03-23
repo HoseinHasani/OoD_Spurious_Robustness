@@ -21,8 +21,10 @@ samples4prototype = 400
 
 filter_ood = False
 
-backbones = ['dino', 'res50']
-backbone = backbones[1]
+backbones = ['dino', 'res50', 'res18']
+backbone = backbones[2]
+resnet_types = ['pretrained', 'finetuned', 'scratch']
+resnet_type = resnet_types[1]
 
 core_class_names = ['0', '1']
 ood_class_names = ['0', '1']
@@ -35,27 +37,27 @@ data_path = 'embeddings/'
 if backbone == 'dino':
     in_data_embs0 = np.load(data_path + 'waterbird_embs.npy', allow_pickle=True).item()
 elif backbone == 'res50':
-    in_data_embs0 = np.load(data_path + 'wb_embs_res50_pretrained.npy', allow_pickle=True).item()
+    in_data_embs0 = np.load(data_path + f'wb_embs_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
 
 ood_embs0 = {}
 if backbone == 'dino':
     dict_ = np.load(data_path + 'land.npy', allow_pickle=True).item()
 elif backbone == 'res50':
-    dict_ = np.load(data_path + 'land_res50_pretrained.npy', allow_pickle=True).item()
+    dict_ = np.load(data_path + f'land_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
     
-ood_embs0['0'] = np.array([dict_[key] for key in dict_.keys()])
+ood_embs0['0'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
 
 if backbone == 'dino':
     dict_ = np.load(data_path + 'water.npy', allow_pickle=True).item()
 elif backbone == 'res50':
-    dict_ = np.load(data_path + 'water_res50_pretrained.npy', allow_pickle=True).item()
-ood_embs0['1'] = np.array([dict_[key] for key in dict_.keys()])
+    dict_ = np.load(data_path + f'water_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
+ood_embs0['1'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
 
 grouped_embs0 = {}
 grouped_embs_train0 = {}
 
 for key in in_data_embs0.keys():
-    emb = in_data_embs0[key]
+    emb = in_data_embs0[key].squeeze()
     label = key[0]
     place = key[2]
     split = key[4]
