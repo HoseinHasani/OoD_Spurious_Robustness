@@ -15,6 +15,7 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from PIL import Image
 import pandas as pd
+import glob
 
 class ResNet50(nn.Module):
     def __init__(self):
@@ -162,7 +163,7 @@ class WaterbirdDataset(Dataset):
 def sample_group_batch(args, n_g=32):
     dataset_path = args.data_path
     
-    metadata = pd.read_csv(dataset_path + 'metadata.csv')
+    metadata = pd.read_csv(os.path.join(args.data_path, 'metadata.csv'))
     
     img_ids = metadata['img_id'].tolist()
     file_names = metadata['img_filename'].tolist()
@@ -175,13 +176,20 @@ def sample_group_batch(args, n_g=32):
     group_sample_names = {}
     for label in set(labels):
         for place in set(places):
-            inds_l = np.argwhere(np.array(labels) == label)
-            inds_p = np.argwhere(np.array(places) == place)
+            inds_l = np.argwhere(np.array(labels) == label).ravel()
+            inds_p = np.argwhere(np.array(places) == place).ravel()
             
             inds = set(inds_l).intersection(set(inds_p)).intersection(set(train_inds))
-            
-            selected_inds = np.random.choice(np.array(inds), n_g, replace=False)
-            group_sample_names[f'{label}_{place}'] = file_names[selected_inds]
+            inds = np.array(list(inds))
+            selected_inds = np.random.choice(inds, n_g, replace=False).ravel()
+            group_sample_names[f'{label}_{place}'] = np.array(file_names)[selected_inds]
+    
+    f_list = glob.glob(args.ood_data_path + '/*.jpg')
+    selected_inds = np.random.choice(len(f_list), 5 * n_g, replace=False).ravel()
+    
+    for k in range(5):
+        group_sample_names[f'OOD_{k}'] = f_list[selected_inds[k * n_g: (k + 1) * n_g]]
+    
     
     return group_sample_names
             
@@ -195,7 +203,12 @@ def load_group_batch(args, transform, device):
     for name in group_sample_names.keys():
         data = []
         for j in range(len(group_sample_names[name])):
-            img_filename = os.path.join(
+            if 'OOD' in name:
+                img_filename = os.path.join(
+                    args.ood_data_path,
+                    group_sample_names[name][j])
+            else:
+                img_filename = os.path.join(
                     args.data_path,
                     group_sample_names[name][j])
             
@@ -312,6 +325,7 @@ def train_and_test_erm(args):
                                                            batch_size=args.batch_size)
 
     group_data_batch = load_group_batch(args, get_transform_cub(False), device)
+    
     model = custom_model.to(device)
     # model.load_state_dict(torch.load('/home/user01/models/pretrained_ResNet50.model'))
     optimizer = optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-3, momentum=0.9)
@@ -342,6 +356,7 @@ if __name__ == "__main__":
     default_data_path = 'waterbird'
     parser.add_argument("--data_path", type=str, default=default_data_path, help="data path")
     parser.add_argument("--dataset", type=str, default='Waterbirds')
+    parser.add_argument("--ood_data_path", type=str, default='OOD_Datasets/placesbg/water')
     parser.add_argument("--batch_size", type=int, default=32, help="batch_size")
     parser.add_argument("--backbone_size", type=int, default=64)
     parser.add_argument("--num_classes", type=int, default=2)
