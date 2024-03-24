@@ -159,7 +159,7 @@ class WaterbirdDataset(Dataset):
 
 
 
-def sample_group_batch(args, n_g=20):
+def sample_group_batch(args, n_g=32):
     dataset_path = args.data_path
     
     metadata = pd.read_csv(dataset_path + 'metadata.csv')
@@ -185,8 +185,27 @@ def sample_group_batch(args, n_g=20):
     
     return group_sample_names
             
-            
 
+def load_group_batch(args, transform, device):
+    
+    group_sample_names = sample_group_batch(args)
+
+    group_data_batch = {}
+    
+    for name in group_sample_names.keys():
+        data = []
+        for j in range(len(group_sample_names[name])):
+            img_filename = os.path.join(
+                    args.data_path,
+                    group_sample_names[name][j])
+            
+            img = Image.open(img_filename).convert('RGB')
+            img = transform(img)
+            data.append(img)
+        
+        group_data_batch[name] = torch.stack(data).to(device)
+
+    return group_data_batch
 
 def get_waterbird_dataloader(split, transform, path, batch_size):
     kwargs = {'pin_memory': True, 'num_workers': 2, 'drop_last': False}
@@ -292,6 +311,7 @@ def train_and_test_erm(args):
     all_train_loader, val_loader, test_loader = get_waterbird_loaders(path=args.data_path,
                                                            batch_size=args.batch_size)
 
+    group_data_batch = load_group_batch(args, get_transform_cub(False), device)
     model = custom_model.to(device)
     # model.load_state_dict(torch.load('/home/user01/models/pretrained_ResNet50.model'))
     optimizer = optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-3, momentum=0.9)
@@ -302,7 +322,7 @@ def train_and_test_erm(args):
     best_acc = 0
     for epoch in range(1, args.epoch_size):
         erm_train(model, device, all_train_loader, optimizer, epoch)
-        train_acc.append(test_model(model, device, all_train_loader, set_name=f'train set epoch {epoch}'))
+        #train_acc.append(test_model(model, device, all_train_loader, set_name=f'train set epoch {epoch}'))
         val_acc.append(test_model(model, device, val_loader, set_name=f'validation set epoch {epoch}'))
         if val_acc[-1] > best_acc:
             best_acc = val_acc[-1]
@@ -311,7 +331,7 @@ def train_and_test_erm(args):
                                                             args.seed) +  '_scratch.model'))
 
         test_acc.append(test_model(model, device, test_loader, set_name=f'test set epoch {epoch}'))
-
+        print(f'acc: {np.mean(val_acc)}, {np.mean(test_acc)}')
     torch.save(model.state_dict(), os.path.join('resnet50_exps',
                                                         'resnet50_waterbirds_'+ str(args.r)+'_best_checkpoint_seed' + str(
                                                             args.seed) +  '_scratch.model'))
