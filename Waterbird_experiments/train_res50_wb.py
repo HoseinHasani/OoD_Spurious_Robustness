@@ -159,6 +159,34 @@ class WaterbirdDataset(Dataset):
 
 
 
+def sample_group_batch(args, n_g=20):
+    dataset_path = args.data_path
+    
+    metadata = pd.read_csv(dataset_path + 'metadata.csv')
+    
+    img_ids = metadata['img_id'].tolist()
+    file_names = metadata['img_filename'].tolist()
+    labels = metadata['y'].tolist()
+    splits = metadata['split'].tolist()
+    places = metadata['place'].tolist()
+    
+    train_inds = np.argwhere(np.array(splits) == 0).ravel()
+    
+    group_sample_names = {}
+    for label in set(labels):
+        for place in set(places):
+            inds_l = np.argwhere(np.array(labels) == label)
+            inds_p = np.argwhere(np.array(places) == place)
+            
+            inds = set(inds_l).intersection(set(inds_p)).intersection(set(train_inds))
+            
+            selected_inds = np.random.choice(np.array(inds), n_g, replace=False)
+            group_sample_names[f'{label}_{place}'] = file_names[selected_inds]
+    
+    return group_sample_names
+            
+            
+
 
 def get_waterbird_dataloader(split, transform, path, batch_size):
     kwargs = {'pin_memory': True, 'num_workers': 2, 'drop_last': False}
