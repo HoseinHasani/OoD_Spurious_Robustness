@@ -297,22 +297,34 @@ def test_model(model, device, test_loader, set_name="test set"):
         f'\nPerformance on {set_name}: Average loss: {test_loss}, Accuracy: {correct}/{len(test_loader.dataset)} ({100. * correct / len(test_loader.dataset)})\n')
     return 100. * correct / len(test_loader.dataset)
 
+def alignment(embs, core_ax, sp_ax):
+    pass
 
-def erm_train(model, device, train_loader, optimizer, epoch):
+def erm_train(model, device, train_loader, optimizer, epoch, group_data_batch, alpha=0.5):
+
+    print('Extract group embeddings ...')
+    embeddings, core_ax, sp_ax = get_axis(model, group_data_batch)
+    visualize_correlations(embeddings, core_ax, sp_ax)
+    
     criterion = nn.CrossEntropyLoss()
     model.train()
     for batch_idx, (data, target, env) in enumerate(tqdm(train_loader)):
         data, target = data.to(device).float(), target.to(device).float()
         optimizer.zero_grad()
-        output = model(data)
-        loss = criterion(output, target)
+        output, features = model(data, return_feature=True)
+        reg = alignment(features, core_ax, sp_ax)
+        loss = criterion(output, target) + alpha * reg
         loss.backward()
         optimizer.step()
-        if batch_idx % 100 == 0:
+        if batch_idx % 20 == 19:
             print(
                 f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} ({100. * batch_idx / len(train_loader)}%)]\tLoss: {loss.item()}')
 
-
+            embeddings, core_ax, sp_ax = get_axis(model, group_data_batch)
+            visualize_correlations(embeddings, core_ax, sp_ax)
+            model.train()
+            
+            
 def visualize_correlations(embeddings, core_ax, sp_ax):
     
     c_vals = []
@@ -322,31 +334,33 @@ def visualize_correlations(embeddings, core_ax, sp_ax):
     s_vals_ood = []
     
     for key in embeddings.keys():
-        c_vals_ = torch.abs(torch.tensordot(embeddings[key], core_ax, dims=-1))
-        s_vals_ = torch.abs(torch.tensordot(embeddings[key], sp_ax, dims=-1))
+        c_vals_ = np.abs(np.dot(embeddings[key].cpu().numpy(),
+                                            core_ax.cpu().numpy().squeeze()))
+        s_vals_ = np.abs(np.dot(embeddings[key].cpu().numpy(),
+                                            sp_ax.cpu().numpy().squeeze()))
         
         if 'OOD' in key:
-            c_vals_ood.append(c_vals_.cpu().numpy())
-            s_vals_ood.append(s_vals_.cpu().numpy())
+            c_vals_ood.append(c_vals_)
+            s_vals_ood.append(s_vals_)
         else:
-            c_vals.append(c_vals_.cpu().numpy())
-            s_vals.append(s_vals_.cpu().numpy())
+            c_vals.append(c_vals_)
+            s_vals.append(s_vals_)
 
     c_vals = np.concatenate(c_vals)
-    c_vals_ood = np.concatenate(c_vals)
-    s_vals = np.concatenate(c_vals)
-    s_vals_ood = np.concatenate(c_vals)
+    c_vals_ood = np.concatenate(c_vals_ood)
+    s_vals = np.concatenate(s_vals)
+    s_vals_ood = np.concatenate(s_vals_ood)
 
     
     plt.figure()
-    plt.hist(c_vals, 30, histtype='step', normed=True, linewidth=2.5, label='embs')
-    plt.hist(c_vals_ood, 30, histtype='step', normed=True, linewidth=2.5, label='ood')
+    plt.hist(c_vals, 25, histtype='step', density=True, linewidth=2.5, label='embs')
+    plt.hist(c_vals_ood, 25, histtype='step', density=True, linewidth=2.5, label='ood')
     plt.title('core alignment')
     plt.legend()
     
     plt.figure()
-    plt.hist(s_vals, 30, histtype='step', normed=True, linewidth=2.5, label='embs')
-    plt.hist(s_vals_ood, 30, histtype='step', normed=True, linewidth=2.5, label='ood')
+    plt.hist(s_vals, 25, histtype='step', density=True, linewidth=2.5, label='embs')
+    plt.hist(s_vals_ood, 25, histtype='step', density=True, linewidth=2.5, label='ood')
     plt.title('sp alignment')
     plt.legend()
     
@@ -361,12 +375,12 @@ def get_axis(model, group_data):
             _, features = model(group_data[key], return_feature=True)
         embeddings[key] = features.squeeze()
     
-    core_ax1 = F.normalize(embeddings['1_1'].mean(0) - embeddings['0_1'].mean(0))
-    core_ax2 = F.normalize(embeddings['1_0'].mean(0) - embeddings['0_0'].mean(0))
+    core_ax1 = F.normalize(embeddings['1_1'].mean(0, keepdims=True) - embeddings['0_1'].mean(0, keepdims=True))
+    core_ax2 = F.normalize(embeddings['1_0'].mean(0, keepdims=True) - embeddings['0_0'].mean(0, keepdims=True))
     core_ax = 0.5 * core_ax1 + 0.5 * core_ax2
     
-    sp_ax1 = F.normalize(embeddings['1_1'].mean(0) - embeddings['1_0'].mean(0))
-    sp_ax2 = F.normalize(embeddings['0_1'].mean(0) - embeddings['0_0'].mean(0))
+    sp_ax1 = F.normalize(embeddings['1_1'].mean(0, keepdims=True) - embeddings['1_0'].mean(0, keepdims=True))
+    sp_ax2 = F.normalize(embeddings['0_1'].mean(0, keepdims=True) - embeddings['0_0'].mean(0, keepdims=True))
     sp_ax = 0.5 * sp_ax1 + 0.5 * sp_ax2
     
     return embeddings, core_ax, sp_ax
@@ -378,22 +392,21 @@ def train_and_test_erm(args):
     device = torch.device("cuda" if use_cuda else "cpu")
     all_train_loader, val_loader, test_loader = get_waterbird_loaders(path=args.data_path,
                                                            batch_size=args.batch_size)
-
+    print('Load group samples ...')
     group_data_batch = load_group_batch(args, get_transform_cub(False), device)
     
     model = custom_model.to(device)
     # model.load_state_dict(torch.load('/home/user01/models/pretrained_ResNet50.model'))
     optimizer = optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-3, momentum=0.9)
-
-    embeddings, core_ax, sp_ax = get_axis(model, group_data_batch)
-    visualize_correlations(embeddings, core_ax, sp_ax)
+    
     
     train_acc = []
     val_acc = []
     test_acc = []
     best_acc = 0
+    print('Start training ...')
     for epoch in range(1, args.epoch_size):
-        erm_train(model, device, all_train_loader, optimizer, epoch)
+        erm_train(model, device, all_train_loader, optimizer, epoch, group_data_batch)
         #train_acc.append(test_model(model, device, all_train_loader, set_name=f'train set epoch {epoch}'))
         val_acc.append(test_model(model, device, val_loader, set_name=f'validation set epoch {epoch}'))
         if val_acc[-1] > best_acc:
