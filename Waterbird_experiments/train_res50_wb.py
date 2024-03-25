@@ -161,11 +161,9 @@ class WaterbirdDataset(Dataset):
 
 
 def sample_group_batch(args, n_g=32):
-    dataset_path = args.data_path
     
     metadata = pd.read_csv(os.path.join(args.data_path, 'metadata.csv'))
     
-    img_ids = metadata['img_id'].tolist()
     file_names = metadata['img_filename'].tolist()
     labels = metadata['y'].tolist()
     splits = metadata['split'].tolist()
@@ -184,7 +182,7 @@ def sample_group_batch(args, n_g=32):
             selected_inds = np.random.choice(inds, n_g, replace=False).ravel()
             group_sample_names[f'{label}_{place}'] = np.array(file_names)[selected_inds]
     
-    f_list = glob.glob(args.ood_data_path + '/*.jpg')
+    f_list = np.array(glob.glob(args.ood_data_path + '/*.jpg'))
     selected_inds = np.random.choice(len(f_list), 5 * n_g, replace=False).ravel()
     
     for k in range(5):
@@ -204,9 +202,7 @@ def load_group_batch(args, transform, device):
         data = []
         for j in range(len(group_sample_names[name])):
             if 'OOD' in name:
-                img_filename = os.path.join(
-                    args.ood_data_path,
-                    group_sample_names[name][j])
+                img_filename = group_sample_names[name][j]
             else:
                 img_filename = os.path.join(
                     args.data_path,
@@ -216,7 +212,7 @@ def load_group_batch(args, transform, device):
             img = transform(img)
             data.append(img)
         
-        group_data_batch[name] = torch.stack(data).to(device)
+        group_data_batch[name] = torch.stack(data).to(device).float()
 
     return group_data_batch
 
@@ -317,6 +313,65 @@ def erm_train(model, device, train_loader, optimizer, epoch):
                 f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} ({100. * batch_idx / len(train_loader)}%)]\tLoss: {loss.item()}')
 
 
+def visualize_correlations(embeddings, core_ax, sp_ax):
+    
+    c_vals = []
+    c_vals_ood = []
+
+    s_vals = []
+    s_vals_ood = []
+    
+    for key in embeddings.keys():
+        c_vals_ = torch.abs(torch.tensordot(embeddings[key], core_ax, dims=-1))
+        s_vals_ = torch.abs(torch.tensordot(embeddings[key], sp_ax, dims=-1))
+        
+        if 'OOD' in key:
+            c_vals_ood.append(c_vals_.cpu().numpy())
+            s_vals_ood.append(s_vals_.cpu().numpy())
+        else:
+            c_vals.append(c_vals_.cpu().numpy())
+            s_vals.append(s_vals_.cpu().numpy())
+
+    c_vals = np.concatenate(c_vals)
+    c_vals_ood = np.concatenate(c_vals)
+    s_vals = np.concatenate(c_vals)
+    s_vals_ood = np.concatenate(c_vals)
+
+    
+    plt.figure()
+    plt.hist(c_vals, 30, histtype='step', normed=True, linewidth=2.5, label='embs')
+    plt.hist(c_vals_ood, 30, histtype='step', normed=True, linewidth=2.5, label='ood')
+    plt.title('core alignment')
+    plt.legend()
+    
+    plt.figure()
+    plt.hist(s_vals, 30, histtype='step', normed=True, linewidth=2.5, label='embs')
+    plt.hist(s_vals_ood, 30, histtype='step', normed=True, linewidth=2.5, label='ood')
+    plt.title('sp alignment')
+    plt.legend()
+    
+    
+def get_axis(model, group_data):
+    
+    model.eval()
+    
+    embeddings = {}
+    for key in group_data.keys():
+        with torch.no_grad():
+            _, features = model(group_data[key], return_feature=True)
+        embeddings[key] = features.squeeze()
+    
+    core_ax1 = F.normalize(embeddings['1_1'].mean(0) - embeddings['0_1'].mean(0))
+    core_ax2 = F.normalize(embeddings['1_0'].mean(0) - embeddings['0_0'].mean(0))
+    core_ax = 0.5 * core_ax1 + 0.5 * core_ax2
+    
+    sp_ax1 = F.normalize(embeddings['1_1'].mean(0) - embeddings['1_0'].mean(0))
+    sp_ax2 = F.normalize(embeddings['0_1'].mean(0) - embeddings['0_0'].mean(0))
+    sp_ax = 0.5 * sp_ax1 + 0.5 * sp_ax2
+    
+    return embeddings, core_ax, sp_ax
+
+    
 def train_and_test_erm(args):
     print("ERM...\n")
     use_cuda = torch.cuda.is_available()
@@ -330,6 +385,9 @@ def train_and_test_erm(args):
     # model.load_state_dict(torch.load('/home/user01/models/pretrained_ResNet50.model'))
     optimizer = optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-3, momentum=0.9)
 
+    embeddings, core_ax, sp_ax = get_axis(model, group_data_batch)
+    visualize_correlations(embeddings, core_ax, sp_ax)
+    
     train_acc = []
     val_acc = []
     test_acc = []
