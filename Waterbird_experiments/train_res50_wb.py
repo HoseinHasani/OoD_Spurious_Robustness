@@ -297,10 +297,20 @@ def test_model(model, device, test_loader, set_name="test set"):
         f'\nPerformance on {set_name}: Average loss: {test_loss}, Accuracy: {correct}/{len(test_loader.dataset)} ({100. * correct / len(test_loader.dataset)})\n')
     return 100. * correct / len(test_loader.dataset)
 
-def alignment(embs, core_ax, sp_ax):
-    pass
+def alignment_score(embs, core_ax, sp_ax, target, alpha_sp=0.9):
+    
+    alignment_func = torch.nn.CosineSimilarity(dim=-1)
+    labels = torch.argmax(target, dim=-1)
+    
+    core_alignment = alignment_func(embs, core_ax) * (2 * labels - 1)
+    core_alignment = core_alignment.mean()
+    sp_alignment = alignment_func(embs, core_ax)
+    sp_alignment = torch.abs(sp_alignment).mean()
+    alignment = core_alignment - alpha_sp * sp_alignment
+    #print(core_alignment.item(), sp_alignment.item(), alignment.item())
+    return alignment
 
-def erm_train(model, device, train_loader, optimizer, epoch, group_data_batch, alpha=0.5):
+def erm_train(model, device, train_loader, optimizer, epoch, group_data_batch, alpha=0.9):
 
     print('Extract group embeddings ...')
     embeddings, core_ax, sp_ax = get_axis(model, group_data_batch)
@@ -312,11 +322,11 @@ def erm_train(model, device, train_loader, optimizer, epoch, group_data_batch, a
         data, target = data.to(device).float(), target.to(device).float()
         optimizer.zero_grad()
         output, features = model(data, return_feature=True)
-        reg = alignment(features, core_ax, sp_ax)
-        loss = criterion(output, target) + alpha * reg
+        alignment_val = alignment_score(features, core_ax, sp_ax, target)
+        loss = criterion(output, target) - alpha * alignment_val
         loss.backward()
         optimizer.step()
-        if batch_idx % 20 == 19:
+        if batch_idx % 10 == 9:
             print(
                 f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} ({100. * batch_idx / len(train_loader)}%)]\tLoss: {loss.item()}')
 
