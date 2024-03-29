@@ -339,7 +339,7 @@ def erm_train(model, device, train_loader, optimizer, epoch, group_data_batch, a
             model.train()
             
             
-def visualize_correlations(embeddings, core_ax, sp_ax):
+def visualize_correlations(embeddings, core_ax, sp_ax, print_logs=True):
     
     c_vals = []
     c_vals_ood = []
@@ -377,6 +377,10 @@ def visualize_correlations(embeddings, core_ax, sp_ax):
     plt.hist(s_vals_ood, 25, histtype='step', density=True, linewidth=2.5, label='ood')
     plt.title('sp alignment')
     plt.legend()
+    
+    if print_logs:
+        print(f'core coefs ratio: {np.mean(c_vals) / np.mean(c_vals_ood)}')
+        print(f'sp coefs ratio: {np.mean(s_vals) / np.mean(s_vals_ood)}')
     
     
 def get_axis(model, group_data):
