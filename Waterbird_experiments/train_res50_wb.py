@@ -304,7 +304,7 @@ def alignment_score(embs, core_ax, sp_ax, target, alpha_sp=0.9):
     
     core_alignment = alignment_func(embs, core_ax) * (2 * labels - 1)
     core_alignment = core_alignment.mean()
-    sp_alignment = alignment_func(embs, core_ax)
+    sp_alignment = alignment_func(embs, sp_ax)
     sp_alignment = torch.abs(sp_alignment).mean()
     alignment = core_alignment - alpha_sp * sp_alignment
     #print(core_alignment.item(), sp_alignment.item(), alignment.item())
@@ -421,13 +421,13 @@ def train_and_test_erm(args):
         val_acc.append(test_model(model, device, val_loader, set_name=f'validation set epoch {epoch}'))
         if val_acc[-1] > best_acc:
             best_acc = val_acc[-1]
-            torch.save(model.state_dict(), os.path.join('resnet50_exps',
+            torch.save(model.state_dict(), os.path.join(args['ckpt_path'],
                                                         'resnet50_waterbirds_'+ str(args.r)+'_best_checkpoint_seed' + str(
                                                             args.seed) +  '_scratch.model'))
 
         test_acc.append(test_model(model, device, test_loader, set_name=f'test set epoch {epoch}'))
         print(f'acc: {np.mean(val_acc)}, {np.mean(test_acc)}')
-    torch.save(model.state_dict(), os.path.join('resnet50_exps',
+    torch.save(model.state_dict(), os.path.join(args['ckpt_path'],
                                                         'resnet50_waterbirds_'+ str(args.r)+'_best_checkpoint_seed' + str(
                                                             args.seed) +  '_scratch.model'))
 
@@ -436,6 +436,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     default_data_path = 'waterbird'
     parser.add_argument("--data_path", type=str, default=default_data_path, help="data path")
+    parser.add_argument("--ckpt_path", type=str, default='resnet50_exps', help="checkpoint path")
     parser.add_argument("--dataset", type=str, default='Waterbirds')
     parser.add_argument("--ood_data_path", type=str, default='OOD_Datasets/placesbg/water')
     parser.add_argument("--batch_size", type=int, default=32, help="batch_size")
