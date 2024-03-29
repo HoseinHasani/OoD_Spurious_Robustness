@@ -73,6 +73,23 @@ c_vals, s_vals = calc_stats(g_embs, dataset.core_ax, dataset.sp_ax)
 f_c, x_c = calc_CDF(c_vals)
 f_s, x_s = calc_CDF(s_vals)
 
+c_vals_ood, s_vals_ood = calc_stats({'o': ood_embs}, dataset.core_ax, dataset.sp_ax)
+f_c_ood, x_c_ood = calc_CDF(c_vals_ood)
+f_s_ood, x_s_ood = calc_CDF(s_vals_ood)
+
+plt.figure()
+plt.hist(c_vals, 50, histtype='step', normed=True, linewidth=2.5, label='embs')
+plt.hist(c_vals_ood, 50, histtype='step', normed=True, linewidth=2.5, label='ood')
+plt.title('core alignment')
+plt.legend()
+
+plt.figure()
+plt.hist(s_vals, 50, histtype='step', normed=True, linewidth=2.5, label='embs')
+plt.hist(s_vals_ood, 50, histtype='step', normed=True, linewidth=2.5, label='ood')
+plt.title('sp alignment')
+plt.legend()
+
+
 def refine_embs(embs, sp1, sp2, cr1, cr2, alpha=4., beta=0.5):
     
     refined = 1.0 * embs.copy()
