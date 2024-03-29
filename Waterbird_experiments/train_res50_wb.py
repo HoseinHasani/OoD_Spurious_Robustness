@@ -303,11 +303,15 @@ def alignment_score(embs, core_ax, sp_ax, target, alpha_sp=0.9):
     labels = torch.argmax(target, dim=-1)
     
     core_alignment = alignment_func(embs, core_ax) * (2 * labels - 1)
-    core_alignment = core_alignment.mean()
-    sp_alignment = alignment_func(embs, sp_ax)
-    sp_alignment = torch.abs(sp_alignment).mean()
-    alignment = core_alignment - alpha_sp * sp_alignment
-    #print(core_alignment.item(), sp_alignment.item(), alignment.item())
+    avg_core_alignment = torch.abs(core_alignment).mean().detach().item()
+    core_alignment_clipped = torch.clip(core_alignment, -avg_core_alignment, avg_core_alignment)
+    
+    sp_alignment = torch.abs(alignment_func(embs, sp_ax))
+    avg_sp_alignment = torch.abs(sp_alignment).mean().detach().item()
+    sp_alignment_clipped = torch.clip(sp_alignment, avg_sp_alignment, 1.)
+    
+    alignment = core_alignment_clipped.mean() - alpha_sp * sp_alignment_clipped.mean()
+    #print(torch.abs(core_alignment).mean().item(), sp_alignment.mean().item(), alignment.item())
     return alignment
 
 def erm_train(model, device, train_loader, optimizer, epoch, group_data_batch, alpha=0.9):
