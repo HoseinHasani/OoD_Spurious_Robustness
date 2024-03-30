@@ -297,7 +297,7 @@ def test_model(model, device, test_loader, set_name="test set"):
         f'\nPerformance on {set_name}: Average loss: {test_loss}, Accuracy: {correct}/{len(test_loader.dataset)} ({100. * correct / len(test_loader.dataset)})\n')
     return 100. * correct / len(test_loader.dataset)
 
-def alignment_score(embs, core_ax, sp_ax, target, alpha_sp=0.9):
+def alignment_score(embs, core_ax, sp_ax, target, ood_embs=None, alpha_sp=0.9, alpha_ood=1.5):
     
     alignment_func = torch.nn.CosineSimilarity(dim=-1)
     labels = torch.argmax(target, dim=-1)
@@ -312,9 +312,17 @@ def alignment_score(embs, core_ax, sp_ax, target, alpha_sp=0.9):
     
     alignment = core_alignment_clipped.mean() - alpha_sp * sp_alignment_clipped.mean()
     #print(torch.abs(core_alignment).mean().item(), sp_alignment.mean().item(), alignment.item())
+    
+    if ood_embs is not None:
+        ood_core_alignment = torch.abs(alignment_func(ood_embs, core_ax))
+        avg_core_alignment = torch.abs(ood_core_alignment).mean().detach().item()
+        ood_core_alignment_clipped = torch.clip(ood_core_alignment, avg_core_alignment, 1.)
+    
+        alignment += ood_core_alignment_clipped
+    
     return alignment
 
-def erm_train(model, device, train_loader, optimizer, epoch, group_data_batch, alpha=0.9):
+def erm_train(model, device, train_loader, optimizer, epoch, group_data_batch, ood_data=None, alpha=0.9):
 
     print('Extract group embeddings ...')
     embeddings, core_ax, sp_ax = get_axis(model, group_data_batch)
@@ -326,10 +334,18 @@ def erm_train(model, device, train_loader, optimizer, epoch, group_data_batch, a
         data, target = data.to(device).float(), target.to(device).float()
         optimizer.zero_grad()
         output, features = model(data, return_feature=True)
-        alignment_val = alignment_score(features, core_ax, sp_ax, target)
+        
+        if ood_data is not None:
+            ood_data = ood_data.to(device).float()
+            ood_output, ood_features = model(ood_data, return_feature=True)
+            alignment_val = alignment_score(features, core_ax, sp_ax, target, ood_embs=ood_features)
+        else:
+            alignment_val = alignment_score(features, core_ax, sp_ax, target)
+
         loss = criterion(output, target) - alpha * alignment_val
         loss.backward()
         optimizer.step()
+        
         if batch_idx % 10 == 9:
             print(
                 f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} ({100. * batch_idx / len(train_loader)}%)]\tLoss: {loss.item()}')
