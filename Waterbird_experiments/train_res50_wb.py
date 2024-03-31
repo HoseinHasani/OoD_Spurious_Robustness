@@ -9,17 +9,83 @@ import matplotlib.pyplot as plt
 import torch.optim as optim
 from tqdm import tqdm
 import argparse
-from torchvision import transforms
 import torchvision
+from torchvision import transforms
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from PIL import Image
 import pandas as pd
 import glob
 
+
+class ResNet18(nn.Module):
+    def __init__(self):
+        super(ResNet18, self).__init__()
+        self.model = torchvision.models.resnet18(pretrained=True)  
+        d = self.model.fc.in_features
+        self.model.fc = nn.Linear(d, 2)
+
+    def forward(self, x, return_feature=False, return_feature_list=False):
+        features = self.model.conv1(x)
+        features = self.model.bn1(features)
+        features = self.model.relu(features)
+        features = self.model.maxpool(features)
+
+        features1 = self.model.layer1(features)
+        features2 = self.model.layer2(features1)
+        features3 = self.model.layer3(features2)
+        features4 = self.model.layer4(features3)
+
+        global_avg_pool = F.adaptive_avg_pool2d(features4, (1, 1))
+        global_avg_pool = global_avg_pool.view(global_avg_pool.size(0), -1)
+
+        output = self.model.fc(global_avg_pool)
+
+        if return_feature:
+            return output, global_avg_pool
+        elif return_feature_list:
+            return output, [features1, features2, features3, features4, global_avg_pool]
+        else:
+            return output
+
+    def forward_threshold(self, x, threshold):
+        output = self.forward(x)
+        # Applying threshold to the output
+        output = F.threshold(output, threshold, 0)
+        return output
+
+    def intermediate_forward(self, x, layer_index):
+        out = self.model.relu(self.model.bn1(self.model.conv1(x)))
+        out = self.model.maxpool(out)
+
+        out = self.model.layer1(out)
+        if layer_index == 1:
+            return out
+
+        out = self.model.layer2(out)
+        if layer_index == 2:
+            return out
+
+        out = self.model.layer3(out)
+        if layer_index == 3:
+            return out
+
+        out = self.model.layer4(out)
+        if layer_index == 4:
+            return out
+
+        raise ValueError("Invalid layer_index. Supported values are 1, 2, 3, and 4.")
+
+    def get_fc(self):
+        fc = self.model.fc
+        return fc.weight.cpu().detach().numpy(), fc.bias.cpu().detach().numpy()
+
+    def get_fc_layer(self):
+        return self.model.fc
+
 class ResNet50(nn.Module):
     def __init__(self):
-        super().__init__()
+        super(ResNet50, self).__init__()
 
         self.model = torchvision.models.resnet50(pretrained=True)
         d = self.model.fc.in_features
@@ -91,8 +157,7 @@ class ResNet50(nn.Module):
 
 
 
-# Load pre-trained ResNet-50 model
-custom_model = ResNet50()
+
 
 
 
@@ -429,6 +494,11 @@ def train_and_test_erm(args):
     print('Load group samples ...')
     group_data_batch = load_group_batch(args, get_transform_cub(False), device)
     
+    if args['resnet_type'] == 50:
+        custom_model = ResNet50()
+    elif args['resnet_type'] == 18:
+        custom_model = ResNet18()
+        
     model = custom_model.to(device)
     # model.load_state_dict(torch.load('/home/user01/models/pretrained_ResNet50.model'))
     optimizer = optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-3, momentum=0.9)
@@ -445,14 +515,16 @@ def train_and_test_erm(args):
         val_acc.append(test_model(model, device, val_loader, set_name=f'validation set epoch {epoch}'))
         if val_acc[-1] > best_acc:
             best_acc = val_acc[-1]
-            torch.save(model.state_dict(), os.path.join(args['ckpt_path'],
-                                                        'resnet50_waterbirds_'+ str(args.r)+'_best_checkpoint_seed' + str(
+            torch.save(model.state_dict(), os.path.join(f"{args['ckpt_path']}_resnet{args['resnet_type']}",
+                                                        f"resnet{args['resnet_type']}_waterbirds_"+ str(
+                                                                args.r)+'_best_checkpoint_seed' + str(
                                                             args.seed) +  '_scratch.model'))
 
         test_acc.append(test_model(model, device, test_loader, set_name=f'test set epoch {epoch}'))
         print(f'acc: {np.mean(val_acc)}, {np.mean(test_acc)}')
-    torch.save(model.state_dict(), os.path.join(args['ckpt_path'],
-                                                        'resnet50_waterbirds_'+ str(args.r)+'_best_checkpoint_seed' + str(
+    torch.save(model.state_dict(), os.path.join(f"{args['ckpt_path']}_resnet{args['resnet_type']}",
+                                                        f"resnet{args['resnet_type']}_waterbirds_"+ str(
+                                                                args.r)+'_best_checkpoint_seed' + str(
                                                             args.seed) +  '_scratch.model'))
 
 
@@ -460,11 +532,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     default_data_path = 'waterbird'
     parser.add_argument("--data_path", type=str, default=default_data_path, help="data path")
-    parser.add_argument("--ckpt_path", type=str, default='resnet50_exps', help="checkpoint path")
+    parser.add_argument("--ckpt_path", type=str, default='exps', help="checkpoint path")
     parser.add_argument("--dataset", type=str, default='Waterbirds')
     parser.add_argument("--ood_data_path", type=str, default='OOD_Datasets/placesbg/water')
     parser.add_argument("--batch_size", type=int, default=32, help="batch_size")
     parser.add_argument("--backbone_size", type=int, default=64)
+    parser.add_argument("--resnet_type", type=int, default=50)
     parser.add_argument("--num_classes", type=int, default=2)
     parser.add_argument("--epoch_size", type=int, default=20)
     parser.add_argument("--sampling_mode", type=str, default='top-k')
