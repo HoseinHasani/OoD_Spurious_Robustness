@@ -225,7 +225,7 @@ class WaterbirdDataset(Dataset):
 
 
 
-def sample_group_batch(args, n_g=32):
+def sample_group_batch(args, n_g=32, n_b_ood=10):
     
     metadata = pd.read_csv(os.path.join(args.data_path, 'metadata.csv'))
     
@@ -248,9 +248,9 @@ def sample_group_batch(args, n_g=32):
             group_sample_names[f'{label}_{place}'] = np.array(file_names)[selected_inds]
     
     f_list = np.array(glob.glob(args.ood_data_path + '/*.jpg'))
-    selected_inds = np.random.choice(len(f_list), 5 * n_g, replace=False).ravel()
+    selected_inds = np.random.choice(len(f_list), n_b_ood * n_g, replace=False).ravel()
     
-    for k in range(5):
+    for k in range(n_b_ood):
         group_sample_names[f'OOD_{k}'] = f_list[selected_inds[k * n_g: (k + 1) * n_g]]
     
     
@@ -435,8 +435,9 @@ def visualize_correlations(embeddings, core_ax, sp_ax, print_logs=True):
                                             sp_ax.cpu().numpy().squeeze()))
         
         if 'OOD' in key:
-            c_vals_ood.append(c_vals_)
-            s_vals_ood.append(s_vals_)
+            if int(key[-1]) < 5:
+                c_vals_ood.append(c_vals_)
+                s_vals_ood.append(s_vals_)
         else:
             c_vals.append(c_vals_)
             s_vals.append(s_vals_)
@@ -494,10 +495,14 @@ def train_and_test_erm(args):
     print('Load group samples ...')
     group_data_batch = load_group_batch(args, get_transform_cub(False), device)
     
-    if args['resnet_type'] == 50:
+
+        
+    if args.resnet_type == 50:
         custom_model = ResNet50()
-    elif args['resnet_type'] == 18:
+    elif args.resnet_type == 18:
         custom_model = ResNet18()
+    else:
+        assert False
         
     model = custom_model.to(device)
     # model.load_state_dict(torch.load('/home/user01/models/pretrained_ResNet50.model'))
@@ -515,15 +520,15 @@ def train_and_test_erm(args):
         val_acc.append(test_model(model, device, val_loader, set_name=f'validation set epoch {epoch}'))
         if val_acc[-1] > best_acc:
             best_acc = val_acc[-1]
-            torch.save(model.state_dict(), os.path.join(f"{args['ckpt_path']}_resnet{args['resnet_type']}",
+            torch.save(model.state_dict(), os.path.join(f"{args.ckpt_path}_resnet{args.resnet_type}",
                                                         f"resnet{args['resnet_type']}_waterbirds_"+ str(
                                                                 args.r)+'_best_checkpoint_seed' + str(
                                                             args.seed) +  '_scratch.model'))
 
         test_acc.append(test_model(model, device, test_loader, set_name=f'test set epoch {epoch}'))
         print(f'acc: {np.mean(val_acc)}, {np.mean(test_acc)}')
-    torch.save(model.state_dict(), os.path.join(f"{args['ckpt_path']}_resnet{args['resnet_type']}",
-                                                        f"resnet{args['resnet_type']}_waterbirds_"+ str(
+    torch.save(model.state_dict(), os.path.join(f"{args.ckpt_path}_resnet{args.resnet_type}",
+                                                        f"resnet{args.resnet_type}_waterbirds_"+ str(
                                                                 args.r)+'_best_checkpoint_seed' + str(
                                                             args.seed) +  '_scratch.model'))
 
