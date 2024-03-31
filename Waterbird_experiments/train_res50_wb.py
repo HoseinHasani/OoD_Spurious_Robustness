@@ -362,7 +362,7 @@ def test_model(model, device, test_loader, set_name="test set"):
         f'\nPerformance on {set_name}: Average loss: {test_loss}, Accuracy: {correct}/{len(test_loader.dataset)} ({100. * correct / len(test_loader.dataset)})\n')
     return 100. * correct / len(test_loader.dataset)
 
-def alignment_score(embs, core_ax, sp_ax, target, ood_embs=None, alpha_sp=0.9, alpha_ood=1.5):
+def alignment_score(embs, core_ax, sp_ax, target, ood_embs=None, alpha_sp=0.9, alpha_ood=1.4):
     
     alignment_func = torch.nn.CosineSimilarity(dim=-1)
     labels = torch.argmax(target, dim=-1)
@@ -383,11 +383,11 @@ def alignment_score(embs, core_ax, sp_ax, target, ood_embs=None, alpha_sp=0.9, a
         avg_core_alignment = torch.abs(ood_core_alignment).mean().detach().item()
         ood_core_alignment_clipped = torch.clip(ood_core_alignment, avg_core_alignment, 1.)
     
-        alignment += ood_core_alignment_clipped
+        alignment -= ood_core_alignment_clipped.mean()
     
     return alignment
 
-def erm_train(model, device, train_loader, optimizer, epoch, group_data_batch, ood_data=None, alpha=0.9):
+def erm_train(model, device, train_loader, optimizer, epoch, group_data_batch, ood_data=None, alpha=0.4):
 
     print('Extract group embeddings ...')
     embeddings, core_ax, sp_ax = get_axis(model, group_data_batch)
@@ -401,8 +401,10 @@ def erm_train(model, device, train_loader, optimizer, epoch, group_data_batch, o
         output, features = model(data, return_feature=True)
         
         if ood_data is not None:
-            ood_data = ood_data.to(device).float()
-            ood_output, ood_features = model(ood_data, return_feature=True)
+            batch_size = len(data)
+            selected_inds = np.random.choice(len(ood_data), batch_size, replace=False)
+            ood_batch = ood_data[selected_inds]
+            ood_output, ood_features = model(ood_batch, return_feature=True)
             alignment_val = alignment_score(features, core_ax, sp_ax, target, ood_embs=ood_features)
         else:
             alignment_val = alignment_score(features, core_ax, sp_ax, target)
@@ -495,7 +497,11 @@ def train_and_test_erm(args):
     print('Load group samples ...')
     group_data_batch = load_group_batch(args, get_transform_cub(False), device)
     
-
+    
+    if args.ood_available:
+        ood_data = torch.cat([group_data_batch[f'OOD_{k}'] for k in range(5, 10)])
+    else:
+        ood_data = None
         
     if args.resnet_type == 50:
         custom_model = ResNet50()
@@ -515,7 +521,7 @@ def train_and_test_erm(args):
     best_acc = 0
     print('Start training ...')
     for epoch in range(1, args.epoch_size):
-        erm_train(model, device, all_train_loader, optimizer, epoch, group_data_batch)
+        erm_train(model, device, all_train_loader, optimizer, epoch, group_data_batch, ood_data=ood_data)
         #train_acc.append(test_model(model, device, all_train_loader, set_name=f'train set epoch {epoch}'))
         val_acc.append(test_model(model, device, val_loader, set_name=f'validation set epoch {epoch}'))
         if val_acc[-1] > best_acc:
@@ -542,13 +548,15 @@ if __name__ == "__main__":
     parser.add_argument("--ood_data_path", type=str, default='OOD_Datasets/placesbg/water')
     parser.add_argument("--batch_size", type=int, default=32, help="batch_size")
     parser.add_argument("--backbone_size", type=int, default=64)
-    parser.add_argument("--resnet_type", type=int, default=50)
+    parser.add_argument("--resnet_type", type=int, default=18)
     parser.add_argument("--num_classes", type=int, default=2)
     parser.add_argument("--epoch_size", type=int, default=20)
     parser.add_argument("--sampling_mode", type=str, default='top-k')
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--seed", type=int, default=10)
     parser.add_argument("--r", type=int, default=95)
+    parser.add_argument('--ood_available', default=False, action="store_true",
+                    help='Use some OoD data during training')
 
     args, unknown = parser.parse_known_args()
     args = (args)
