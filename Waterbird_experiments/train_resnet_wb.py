@@ -224,7 +224,7 @@ def test_model(model, device, test_loader, set_name="test set"):
     return 100. * correct / len(test_loader.dataset)
 
 def alignment_score_v2(embs, core_ax, sp_ax, target, ood_embs=None,
-                       alpha_l2=0.2, alpha_sp=0.3, alpha_ood=1.):
+                       alpha_l2=0.2, alpha_sp=0.6, alpha_ood=1.):
     
     alignment_func = torch.nn.CosineSimilarity(dim=-1)
     labels = torch.argmax(target, dim=-1)
@@ -283,11 +283,11 @@ def alignment_score(embs, core_ax, sp_ax, target, ood_embs=None, alpha_sp=0.9, a
 
 def erm_train(model, device, train_loader, optimizer,
               epoch, train_group_data, eval_group_data,
-              ood_data=None, alpha=0.4):
+              ood_data=None, alpha=0.3):
 
     print('Extract group embeddings ...')
     train_group_embs = get_embeddings(model, train_group_data, device)
-    eval_group_embs = get_embeddings(model, train_group_data, device)
+    eval_group_embs = get_embeddings(model, eval_group_data, device)
     core_ax, sp_ax = get_axis(train_group_embs)
     
     visualize_correlations(eval_group_embs, core_ax, sp_ax)
@@ -312,14 +312,16 @@ def erm_train(model, device, train_loader, optimizer,
         loss.backward()
         optimizer.step()
         
-        if batch_idx % 10 == 9:
+        if batch_idx % 5 == 4:
+            train_group_embs = get_embeddings(model, train_group_data, device)
+            core_ax, sp_ax = get_axis(train_group_embs)
+            model.train()
+            
+        if batch_idx % 20 == 19:
             print(
                 f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} ({100. * batch_idx / len(train_loader)}%)]\tLoss: {loss.item()}')
-
-            train_group_embs = get_embeddings(model, train_group_data, device)
-            eval_group_embs = get_embeddings(model, train_group_data, device)
-            core_ax, sp_ax = get_axis(train_group_embs)
             
+            eval_group_embs = get_embeddings(model, eval_group_data, device)
             visualize_correlations(eval_group_embs, core_ax, sp_ax)
             model.train()
             
@@ -372,6 +374,7 @@ def get_embeddings(model, group_data, device, max_l=50):
     
     model.eval()
     embeddings = {}
+    
     for key in group_data.keys():
         with torch.no_grad():
             data = group_data[key]
@@ -381,8 +384,7 @@ def get_embeddings(model, group_data, device, max_l=50):
                     batch_data = data[b * max_l: (b + 1) * max_l]
                     _, feats = model(batch_data.to(device), return_feature=True) 
                     features.append(feats)
-                features = torch.stack(features)
-                print(features.shape)
+                features = torch.cat(features)
             else:
                 _, features = model(data.to(device), return_feature=True)
         embeddings[key] = features.squeeze()
@@ -408,12 +410,14 @@ def train_and_test_erm(args):
     device = torch.device("cuda" if use_cuda else "cpu")
     all_train_loader, val_loader, test_loader = get_waterbird_loaders(path=args.data_path,
                                                            batch_size=args.batch_size)
-    print('Load group samples ...')
+    print('Load train group samples ...')
     
     train_group_sample_names = sample_group_batch(args)
     train_group_data = load_group_batch(args, train_group_sample_names, get_transform_cub(False))
 
-    eval_group_sample_names = sample_group_batch(args, train=False, n_g=500)
+    print('Load evaluation group samples ...')
+    
+    eval_group_sample_names = sample_group_batch(args, train=False, n_g=700, n_b_ood=5)
     eval_group_data = load_group_batch(args, eval_group_sample_names, get_transform_cub(False))
     
     
