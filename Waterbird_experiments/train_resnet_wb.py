@@ -83,7 +83,7 @@ class WaterbirdDataset(Dataset):
 
 
 
-def sample_group_batch(args, split=0, n_g=32, n_b_ood=10):
+def sample_group_batch(args, train=True, n_g=50, n_b_ood=10):
     
     metadata = pd.read_csv(os.path.join(args.data_path, 'metadata.csv'))
     
@@ -92,8 +92,13 @@ def sample_group_batch(args, split=0, n_g=32, n_b_ood=10):
     splits = metadata['split'].tolist()
     places = metadata['place'].tolist()
     
-    data_inds = np.argwhere(np.array(splits) == 0).ravel()
-    
+    if train:
+        data_inds = np.argwhere(np.array(splits) == 0).ravel()
+    else:
+        data_inds1 = np.argwhere(np.array(splits) == 1).ravel()
+        data_inds2 = np.argwhere(np.array(splits) == 2).ravel()
+        data_inds = np.concatenate([data_inds1, data_inds2])
+        
     group_sample_names = {}
     for label in set(labels):
         for place in set(places):
@@ -102,7 +107,6 @@ def sample_group_batch(args, split=0, n_g=32, n_b_ood=10):
             
             inds = set(inds_l).intersection(set(inds_p)).intersection(set(data_inds))
             inds = np.array(list(inds))
-            print(len(inds))
             selected_inds = np.random.choice(inds, n_g, replace=False).ravel()
             group_sample_names[f'{label}_{place}'] = np.array(file_names)[selected_inds]
     
@@ -282,9 +286,11 @@ def erm_train(model, device, train_loader, optimizer,
               ood_data=None, alpha=0.4):
 
     print('Extract group embeddings ...')
-    _, core_ax, sp_ax = get_axis(model, train_group_data, device)
-    eval_embeddings, _, _ = get_axis(model, eval_group_data, device)
-    visualize_correlations(eval_embeddings, core_ax, sp_ax)
+    train_group_embs = get_embeddings(model, train_group_data, device)
+    eval_group_embs = get_embeddings(model, train_group_data, device)
+    core_ax, sp_ax = get_axis(train_group_embs)
+    
+    visualize_correlations(eval_group_embs, core_ax, sp_ax)
     
     criterion = nn.CrossEntropyLoss()
     model.train()
@@ -297,7 +303,7 @@ def erm_train(model, device, train_loader, optimizer,
             batch_size = len(data)
             selected_inds = np.random.choice(len(ood_data), batch_size, replace=False)
             ood_batch = ood_data[selected_inds]
-            ood_output, ood_features = model(ood_batch, return_feature=True)
+            ood_output, ood_features = model(ood_batch.to(device).float(), return_feature=True)
             alignment_val = alignment_score_v2(features, core_ax, sp_ax, target, ood_embs=ood_features)
         else:
             alignment_val = alignment_score_v2(features, core_ax, sp_ax, target)
@@ -310,9 +316,11 @@ def erm_train(model, device, train_loader, optimizer,
             print(
                 f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} ({100. * batch_idx / len(train_loader)}%)]\tLoss: {loss.item()}')
 
-            _, core_ax, sp_ax = get_axis(model, train_group_data, device)
-            eval_embeddings, _, _ = get_axis(model, eval_group_data, device)
-            visualize_correlations(eval_embeddings, core_ax, sp_ax)
+            train_group_embs = get_embeddings(model, train_group_data, device)
+            eval_group_embs = get_embeddings(model, train_group_data, device)
+            core_ax, sp_ax = get_axis(train_group_embs)
+            
+            visualize_correlations(eval_group_embs, core_ax, sp_ax)
             model.train()
             
             
@@ -360,16 +368,28 @@ def visualize_correlations(embeddings, core_ax, sp_ax, print_logs=True):
         print(f'core coefs ratio: {np.mean(c_vals) / np.mean(c_vals_ood)}')
         print(f'sp coefs ratio: {np.mean(s_vals) / np.mean(s_vals_ood)}')
     
-    
-def get_axis(model, group_data, device):
+def get_embeddings(model, group_data, device, max_l=50):
     
     model.eval()
-    
     embeddings = {}
     for key in group_data.keys():
         with torch.no_grad():
-            _, features = model(group_data[key].to(device), return_feature=True)
+            data = group_data[key]
+            if len(data) > max_l:
+                features = []
+                for b in range(len(data) // max_l):
+                    batch_data = data[b * max_l: (b + 1) * max_l]
+                    _, feats = model(batch_data.to(device), return_feature=True) 
+                    features.append(feats)
+                features = torch.stack(features)
+                print(features.shape)
+            else:
+                _, features = model(data.to(device), return_feature=True)
         embeddings[key] = features.squeeze()
+
+    return embeddings
+    
+def get_axis(embeddings):
     
     core_ax1 = F.normalize(embeddings['1_1'].mean(0, keepdims=True) - embeddings['0_1'].mean(0, keepdims=True))
     core_ax2 = F.normalize(embeddings['1_0'].mean(0, keepdims=True) - embeddings['0_0'].mean(0, keepdims=True))
@@ -379,7 +399,7 @@ def get_axis(model, group_data, device):
     sp_ax2 = F.normalize(embeddings['0_1'].mean(0, keepdims=True) - embeddings['0_0'].mean(0, keepdims=True))
     sp_ax = 0.5 * sp_ax1 + 0.5 * sp_ax2
     
-    return embeddings, core_ax, sp_ax
+    return core_ax, sp_ax
 
     
 def train_and_test_erm(args):
@@ -390,10 +410,10 @@ def train_and_test_erm(args):
                                                            batch_size=args.batch_size)
     print('Load group samples ...')
     
-    train_group_sample_names = sample_group_batch(args, split=0)
+    train_group_sample_names = sample_group_batch(args)
     train_group_data = load_group_batch(args, train_group_sample_names, get_transform_cub(False))
 
-    eval_group_sample_names = sample_group_batch(args, split=1)
+    eval_group_sample_names = sample_group_batch(args, train=False, n_g=500)
     eval_group_data = load_group_batch(args, eval_group_sample_names, get_transform_cub(False))
     
     
