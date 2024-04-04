@@ -220,6 +220,39 @@ def test_model(model, device, test_loader, set_name="test set"):
         f'\nPerformance on {set_name}: Average loss: {test_loss}, Accuracy: {correct}/{len(test_loader.dataset)} ({100. * correct / len(test_loader.dataset)})\n')
     return 100. * correct / len(test_loader.dataset)
 
+def alignment_score_v2(embs, core_ax, sp_ax, target, ood_embs=None,
+                       alpha_l2=0.2, alpha_sp=0.3, alpha_ood=1.):
+    
+    alignment_func = torch.nn.CosineSimilarity(dim=-1)
+    labels = torch.argmax(target, dim=-1)
+    
+    core_alignment = alignment_func(embs, core_ax) * (2 * labels - 1)
+    avg_core_alignment = torch.abs(core_alignment).mean().detach().item()
+    core_alignment_clipped = torch.clip(core_alignment, -avg_core_alignment, avg_core_alignment)
+    
+    sp_alignment = torch.abs(alignment_func(embs, sp_ax))
+    avg_sp_alignment = torch.abs(sp_alignment).mean().detach().item()
+    sp_alignment_clipped = torch.clip(sp_alignment, avg_sp_alignment, 1.)
+    
+    alignment = core_alignment_clipped.mean() - alpha_sp * sp_alignment_clipped.mean()
+    
+    
+    if ood_embs is not None:
+        ood_core_alignment = torch.abs(alignment_func(ood_embs, core_ax))
+        avg_core_alignment = torch.abs(ood_core_alignment).mean().detach().item()
+        ood_core_alignment_clipped = torch.clip(ood_core_alignment, avg_core_alignment, 1.)
+    
+        alignment -= ood_core_alignment_clipped.mean()
+        
+        print(ood_core_alignment_clipped.mean().item())
+        
+    l2_reg = torch.square(embs).mean()
+    alignment -= alpha_l2 * l2_reg
+    
+    print(torch.abs(core_alignment).mean().item(), sp_alignment.mean().item(), l2_reg.item())
+    
+    return alignment
+
 def alignment_score(embs, core_ax, sp_ax, target, ood_embs=None, alpha_sp=0.9, alpha_ood=1.4):
     
     alignment_func = torch.nn.CosineSimilarity(dim=-1)
@@ -263,9 +296,9 @@ def erm_train(model, device, train_loader, optimizer, epoch, group_data_batch, o
             selected_inds = np.random.choice(len(ood_data), batch_size, replace=False)
             ood_batch = ood_data[selected_inds]
             ood_output, ood_features = model(ood_batch, return_feature=True)
-            alignment_val = alignment_score(features, core_ax, sp_ax, target, ood_embs=ood_features)
+            alignment_val = alignment_score_v2(features, core_ax, sp_ax, target, ood_embs=ood_features)
         else:
-            alignment_val = alignment_score(features, core_ax, sp_ax, target)
+            alignment_val = alignment_score_v2(features, core_ax, sp_ax, target)
 
         loss = criterion(output, target) - alpha * alignment_val
         loss.backward()
@@ -406,7 +439,7 @@ if __name__ == "__main__":
     parser.add_argument("--ood_data_path", type=str, default='OOD_Datasets/placesbg/water')
     parser.add_argument("--batch_size", type=int, default=32, help="batch_size")
     parser.add_argument("--backbone_size", type=int, default=64)
-    parser.add_argument("--resnet_type", type=int, default=18)
+    parser.add_argument("--resnet_type", type=int, default=50)
     parser.add_argument("--num_classes", type=int, default=2)
     parser.add_argument("--epoch_size", type=int, default=20)
     parser.add_argument("--sampling_mode", type=str, default='top-k')
