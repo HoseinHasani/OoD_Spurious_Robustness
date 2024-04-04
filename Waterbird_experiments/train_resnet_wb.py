@@ -83,7 +83,7 @@ class WaterbirdDataset(Dataset):
 
 
 
-def sample_group_batch(args, n_g=32, n_b_ood=10):
+def sample_group_batch(args, split=0, n_g=32, n_b_ood=10):
     
     metadata = pd.read_csv(os.path.join(args.data_path, 'metadata.csv'))
     
@@ -92,7 +92,7 @@ def sample_group_batch(args, n_g=32, n_b_ood=10):
     splits = metadata['split'].tolist()
     places = metadata['place'].tolist()
     
-    train_inds = np.argwhere(np.array(splits) == 0).ravel()
+    data_inds = np.argwhere(np.array(splits) == 0).ravel()
     
     group_sample_names = {}
     for label in set(labels):
@@ -100,8 +100,9 @@ def sample_group_batch(args, n_g=32, n_b_ood=10):
             inds_l = np.argwhere(np.array(labels) == label).ravel()
             inds_p = np.argwhere(np.array(places) == place).ravel()
             
-            inds = set(inds_l).intersection(set(inds_p)).intersection(set(train_inds))
+            inds = set(inds_l).intersection(set(inds_p)).intersection(set(data_inds))
             inds = np.array(list(inds))
+            print(len(inds))
             selected_inds = np.random.choice(inds, n_g, replace=False).ravel()
             group_sample_names[f'{label}_{place}'] = np.array(file_names)[selected_inds]
     
@@ -115,10 +116,8 @@ def sample_group_batch(args, n_g=32, n_b_ood=10):
     return group_sample_names
             
 
-def load_group_batch(args, transform, device):
+def load_group_batch(args, group_sample_names, transform):
     
-    group_sample_names = sample_group_batch(args)
-
     group_data_batch = {}
     
     for name in group_sample_names.keys():
@@ -135,7 +134,7 @@ def load_group_batch(args, transform, device):
             img = transform(img)
             data.append(img)
         
-        group_data_batch[name] = torch.stack(data).to(device).float()
+        group_data_batch[name] = torch.stack(data).float()
 
     return group_data_batch
 
@@ -278,11 +277,14 @@ def alignment_score(embs, core_ax, sp_ax, target, ood_embs=None, alpha_sp=0.9, a
     
     return alignment
 
-def erm_train(model, device, train_loader, optimizer, epoch, group_data_batch, ood_data=None, alpha=0.4):
+def erm_train(model, device, train_loader, optimizer,
+              epoch, train_group_data, eval_group_data,
+              ood_data=None, alpha=0.4):
 
     print('Extract group embeddings ...')
-    embeddings, core_ax, sp_ax = get_axis(model, group_data_batch)
-    visualize_correlations(embeddings, core_ax, sp_ax)
+    _, core_ax, sp_ax = get_axis(model, train_group_data, device)
+    eval_embeddings, _, _ = get_axis(model, eval_group_data, device)
+    visualize_correlations(eval_embeddings, core_ax, sp_ax)
     
     criterion = nn.CrossEntropyLoss()
     model.train()
@@ -308,8 +310,9 @@ def erm_train(model, device, train_loader, optimizer, epoch, group_data_batch, o
             print(
                 f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} ({100. * batch_idx / len(train_loader)}%)]\tLoss: {loss.item()}')
 
-            embeddings, core_ax, sp_ax = get_axis(model, group_data_batch)
-            visualize_correlations(embeddings, core_ax, sp_ax)
+            _, core_ax, sp_ax = get_axis(model, train_group_data, device)
+            eval_embeddings, _, _ = get_axis(model, eval_group_data, device)
+            visualize_correlations(eval_embeddings, core_ax, sp_ax)
             model.train()
             
             
@@ -358,14 +361,14 @@ def visualize_correlations(embeddings, core_ax, sp_ax, print_logs=True):
         print(f'sp coefs ratio: {np.mean(s_vals) / np.mean(s_vals_ood)}')
     
     
-def get_axis(model, group_data):
+def get_axis(model, group_data, device):
     
     model.eval()
     
     embeddings = {}
     for key in group_data.keys():
         with torch.no_grad():
-            _, features = model(group_data[key], return_feature=True)
+            _, features = model(group_data[key].to(device), return_feature=True)
         embeddings[key] = features.squeeze()
     
     core_ax1 = F.normalize(embeddings['1_1'].mean(0, keepdims=True) - embeddings['0_1'].mean(0, keepdims=True))
@@ -386,11 +389,16 @@ def train_and_test_erm(args):
     all_train_loader, val_loader, test_loader = get_waterbird_loaders(path=args.data_path,
                                                            batch_size=args.batch_size)
     print('Load group samples ...')
-    group_data_batch = load_group_batch(args, get_transform_cub(False), device)
+    
+    train_group_sample_names = sample_group_batch(args, split=0)
+    train_group_data = load_group_batch(args, train_group_sample_names, get_transform_cub(False))
+
+    eval_group_sample_names = sample_group_batch(args, split=1)
+    eval_group_data = load_group_batch(args, eval_group_sample_names, get_transform_cub(False))
     
     
     if args.ood_available:
-        ood_data = torch.cat([group_data_batch[f'OOD_{k}'] for k in range(5, 10)])
+        ood_data = torch.cat([train_group_data[f'OOD_{k}'] for k in range(10)])
     else:
         ood_data = None
         
@@ -412,7 +420,9 @@ def train_and_test_erm(args):
     best_acc = 0
     print('Start training ...')
     for epoch in range(1, args.epoch_size):
-        erm_train(model, device, all_train_loader, optimizer, epoch, group_data_batch, ood_data=ood_data)
+        erm_train(model, device, all_train_loader, optimizer, epoch,
+                  train_group_data, eval_group_data, ood_data=ood_data)
+        
         #train_acc.append(test_model(model, device, all_train_loader, set_name=f'train set epoch {epoch}'))
         val_acc.append(test_model(model, device, val_loader, set_name=f'validation set epoch {epoch}'))
         if val_acc[-1] > best_acc:
