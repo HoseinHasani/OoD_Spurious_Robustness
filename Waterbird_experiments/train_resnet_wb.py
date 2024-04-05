@@ -224,7 +224,7 @@ def test_model(model, device, test_loader, set_name="test set"):
     return 100. * correct / len(test_loader.dataset)
 
 def alignment_score_v2(embs, core_ax, sp_ax, target, ood_embs=None,
-                       alpha_l2=0.2, alpha_sp=0.6, alpha_ood=1.):
+                       alpha_l2=0.1, alpha_sp=0.9, alpha_ood=1.):
     
     alignment_func = torch.nn.CosineSimilarity(dim=-1)
     labels = torch.argmax(target, dim=-1)
@@ -283,7 +283,7 @@ def alignment_score(embs, core_ax, sp_ax, target, ood_embs=None, alpha_sp=0.9, a
 
 def erm_train(model, device, train_loader, optimizer,
               epoch, train_group_data, eval_group_data,
-              ood_data=None, alpha=0.3):
+              ood_data=None, alpha=0.02):
 
     print('Extract group embeddings ...')
     train_group_embs = get_embeddings(model, train_group_data, device)
@@ -452,7 +452,7 @@ def train_and_test_erm(args):
         if val_acc[-1] > best_acc:
             best_acc = val_acc[-1]
             torch.save(model.state_dict(), os.path.join(f"{args.ckpt_path}_resnet{args.resnet_type}",
-                                                        f"resnet{args['resnet_type']}_waterbirds_"+ str(
+                                                        f"resnet{args.resnet_type}_waterbirds_"+ str(
                                                                 args.r)+'_best_checkpoint_seed' + str(
                                                             args.seed) +  '_scratch.model'))
 
@@ -464,34 +464,92 @@ def train_and_test_erm(args):
                                                             args.seed) +  '_scratch.model'))
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    default_data_path = 'waterbird'
-    parser.add_argument("--data_path", type=str, default=default_data_path, help="data path")
-    parser.add_argument("--ckpt_path", type=str, default='exps', help="checkpoint path")
-    parser.add_argument("--dataset", type=str, default='Waterbirds')
-    parser.add_argument("--ood_data_path", type=str, default='OOD_Datasets/placesbg/water')
-    parser.add_argument("--batch_size", type=int, default=32, help="batch_size")
-    parser.add_argument("--backbone_size", type=int, default=64)
-    parser.add_argument("--resnet_type", type=int, default=50)
-    parser.add_argument("--num_classes", type=int, default=2)
-    parser.add_argument("--epoch_size", type=int, default=20)
-    parser.add_argument("--sampling_mode", type=str, default='top-k')
-    parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--seed", type=int, default=10)
-    parser.add_argument("--r", type=int, default=95)
-    parser.add_argument('--ood_available', default=False, action="store_true",
-                    help='Use some OoD data during training')
+#if __name__ == "__main__":
+parser = argparse.ArgumentParser()
+default_data_path = 'waterbird'
+parser.add_argument("--data_path", type=str, default=default_data_path, help="data path")
+parser.add_argument("--ckpt_path", type=str, default='exps', help="checkpoint path")
+parser.add_argument("--dataset", type=str, default='Waterbirds')
+parser.add_argument("--ood_data_path", type=str, default='OOD_Datasets/placesbg/water')
+parser.add_argument("--batch_size", type=int, default=32, help="batch_size")
+parser.add_argument("--backbone_size", type=int, default=64)
+parser.add_argument("--resnet_type", type=int, default=50)
+parser.add_argument("--num_classes", type=int, default=2)
+parser.add_argument("--epoch_size", type=int, default=20)
+parser.add_argument("--sampling_mode", type=str, default='top-k')
+parser.add_argument("--lr", type=float, default=1e-3)
+parser.add_argument("--seed", type=int, default=10)
+parser.add_argument("--r", type=int, default=95)
+parser.add_argument('--ood_available', default=False, action="store_true",
+                help='Use some OoD data during training')
 
-    args, unknown = parser.parse_known_args()
-    args = (args)
+args, unknown = parser.parse_known_args()
+args = (args)
 
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed(args.seed)
-    os.environ['PYTHONHASHSEED'] = str(args.seed)
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.backends.cudnn.deterministic = True
+torch.manual_seed(args.seed)
+torch.cuda.manual_seed(args.seed)
+os.environ['PYTHONHASHSEED'] = str(args.seed)
+random.seed(args.seed)
+np.random.seed(args.seed)
+torch.backends.cudnn.deterministic = True
 
     
-    train_and_test_erm(args)
+#    train_and_test_erm(args)
+
+print("ERM...\n")
+use_cuda = torch.cuda.is_available()
+device = torch.device("cuda" if use_cuda else "cpu")
+all_train_loader, val_loader, test_loader = get_waterbird_loaders(path=args.data_path,
+                                                       batch_size=args.batch_size)
+print('Load train group samples ...')
+
+train_group_sample_names = sample_group_batch(args)
+train_group_data = load_group_batch(args, train_group_sample_names, get_transform_cub(False))
+
+print('Load evaluation group samples ...')
+
+eval_group_sample_names = sample_group_batch(args, train=False, n_g=700, n_b_ood=5)
+eval_group_data = load_group_batch(args, eval_group_sample_names, get_transform_cub(False))
+
+
+if args.ood_available:
+    ood_data = torch.cat([train_group_data[f'OOD_{k}'] for k in range(10)])
+else:
+    ood_data = None
+    
+if args.resnet_type == 50:
+    custom_model = ResNet50()
+elif args.resnet_type == 18:
+    custom_model = ResNet18()
+else:
+    assert False
+    
+model = custom_model.to(device)
+# model.load_state_dict(torch.load('/home/user01/models/pretrained_ResNet50.model'))
+optimizer = optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-3, momentum=0.9)
+
+
+train_acc = []
+val_acc = []
+test_acc = []
+best_acc = 0
+print('Start training ...')
+for epoch in range(1, args.epoch_size):
+    erm_train(model, device, all_train_loader, optimizer, epoch,
+              train_group_data, eval_group_data, ood_data=ood_data)
+    
+    #train_acc.append(test_model(model, device, all_train_loader, set_name=f'train set epoch {epoch}'))
+    val_acc.append(test_model(model, device, val_loader, set_name=f'validation set epoch {epoch}'))
+    if val_acc[-1] > best_acc:
+        best_acc = val_acc[-1]
+        torch.save(model.state_dict(), os.path.join(f"{args.ckpt_path}_resnet{args.resnet_type}",
+                                                    f"resnet{args.resnet_type}_waterbirds_"+ str(
+                                                            args.r)+'_best_checkpoint_seed' + str(
+                                                        args.seed) +  '_scratch.model'))
+
+    test_acc.append(test_model(model, device, test_loader, set_name=f'test set epoch {epoch}'))
+    print(f'acc: {np.mean(val_acc)}, {np.mean(test_acc)}')
+torch.save(model.state_dict(), os.path.join(f"{args.ckpt_path}_resnet{args.resnet_type}",
+                                                    f"resnet{args.resnet_type}_waterbirds_"+ str(
+                                                            args.r)+'_best_checkpoint_seed' + str(
+                                                        args.seed) +  '_scratch.model'))
