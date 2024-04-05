@@ -283,9 +283,8 @@ def alignment_score(embs, core_ax, sp_ax, target, ood_embs=None, alpha_sp=0.9, a
 
 def erm_train(model, device, train_loader, optimizer,
               epoch, train_group_data, eval_group_data,
-              ood_data=None, alpha=0.02):
+              ood_data=None, alpha=0.01):
 
-    print('Extract group embeddings ...')
     train_group_embs = get_embeddings(model, train_group_data, device)
     eval_group_embs = get_embeddings(model, eval_group_data, device)
     core_ax, sp_ax = get_axis(train_group_embs)
@@ -437,6 +436,8 @@ def train_and_test_erm(args):
     # model.load_state_dict(torch.load('/home/user01/models/pretrained_ResNet50.model'))
     optimizer = optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-3, momentum=0.9)
     
+    exp_dir = f"{args.ckpt_path}_resnet{args.resnet_type}"
+    os.makedirs(exp_dir, exist_ok=True)
     
     train_acc = []
     val_acc = []
@@ -451,17 +452,17 @@ def train_and_test_erm(args):
         val_acc.append(test_model(model, device, val_loader, set_name=f'validation set epoch {epoch}'))
         if val_acc[-1] > best_acc:
             best_acc = val_acc[-1]
-            torch.save(model.state_dict(), os.path.join(f"{args.ckpt_path}_resnet{args.resnet_type}",
-                                                        f"resnet{args.resnet_type}_waterbirds_"+ str(
-                                                                args.r)+'_best_checkpoint_seed' + str(
-                                                            args.seed) +  '_scratch.model'))
+            torch.save(model.state_dict(), os.path.join(exp_dir,
+                                                    f"resnet{args.resnet_type}_waterbirds_"+ str(
+                                                            args.r)+'_best_checkpoint_seed' + str(
+                                                        args.seed) +  '_scratch.model'))
 
         test_acc.append(test_model(model, device, test_loader, set_name=f'test set epoch {epoch}'))
         print(f'acc: {np.mean(val_acc)}, {np.mean(test_acc)}')
-    torch.save(model.state_dict(), os.path.join(f"{args.ckpt_path}_resnet{args.resnet_type}",
-                                                        f"resnet{args.resnet_type}_waterbirds_"+ str(
-                                                                args.r)+'_best_checkpoint_seed' + str(
-                                                            args.seed) +  '_scratch.model'))
+    torch.save(model.state_dict(), os.path.join(exp_dir,
+                                                    f"resnet{args.resnet_type}_waterbirds_"+ str(
+                                                            args.r)+'_best_checkpoint_seed' + str(
+                                                        args.seed) +  '_scratch.model'))
 
 
 #if __name__ == "__main__":
@@ -529,6 +530,10 @@ model = custom_model.to(device)
 optimizer = optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-3, momentum=0.9)
 
 
+exp_dir = f"{args.ckpt_path}_resnet{args.resnet_type}"
+os.makedirs(exp_dir, exist_ok=True)
+
+
 train_acc = []
 val_acc = []
 test_acc = []
@@ -542,14 +547,14 @@ for epoch in range(1, args.epoch_size):
     val_acc.append(test_model(model, device, val_loader, set_name=f'validation set epoch {epoch}'))
     if val_acc[-1] > best_acc:
         best_acc = val_acc[-1]
-        torch.save(model.state_dict(), os.path.join(f"{args.ckpt_path}_resnet{args.resnet_type}",
-                                                    f"resnet{args.resnet_type}_waterbirds_"+ str(
-                                                            args.r)+'_best_checkpoint_seed' + str(
-                                                        args.seed) +  '_scratch.model'))
+        torch.save(model.state_dict(), os.path.join(exp_dir,
+                                                f"resnet{args.resnet_type}_waterbirds_"+ str(
+                                                        args.r)+'_best_checkpoint_seed' + str(
+                                                    args.seed) +  '_scratch.model'))
 
     test_acc.append(test_model(model, device, test_loader, set_name=f'test set epoch {epoch}'))
     print(f'acc: {np.mean(val_acc)}, {np.mean(test_acc)}')
-torch.save(model.state_dict(), os.path.join(f"{args.ckpt_path}_resnet{args.resnet_type}",
-                                                    f"resnet{args.resnet_type}_waterbirds_"+ str(
-                                                            args.r)+'_best_checkpoint_seed' + str(
-                                                        args.seed) +  '_scratch.model'))
+torch.save(model.state_dict(), os.path.join(exp_dir,
+                                                f"resnet{args.resnet_type}_waterbirds_"+ str(
+                                                        args.r)+'_best_checkpoint_seed' + str(
+                                                    args.seed) +  '_scratch.model'))
