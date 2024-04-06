@@ -325,7 +325,7 @@ def erm_train(model, device, train_loader, optimizer,
             model.train()
             
             
-def visualize_correlations(embeddings, core_ax, sp_ax, print_logs=True):
+def visualize_correlations(embeddings, core_ax, sp_ax, value_dict=None, print_logs=True):
     
     c_vals = []
     c_vals_ood = []
@@ -353,21 +353,40 @@ def visualize_correlations(embeddings, core_ax, sp_ax, print_logs=True):
     s_vals_ood = np.concatenate(s_vals_ood)
 
     
-    plt.figure()
+    plt.figure(figsize=(8,4))
+    plt.subplot(121)
     plt.hist(c_vals, 25, histtype='step', density=True, linewidth=2.5, label='embs')
     plt.hist(c_vals_ood, 25, histtype='step', density=True, linewidth=2.5, label='ood')
     plt.title('core alignment')
-    plt.legend()
-    
-    plt.figure()
+    plt.subplot(122)
     plt.hist(s_vals, 25, histtype='step', density=True, linewidth=2.5, label='embs')
     plt.hist(s_vals_ood, 25, histtype='step', density=True, linewidth=2.5, label='ood')
     plt.title('sp alignment')
     plt.legend()
     
+    if value_dict is not None:
+        plt.subplot(121)
+        plt.hist(value_dict['c_vals'], 25, histtype='step', linestyle='dotted', density=True, linewidth=2.5, label='embs (before)')
+        plt.hist(value_dict['c_vals_ood'], 25, histtype='step', linestyle='dotted', density=True, linewidth=2.5, label='ood (before)')
+        plt.title('core alignment')
+        plt.subplot(122)
+        plt.hist(value_dict['s_vals'], 25, histtype='step', linestyle='dotted', density=True, linewidth=2.5, label='embs (before)')
+        plt.hist(value_dict['s_vals_ood'], 25, histtype='step', linestyle='dotted', density=True, linewidth=2.5, label='ood (before)')
+        plt.title('sp alignment')
+        plt.legend()
+    
     if print_logs:
         print(f'core coefs ratio: {np.mean(c_vals) / np.mean(c_vals_ood)}')
         print(f'sp coefs ratio: {np.mean(s_vals) / np.mean(s_vals_ood)}')
+        
+    if value_dict is None:
+        value_dict = {}
+        value_dict['c_vals'] = c_vals
+        value_dict['c_vals_ood'] = c_vals_ood
+        value_dict['s_vals'] = s_vals
+        value_dict['s_vals_ood'] = s_vals_ood
+        
+        return value_dict
     
 def get_embeddings(model, group_data, device, max_l=50):
     
