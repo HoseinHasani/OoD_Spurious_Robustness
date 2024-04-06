@@ -256,40 +256,40 @@ def alignment_score_v2(embs, core_ax, sp_ax, target, ood_embs=None,
     
     return alignment
 
-def alignment_score(embs, core_ax, sp_ax, target, ood_embs=None, alpha_sp=0.9, alpha_ood=1.4):
+# def alignment_score(embs, core_ax, sp_ax, target, ood_embs=None, alpha_sp=0.9, alpha_ood=1.4):
     
-    alignment_func = torch.nn.CosineSimilarity(dim=-1)
-    labels = torch.argmax(target, dim=-1)
+#     alignment_func = torch.nn.CosineSimilarity(dim=-1)
+#     labels = torch.argmax(target, dim=-1)
     
-    core_alignment = alignment_func(embs, core_ax) * (2 * labels - 1)
-    avg_core_alignment = torch.abs(core_alignment).mean().detach().item()
-    core_alignment_clipped = torch.clip(core_alignment, -avg_core_alignment, avg_core_alignment)
+#     core_alignment = alignment_func(embs, core_ax) * (2 * labels - 1)
+#     avg_core_alignment = torch.abs(core_alignment).mean().detach().item()
+#     core_alignment_clipped = torch.clip(core_alignment, -avg_core_alignment, avg_core_alignment)
     
-    sp_alignment = torch.abs(alignment_func(embs, sp_ax))
-    avg_sp_alignment = torch.abs(sp_alignment).mean().detach().item()
-    sp_alignment_clipped = torch.clip(sp_alignment, avg_sp_alignment, 1.)
+#     sp_alignment = torch.abs(alignment_func(embs, sp_ax))
+#     avg_sp_alignment = torch.abs(sp_alignment).mean().detach().item()
+#     sp_alignment_clipped = torch.clip(sp_alignment, avg_sp_alignment, 1.)
     
-    alignment = core_alignment_clipped.mean() - alpha_sp * sp_alignment_clipped.mean()
-    #print(torch.abs(core_alignment).mean().item(), sp_alignment.mean().item(), alignment.item())
+#     alignment = core_alignment_clipped.mean() - alpha_sp * sp_alignment_clipped.mean()
+#     #print(torch.abs(core_alignment).mean().item(), sp_alignment.mean().item(), alignment.item())
     
-    if ood_embs is not None:
-        ood_core_alignment = torch.abs(alignment_func(ood_embs, core_ax))
-        avg_core_alignment = torch.abs(ood_core_alignment).mean().detach().item()
-        ood_core_alignment_clipped = torch.clip(ood_core_alignment, avg_core_alignment, 1.)
+#     if ood_embs is not None:
+#         ood_core_alignment = torch.abs(alignment_func(ood_embs, core_ax))
+#         avg_core_alignment = torch.abs(ood_core_alignment).mean().detach().item()
+#         ood_core_alignment_clipped = torch.clip(ood_core_alignment, avg_core_alignment, 1.)
     
-        alignment -= ood_core_alignment_clipped.mean()
+#         alignment -= ood_core_alignment_clipped.mean()
     
-    return alignment
+#     return alignment
 
 def erm_train(model, device, train_loader, optimizer,
               epoch, train_group_data, eval_group_data,
-              ood_data=None, alpha=0.01):
+              ood_data=None, alpha=0.7):
 
     train_group_embs = get_embeddings(model, train_group_data, device)
     eval_group_embs = get_embeddings(model, eval_group_data, device)
     core_ax, sp_ax = get_axis(train_group_embs)
     
-    visualize_correlations(eval_group_embs, core_ax, sp_ax)
+    value_dict = visualize_correlations(eval_group_embs, core_ax, sp_ax)
     
     criterion = nn.CrossEntropyLoss()
     model.train()
@@ -316,12 +316,12 @@ def erm_train(model, device, train_loader, optimizer,
             core_ax, sp_ax = get_axis(train_group_embs)
             model.train()
             
-        if batch_idx % 20 == 19:
+        if batch_idx % 30 == 29:
             print(
                 f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} ({100. * batch_idx / len(train_loader)}%)]\tLoss: {loss.item()}')
             
             eval_group_embs = get_embeddings(model, eval_group_data, device)
-            visualize_correlations(eval_group_embs, core_ax, sp_ax)
+            visualize_correlations(eval_group_embs, core_ax, sp_ax, value_dict)
             model.train()
             
             
@@ -355,23 +355,27 @@ def visualize_correlations(embeddings, core_ax, sp_ax, value_dict=None, print_lo
     
     plt.figure(figsize=(8,4))
     plt.subplot(121)
-    plt.hist(c_vals, 25, histtype='step', density=True, linewidth=2.5, label='embs')
-    plt.hist(c_vals_ood, 25, histtype='step', density=True, linewidth=2.5, label='ood')
+    plt.hist(c_vals, 25, histtype='step', density=True, linewidth=2.5, label='embs', color='tab:blue')
+    plt.hist(c_vals_ood, 25, histtype='step', density=True, linewidth=2.5, label='ood', color='tab:orange')
     plt.title('core alignment')
     plt.subplot(122)
-    plt.hist(s_vals, 25, histtype='step', density=True, linewidth=2.5, label='embs')
-    plt.hist(s_vals_ood, 25, histtype='step', density=True, linewidth=2.5, label='ood')
+    plt.hist(s_vals, 25, histtype='step', density=True, linewidth=2.5, label='embs', color='tab:blue')
+    plt.hist(s_vals_ood, 25, histtype='step', density=True, linewidth=2.5, label='ood', color='tab:orange')
     plt.title('sp alignment')
     plt.legend()
     
     if value_dict is not None:
         plt.subplot(121)
-        plt.hist(value_dict['c_vals'], 25, histtype='step', linestyle='dotted', density=True, linewidth=2.5, label='embs (before)')
-        plt.hist(value_dict['c_vals_ood'], 25, histtype='step', linestyle='dotted', density=True, linewidth=2.5, label='ood (before)')
+        plt.hist(value_dict['c_vals'], 25, histtype='step', linestyle='dotted',
+                 density=True, linewidth=2.5, label='embs (before)', color='tab:blue')
+        plt.hist(value_dict['c_vals_ood'], 25, histtype='step', linestyle='dotted',
+                 density=True, linewidth=2.5, label='ood (before)', color='tab:orange')
         plt.title('core alignment')
         plt.subplot(122)
-        plt.hist(value_dict['s_vals'], 25, histtype='step', linestyle='dotted', density=True, linewidth=2.5, label='embs (before)')
-        plt.hist(value_dict['s_vals_ood'], 25, histtype='step', linestyle='dotted', density=True, linewidth=2.5, label='ood (before)')
+        plt.hist(value_dict['s_vals'], 25, histtype='step', linestyle='dotted',
+                 density=True, linewidth=2.5, label='embs (before)', color='tab:blue')
+        plt.hist(value_dict['s_vals_ood'], 25, histtype='step', linestyle='dotted',
+                 density=True, linewidth=2.5, label='ood (before)', color='tab:orange')
         plt.title('sp alignment')
         plt.legend()
     
@@ -458,7 +462,7 @@ def train_and_test_erm(args):
     exp_dir = f"{args.ckpt_path}_resnet{args.resnet_type}"
     os.makedirs(exp_dir, exist_ok=True)
     
-    train_acc = []
+    #train_acc = []
     val_acc = []
     test_acc = []
     best_acc = 0
