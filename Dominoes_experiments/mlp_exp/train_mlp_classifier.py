@@ -56,6 +56,85 @@ def prepare_train_data():
     return data_np, lbl_np
     
 
+def visualize_correlations(embeddings, core_ax, sp_ax, value_dict=None, print_logs=True):
+    
+    c_vals = []
+    c_vals_ood = []
+
+    s_vals = []
+    s_vals_ood = []
+    
+    for key in embeddings.keys():
+        c_vals_ = np.abs(np.dot(embeddings[key].cpu().numpy(),
+                                            core_ax.cpu().numpy().squeeze()))
+        s_vals_ = np.abs(np.dot(embeddings[key].cpu().numpy(),
+                                            sp_ax.cpu().numpy().squeeze()))
+        
+        if 'OOD' in key:
+            if int(key[-1]) < 5:
+                c_vals_ood.append(c_vals_)
+                s_vals_ood.append(s_vals_)
+        else:
+            c_vals.append(c_vals_)
+            s_vals.append(s_vals_)
+
+    c_vals = np.concatenate(c_vals)
+    c_vals_ood = np.concatenate(c_vals_ood)
+    s_vals = np.concatenate(s_vals)
+    s_vals_ood = np.concatenate(s_vals_ood)
+
+    
+    plt.figure(figsize=(8,4))
+    plt.subplot(121)
+    plt.hist(c_vals, 25, histtype='step', density=True, linewidth=2.5, label='embs', color='tab:blue')
+    plt.hist(c_vals_ood, 25, histtype='step', density=True, linewidth=2.5, label='ood', color='tab:orange')
+    plt.title('core alignment')
+    plt.subplot(122)
+    plt.hist(s_vals, 25, histtype='step', density=True, linewidth=2.5, label='embs', color='tab:blue')
+    plt.hist(s_vals_ood, 25, histtype='step', density=True, linewidth=2.5, label='ood', color='tab:orange')
+    plt.title('sp alignment')
+    plt.legend()
+    
+    if value_dict is not None:
+        plt.subplot(121)
+        plt.hist(value_dict['c_vals'], 25, histtype='step', linestyle='dotted',
+                 density=True, linewidth=2.5, label='embs (before)', color='tab:blue')
+        plt.hist(value_dict['c_vals_ood'], 25, histtype='step', linestyle='dotted',
+                 density=True, linewidth=2.5, label='ood (before)', color='tab:orange')
+        plt.title('core alignment')
+        plt.subplot(122)
+        plt.hist(value_dict['s_vals'], 25, histtype='step', linestyle='dotted',
+                 density=True, linewidth=2.5, label='embs (before)', color='tab:blue')
+        plt.hist(value_dict['s_vals_ood'], 25, histtype='step', linestyle='dotted',
+                 density=True, linewidth=2.5, label='ood (before)', color='tab:orange')
+        plt.title('sp alignment')
+        plt.legend()
+    
+    if print_logs:
+        print(f'core coefs ratio: {np.mean(c_vals) / np.mean(c_vals_ood)}')
+        print(f'sp coefs ratio: {np.mean(s_vals) / np.mean(s_vals_ood)}')
+        
+    if value_dict is None:
+        value_dict = {}
+        value_dict['c_vals'] = c_vals
+        value_dict['c_vals_ood'] = c_vals_ood
+        value_dict['s_vals'] = s_vals
+        value_dict['s_vals_ood'] = s_vals_ood
+        
+        return value_dict
+
+def get_axis(embeddings):
+    
+    core_ax1 = F.normalize(embeddings['1_1'].mean(0, keepdims=True) - embeddings['0_1'].mean(0, keepdims=True))
+    core_ax2 = F.normalize(embeddings['1_0'].mean(0, keepdims=True) - embeddings['0_0'].mean(0, keepdims=True))
+    core_ax = 0.5 * core_ax1 + 0.5 * core_ax2
+    
+    sp_ax1 = F.normalize(embeddings['1_1'].mean(0, keepdims=True) - embeddings['1_0'].mean(0, keepdims=True))
+    sp_ax2 = F.normalize(embeddings['0_1'].mean(0, keepdims=True) - embeddings['0_0'].mean(0, keepdims=True))
+    sp_ax = 0.5 * sp_ax1 + 0.5 * sp_ax2
+    
+    return core_ax, sp_ax
+
 
 class MLP(nn.Module):
     def __init__(self, n_feat=n_feats, n_out=2):
