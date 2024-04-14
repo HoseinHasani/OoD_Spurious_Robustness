@@ -8,6 +8,8 @@ import tqdm
 import warnings
 warnings.filterwarnings("ignore")
 
+normalize_embs = True
+
 n_steps = 100
 n_feats = 1024
 batch_size = 128
@@ -19,13 +21,18 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 data_path = 'data'
 train_dict0 = np.load(f'{data_path}/Dominoes_train_embs.npy', allow_pickle=True).item()
 test_dict0 = np.load(f'{data_path}/Dominoes_test_embs.npy', allow_pickle=True).item()
+all_dict = np.load('../Dominoes_grouped_embs.npy', allow_pickle=True).item()
+sdfsdf
 
 def normalize(x):
     return x / np.linalg.norm(x, axis=-1, keepdims=True)
 
-train_dict = {key: normalize(train_dict0[key]) for key in train_dict0.keys()}
-test_dict = {key: normalize(test_dict0[key]) for key in test_dict0.keys()}
-
+if normalize_embs:
+    train_dict = {key: normalize(train_dict0[key]) for key in train_dict0.keys()}
+    test_dict = {key: normalize(test_dict0[key]) for key in test_dict0.keys()}
+else:
+    train_dict = train_dict0
+    test_dict = test_dict0
 
 names = ['automobile', 'truck']
 
@@ -65,10 +72,8 @@ def visualize_correlations(embeddings, core_ax, sp_ax, value_dict=None, print_lo
     s_vals_ood = []
     
     for key in embeddings.keys():
-        c_vals_ = np.abs(np.dot(embeddings[key].cpu().numpy(),
-                                            core_ax.cpu().numpy().squeeze()))
-        s_vals_ = np.abs(np.dot(embeddings[key].cpu().numpy(),
-                                            sp_ax.cpu().numpy().squeeze()))
+        c_vals_ = np.abs(np.dot(embeddings[key], core_ax))
+        s_vals_ = np.abs(np.dot(embeddings[key], sp_ax))
         
         if 'OOD' in key:
             if int(key[-1]) < 5:
@@ -125,12 +130,16 @@ def visualize_correlations(embeddings, core_ax, sp_ax, value_dict=None, print_lo
 
 def get_axis(embeddings):
     
-    core_ax1 = F.normalize(embeddings['1_1'].mean(0, keepdims=True) - embeddings['0_1'].mean(0, keepdims=True))
-    core_ax2 = F.normalize(embeddings['1_0'].mean(0, keepdims=True) - embeddings['0_0'].mean(0, keepdims=True))
+    core_ax1 = normalize(embeddings[f'1_{names[1]}'].mean(0, keepdims=False) - \
+                         embeddings[f'0_{names[1]}'].mean(0, keepdims=False))
+    core_ax2 = normalize(embeddings[f'1_{names[0]}'].mean(0, keepdims=False) - \
+                         embeddings[f'0_{names[0]}'].mean(0, keepdims=False))
     core_ax = 0.5 * core_ax1 + 0.5 * core_ax2
     
-    sp_ax1 = F.normalize(embeddings['1_1'].mean(0, keepdims=True) - embeddings['1_0'].mean(0, keepdims=True))
-    sp_ax2 = F.normalize(embeddings['0_1'].mean(0, keepdims=True) - embeddings['0_0'].mean(0, keepdims=True))
+    sp_ax1 = normalize(embeddings[f'1_{names[1]}'].mean(0, keepdims=False) - \
+                         embeddings[f'1_{names[0]}'].mean(0, keepdims=False))
+    sp_ax2 = normalize(embeddings[f'0_{names[1]}'].mean(0, keepdims=False) - \
+                         embeddings[f'0_{names[0]}'].mean(0, keepdims=False))
     sp_ax = 0.5 * sp_ax1 + 0.5 * sp_ax2
     
     return core_ax, sp_ax
@@ -146,6 +155,9 @@ class MLP(nn.Module):
         x = self.dropout(x)
         return self.layer(x)
     
+core_ax, sp_ax = get_axis(train_dict)
+_ = visualize_correlations(test_dict, core_ax, sp_ax)
+
 
 mlp = MLP().to(device)  
 loss_function = nn.CrossEntropyLoss()
