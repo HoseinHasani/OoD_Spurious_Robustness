@@ -15,6 +15,7 @@ n_feats = 1024
 batch_size = 128
 sp_rate = 0.95
 
+names = ['automobile', 'truck']
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -22,7 +23,16 @@ data_path = 'data'
 train_dict0 = np.load(f'{data_path}/Dominoes_train_embs.npy', allow_pickle=True).item()
 test_dict0 = np.load(f'{data_path}/Dominoes_test_embs.npy', allow_pickle=True).item()
 all_dict = np.load('../Dominoes_grouped_embs.npy', allow_pickle=True).item()
-sdfsdf
+
+ood_dict0 = {}
+
+for name in names:
+    embs = []
+    for j in range(2, 10):
+        embs.append(all_dict[f'{j}_{name}'])
+        ood_dict0[f'OOD_{name}'] = np.concatenate(embs)
+
+        
 
 def normalize(x):
     return x / np.linalg.norm(x, axis=-1, keepdims=True)
@@ -30,11 +40,13 @@ def normalize(x):
 if normalize_embs:
     train_dict = {key: normalize(train_dict0[key]) for key in train_dict0.keys()}
     test_dict = {key: normalize(test_dict0[key]) for key in test_dict0.keys()}
+    ood_dict = {key: normalize(ood_dict0[key]) for key in ood_dict0.keys()}
 else:
     train_dict = train_dict0
     test_dict = test_dict0
+    ood_dict = ood_dict0
 
-names = ['automobile', 'truck']
+
 
 l_maj = len(train_dict[f'0_{names[0]}'])
 l_min = len(train_dict[f'1_{names[0]}'])
@@ -63,25 +75,28 @@ def prepare_train_data():
     return data_np, lbl_np
     
 
-def visualize_correlations(embeddings, core_ax, sp_ax, value_dict=None, print_logs=True):
+def visualize_correlations(embeddings, ood_embeddings, core_ax, sp_ax,
+                           value_dict=None, print_logs=True):
     
     c_vals = []
-    c_vals_ood = []
-
     s_vals = []
-    s_vals_ood = []
     
     for key in embeddings.keys():
         c_vals_ = np.abs(np.dot(embeddings[key], core_ax))
         s_vals_ = np.abs(np.dot(embeddings[key], sp_ax))
         
-        if 'OOD' in key:
-            if int(key[-1]) < 5:
-                c_vals_ood.append(c_vals_)
-                s_vals_ood.append(s_vals_)
-        else:
-            c_vals.append(c_vals_)
-            s_vals.append(s_vals_)
+        c_vals.append(c_vals_)
+        s_vals.append(s_vals_)
+
+    c_vals_ood = []        
+    s_vals_ood = []
+
+    for key in ood_embeddings.keys():
+        c_vals_ = np.abs(np.dot(ood_embeddings[key], core_ax))
+        s_vals_ = np.abs(np.dot(ood_embeddings[key], sp_ax))
+        
+        c_vals_ood.append(c_vals_)
+        s_vals_ood.append(s_vals_)
 
     c_vals = np.concatenate(c_vals)
     c_vals_ood = np.concatenate(c_vals_ood)
@@ -156,7 +171,7 @@ class MLP(nn.Module):
         return self.layer(x)
     
 core_ax, sp_ax = get_axis(train_dict)
-_ = visualize_correlations(test_dict, core_ax, sp_ax)
+_ = visualize_correlations(test_dict, ood_dict, core_ax, sp_ax)
 
 
 mlp = MLP().to(device)  
