@@ -13,7 +13,7 @@ normalize_embs = True
 n_steps = 100
 n_feats = 1024
 batch_size = 128
-sp_rate = 0.55
+sp_rate = 0.95
 
 names = ['automobile', 'truck']
 
@@ -67,7 +67,7 @@ def prepare_train_data():
     
 
 def visualize_correlations(embeddings, ood_embeddings, core_ax, sp_ax,
-                           value_dict=None, print_logs=True):
+                           value_dict=None, print_logs=False):
     
     c_vals = []
     s_vals = []
@@ -152,18 +152,20 @@ def get_axis(embeddings):
 
 
 def alignment_score_v2(embs, core_ax, sp_ax, target, ood_embs=None,
-                       alpha_l2=0.1, alpha_sp=0.9, alpha_ood=1.):
+                       alpha_l2=0.9, alpha_sp=1.9, alpha_ood=1.):
     
     alignment_func = torch.nn.CosineSimilarity(dim=-1)
     labels = torch.argmax(target, dim=-1)
     
     core_alignment = alignment_func(embs, core_ax) * (2 * labels - 1)
     avg_core_alignment = torch.abs(core_alignment).mean().detach().item()
-    core_alignment_clipped = torch.clip(core_alignment, -avg_core_alignment, avg_core_alignment)
+    #core_alignment_clipped = torch.clip(core_alignment, -avg_core_alignment, avg_core_alignment)
+    core_alignment_clipped = core_alignment
     
     sp_alignment = torch.abs(alignment_func(embs, sp_ax))
     avg_sp_alignment = torch.abs(sp_alignment).mean().detach().item()
-    sp_alignment_clipped = torch.clip(sp_alignment, avg_sp_alignment, 1.)
+    #sp_alignment_clipped = torch.clip(sp_alignment, avg_sp_alignment, 1.)
+    sp_alignment_clipped = sp_alignment
     
     alignment = core_alignment_clipped.mean() - alpha_sp * sp_alignment_clipped.mean()
     
@@ -211,8 +213,8 @@ class MLP(nn.Module):
     def __init__(self, n_feat=n_feats, n_out=2):
         super().__init__()
         self.layer1 = nn.Linear(n_feat, n_feat)
-        self.layer2 = nn.Linear(n_feat, n_feat)
-        self.layer3 = nn.Linear(n_feat, n_out)
+        self.layer2 = nn.Linear(n_feat, n_feat//18)
+        self.layer3 = nn.Linear(n_feat//18, n_out)
         #self.dropout = nn.Dropout(p=0.5)
 
     def forward(self, x):
@@ -222,6 +224,7 @@ class MLP(nn.Module):
         return x2, x3
     
 core_ax, sp_ax = get_axis(train_dict)
+print('ax correlation: ', np.dot(core_ax, sp_ax))
 _ = visualize_correlations(test_dict, ood_dict, core_ax, sp_ax)
 
 core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
@@ -245,9 +248,9 @@ for e in range(n_steps):
     ce_loss = loss_function(logits, lbl)
     
     
-    if e > 2:
+    if e > 3:
         alignment_val = alignment_score_v2(feats, core_ax_torch, sp_ax_torch, lbl)
-        loss = ce_loss - 0.05 * alignment_val
+        loss = ce_loss - 0.001 * alignment_val
     else:
         loss = ce_loss
         
@@ -288,9 +291,13 @@ for e in range(n_steps):
         ood_emb_dict = get_embeddings(mlp, ood_dict)
         
         core_ax, sp_ax = get_axis(train_emb_dict)
-        _ = visualize_correlations(test_emb_dict, ood_emb_dict, core_ax, sp_ax)
+        print('ax correlation: ', np.dot(core_ax, sp_ax))
+        
         
         core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
         sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
+        
+        if e % 5 == 0:
+            _ = visualize_correlations(test_emb_dict, ood_emb_dict, core_ax, sp_ax)
         
         mlp.train()
