@@ -13,7 +13,7 @@ normalize_embs = True
 n_steps = 100
 n_feats = 1024
 batch_size = 128
-sp_rate = 0.95
+sp_rate = 0.55
 
 names = ['automobile', 'truck']
 
@@ -22,17 +22,8 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 data_path = 'data'
 train_dict0 = np.load(f'{data_path}/Dominoes_train_embs.npy', allow_pickle=True).item()
 test_dict0 = np.load(f'{data_path}/Dominoes_test_embs.npy', allow_pickle=True).item()
-all_dict = np.load('../Dominoes_grouped_embs.npy', allow_pickle=True).item()
+ood_dict0 = np.load(f'{data_path}/Dominoes_ood_embs.npy', allow_pickle=True).item()
 
-ood_dict0 = {}
-
-for name in names:
-    embs = []
-    for j in range(2, 10):
-        embs.append(all_dict[f'{j}_{name}'])
-        ood_dict0[f'OOD_{name}'] = np.concatenate(embs)
-
-        
 
 def normalize(x):
     return x / np.linalg.norm(x, axis=-1, keepdims=True)
@@ -106,12 +97,12 @@ def visualize_correlations(embeddings, ood_embeddings, core_ax, sp_ax,
     
     plt.figure(figsize=(8,4))
     plt.subplot(121)
-    plt.hist(c_vals, 25, histtype='step', density=True, linewidth=2.5, label='embs', color='tab:blue')
-    plt.hist(c_vals_ood, 25, histtype='step', density=True, linewidth=2.5, label='ood', color='tab:orange')
+    plt.hist(c_vals, 25, histtype='step', density=False, linewidth=2.5, label='embs', color='tab:blue')
+    plt.hist(c_vals_ood, 25, histtype='step', density=False, linewidth=2.5, label='ood', color='tab:orange')
     plt.title('core alignment')
     plt.subplot(122)
-    plt.hist(s_vals, 25, histtype='step', density=True, linewidth=2.5, label='embs', color='tab:blue')
-    plt.hist(s_vals_ood, 25, histtype='step', density=True, linewidth=2.5, label='ood', color='tab:orange')
+    plt.hist(s_vals, 25, histtype='step', density=False, linewidth=2.5, label='embs', color='tab:blue')
+    plt.hist(s_vals_ood, 25, histtype='step', density=False, linewidth=2.5, label='ood', color='tab:orange')
     plt.title('sp alignment')
     plt.legend()
     
@@ -160,42 +151,112 @@ def get_axis(embeddings):
     return core_ax, sp_ax
 
 
+def alignment_score_v2(embs, core_ax, sp_ax, target, ood_embs=None,
+                       alpha_l2=0.1, alpha_sp=0.9, alpha_ood=1.):
+    
+    alignment_func = torch.nn.CosineSimilarity(dim=-1)
+    labels = torch.argmax(target, dim=-1)
+    
+    core_alignment = alignment_func(embs, core_ax) * (2 * labels - 1)
+    avg_core_alignment = torch.abs(core_alignment).mean().detach().item()
+    core_alignment_clipped = torch.clip(core_alignment, -avg_core_alignment, avg_core_alignment)
+    
+    sp_alignment = torch.abs(alignment_func(embs, sp_ax))
+    avg_sp_alignment = torch.abs(sp_alignment).mean().detach().item()
+    sp_alignment_clipped = torch.clip(sp_alignment, avg_sp_alignment, 1.)
+    
+    alignment = core_alignment_clipped.mean() - alpha_sp * sp_alignment_clipped.mean()
+    
+    
+    if ood_embs is not None:
+        ood_core_alignment = torch.abs(alignment_func(ood_embs, core_ax))
+        avg_core_alignment = torch.abs(ood_core_alignment).mean().detach().item()
+        ood_core_alignment_clipped = torch.clip(ood_core_alignment, avg_core_alignment, 1.)
+    
+        alignment -= ood_core_alignment_clipped.mean()
+        
+        print(ood_core_alignment_clipped.mean().item())
+        
+    l2_reg = torch.square(embs).mean()
+    alignment -= alpha_l2 * l2_reg
+    
+    print(core_alignment_clipped.mean().item(), sp_alignment.mean().item(), l2_reg.item())
+    
+    return alignment
+
+def get_embeddings(model, group_data, max_l=32):
+    
+    model.eval()
+    embeddings = {}
+    
+    for key in group_data.keys():
+        with torch.no_grad():
+            data_np = group_data[key]
+            data = torch.tensor(data_np, dtype=torch.float32).to(device)
+            if len(data) > max_l:
+                features = []
+                for b in range(len(data) // max_l):
+                    batch_data = data[b * max_l: (b + 1) * max_l]
+                    feats, _ = model(batch_data.to(device)) 
+                    features.append(feats)
+                features = torch.cat(features)
+            else:
+                features, _ = model(data.to(device))
+        embeddings[key] = features.squeeze()
+
+    return embeddings
+    
+
 class MLP(nn.Module):
     def __init__(self, n_feat=n_feats, n_out=2):
         super().__init__()
-        self.layer = nn.Linear(n_feat, n_out)
-        self.dropout = nn.Dropout(p=0.5)
+        self.layer1 = nn.Linear(n_feat, n_feat)
+        self.layer2 = nn.Linear(n_feat, n_feat)
+        self.layer3 = nn.Linear(n_feat, n_out)
+        #self.dropout = nn.Dropout(p=0.5)
 
     def forward(self, x):
-        x = self.dropout(x)
-        return self.layer(x)
+        x1 = F.relu(self.layer1(x))
+        x2 = self.layer2(x1)
+        x3 = self.layer3(x2)
+        return x2, x3
     
 core_ax, sp_ax = get_axis(train_dict)
 _ = visualize_correlations(test_dict, ood_dict, core_ax, sp_ax)
 
+core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
+sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
 
 mlp = MLP().to(device)  
 loss_function = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(mlp.parameters(), lr=1e-3)
     
-mlp.train()
+
 for e in range(n_steps):
+    
+    optimizer.zero_grad()
     
     data_np, lbl_np = prepare_train_data()
     
     data = torch.tensor(data_np, dtype=torch.float32).to(device)
     lbl = torch.tensor(lbl_np, dtype=torch.long).to(device) 
         
+    feats, logits = mlp(data)
+    ce_loss = loss_function(logits, lbl)
+    
+    
+    if e > 2:
+        alignment_val = alignment_score_v2(feats, core_ax_torch, sp_ax_torch, lbl)
+        loss = ce_loss - 0.05 * alignment_val
+    else:
+        loss = ce_loss
         
-    optimizer.zero_grad()
-    logits = mlp(data)
-    weight = next(mlp.parameters())
-    loss = loss_function(logits, lbl)
     loss.backward()
     optimizer.step()
     
-    if e % int(n_steps / 4) == 0:
+    if e > 2:
         mlp.eval()
+        
         with torch.no_grad():
             
             g_names = []
@@ -212,10 +273,24 @@ for e in range(n_steps):
                     data_eval = torch.tensor(data_np, dtype=torch.float32).to(device)
                     lbl_eval = torch.tensor(lbl_np, dtype=torch.long).to(device)  
                     
-                    pred = mlp(data_eval).max(-1)[1]
+                    feats, logits = mlp(data_eval)
+                    
+                    pred = logits.max(-1)[1]
                     acc = (pred == lbl_eval).float().mean().item()
                     groups_acc.append(np.round(acc,4))
                     g_names.append(name + '_' + str(int(lbl_np[0])))
                     
             print(g_names)
             print('test acc:', groups_acc)
+
+        train_emb_dict = get_embeddings(mlp, train_dict)
+        test_emb_dict = get_embeddings(mlp, test_dict)
+        ood_emb_dict = get_embeddings(mlp, ood_dict)
+        
+        core_ax, sp_ax = get_axis(train_emb_dict)
+        _ = visualize_correlations(test_emb_dict, ood_emb_dict, core_ax, sp_ax)
+        
+        core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
+        sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
+        
+        mlp.train()
