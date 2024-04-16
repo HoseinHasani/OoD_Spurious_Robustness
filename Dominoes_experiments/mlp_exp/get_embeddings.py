@@ -136,4 +136,4 @@ for g_name in ood_imgs.keys():
     embs_list = np.array(embs_list)
     ood_embs[g_name] = embs_list
 
-np.save('Dominoes_ood_embs.npy', grouped_embs)
+np.save('Dominoes_ood_embs.npy', ood_embs)
