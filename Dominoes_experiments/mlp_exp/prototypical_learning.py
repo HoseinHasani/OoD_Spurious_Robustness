@@ -3,6 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
+import nn_utils
 import os
 import tqdm
 import warnings
@@ -12,8 +13,13 @@ normalize_embs = True
 
 n_steps = 100
 n_feats = 1024
-batch_size = 128
-sp_rate = 0.95
+sp_rate = 0.5
+
+n_way = 2
+n_support = 10
+n_query = 10
+n_query_test = 100
+
 
 names = ['automobile', 'truck']
 
@@ -42,28 +48,32 @@ else:
 l_maj = len(train_dict[f'0_{names[0]}'])
 l_min = len(train_dict[f'1_{names[0]}'])
 
-def prepare_train_data():
-    ind_0_maj = np.random.choice(l_maj, size=int(sp_rate * batch_size), replace=False).ravel()
-    ind_0_min = np.random.choice(l_min, size=int((1 - sp_rate) * batch_size), replace=False).ravel()
+def sample_data(n_data, sp_rate):
+    
+    n_maj = int(sp_rate * n_data)
+    n_min = n_data - n_maj
+    
+    ind_0_maj = np.random.choice(l_maj, size=n_maj, replace=False).ravel()
+    ind_0_min = np.random.choice(l_min, size=n_min, replace=False).ravel()
 
-    ind_1_maj = np.random.choice(l_maj, size=int(sp_rate * batch_size), replace=False).ravel()
-    ind_1_min = np.random.choice(l_min, size=int((1 - sp_rate) * batch_size), replace=False).ravel()
+    ind_1_maj = np.random.choice(l_maj, size=n_maj, replace=False).ravel()
+    ind_1_min = np.random.choice(l_min, size=n_min, replace=False).ravel()
         
+    data0 = np.concatenate([train_dict[f'0_{names[0]}'][ind_0_maj],
+                            train_dict[f'0_{names[1]}'][ind_0_min]])
+    
+    data1 = np.concatenate([train_dict[f'1_{names[1]}'][ind_1_maj],
+                            train_dict[f'1_{names[0]}'][ind_1_min]])
+    
     data_np = np.concatenate([
-                            train_dict[f'0_{names[0]}'][ind_0_maj],
-                            train_dict[f'1_{names[0]}'][ind_0_min],
-                            train_dict[f'1_{names[1]}'][ind_1_maj],
-                            train_dict[f'0_{names[1]}'][ind_1_min],
+                            data0[None],
+                            data1[None],
                             ])
     
-    lbl_np = np.concatenate([
-                            np.zeros(len(ind_0_maj)),
-                            np.ones(len(ind_0_min)),
-                            np.ones(len(ind_1_maj)),
-                            np.zeros(len(ind_1_min)),
-                            ])
-    
-    return data_np, lbl_np
+    return data_np
+
+
+
     
 
 def visualize_correlations(embeddings, ood_embeddings, core_ax, sp_ax,
@@ -164,11 +174,11 @@ def get_embeddings(model, group_data, max_l=32):
                 features = []
                 for b in range(len(data) // max_l):
                     batch_data = data[b * max_l: (b + 1) * max_l]
-                    feats, _ = model(batch_data.to(device)) 
+                    feats = model(batch_data.to(device)) 
                     features.append(feats)
                 features = torch.cat(features)
             else:
-                features, _ = model(data.to(device))
+                features = model(data.to(device))
         embeddings[key] = features.squeeze()
 
     return embeddings
@@ -182,61 +192,53 @@ _ = visualize_correlations(test_dict, ood_dict, core_ax, sp_ax)
 core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
 sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
 
-mlp = MLP().to(device)  
-loss_function = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(mlp.parameters(), lr=1e-3)
-    
+mlp = nn_utils.MLP(n_feats).to(device)  
+model = nn_utils.ProtoNet(mlp, device)
 
+loss_function = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    
 for e in range(n_steps):
     
     optimizer.zero_grad()
     
-    data_np, lbl_np = prepare_train_data()
+    support_np = sample_data(n_support, sp_rate=0.5)
+    query_np = sample_data(n_query, sp_rate=sp_rate)
+    data_np = np.concatenate([support_np, query_np], 1)
     
-    data = torch.tensor(data_np, dtype=torch.float32).to(device)
-    lbl = torch.tensor(lbl_np, dtype=torch.long).to(device) 
+    data = torch.from_numpy(data_np).float().to(device)
+    
+    sample_dict = {
+        'data': data,
+        'n_way': n_way,
+        'n_support': n_support,
+        'n_query': n_query
+        }
         
-    feats, logits = mlp(data)
-    ce_loss = loss_function(logits, lbl)
-    
-    
-    if e > 3:
-        alignment_val = alignment_score_v2(feats, core_ax_torch, sp_ax_torch, lbl)
-        loss = ce_loss - 0.001 * alignment_val
-    else:
-        loss = ce_loss
+    loss, output = model.set_forward_loss(sample_dict)
         
     loss.backward()
     optimizer.step()
-    
     if e > 2:
         mlp.eval()
         
         with torch.no_grad():
             
-            g_names = []
-            groups_acc = []
+            support_np = sample_data(n_support, sp_rate=0.5)
+            query_np = sample_data(n_query_test, sp_rate=0.5)
+            data_np = np.concatenate([support_np, query_np], 1)
             
-            for m in [0, 1]:
-                for j, n in enumerate(names):
-                    
-                    name = f'{m}_{n}'
-                    data_np = test_dict[name]
-                    
-                    lbl_np = m * np.ones(len(data_np))
-                    
-                    data_eval = torch.tensor(data_np, dtype=torch.float32).to(device)
-                    lbl_eval = torch.tensor(lbl_np, dtype=torch.long).to(device)  
-                    
-                    feats, logits = mlp(data_eval)
-                    
-                    pred = logits.max(-1)[1]
-                    acc = (pred == lbl_eval).float().mean().item()
-                    groups_acc.append(np.round(acc,4))
-                    g_names.append(name + '_' + str(int(lbl_np[0])))
-                    
-            print(g_names)
-            print('test acc:', groups_acc)
+            data = torch.from_numpy(data_np).float().to(device)
+            
+            sample_dict = {
+                'data': data,
+                'n_way': n_way,
+                'n_support': n_support,
+                'n_query': n_query_test
+                }
+                
+            loss, output = model.set_forward_loss(sample_dict)
+            print('acc; ', output['acc'])
 
         train_emb_dict = get_embeddings(mlp, train_dict)
         test_emb_dict = get_embeddings(mlp, test_dict)
