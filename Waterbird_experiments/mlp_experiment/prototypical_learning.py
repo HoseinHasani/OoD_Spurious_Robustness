@@ -208,17 +208,19 @@ def visualize_correlations(embeddings, ood_embeddings, core_ax, sp_ax,
 
 def get_axis(embeddings):
     
-    core_ax1 = normalize(embeddings[f'{core_class_names[1]}_{sp_class_names[0]}'].mean(0, keepdims=False) - \
-                         embeddings[f'{core_class_names[0]}_{sp_class_names[0]}'].mean(0, keepdims=False))
-    core_ax2 = normalize(embeddings[f'{core_class_names[1]}_{sp_class_names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'{core_class_names[0]}_{sp_class_names[1]}'].mean(0, keepdims=False))
+    core_ax1 = embeddings[f'{core_class_names[1]}_{sp_class_names[0]}'].mean(0, keepdims=False) - \
+                         embeddings[f'{core_class_names[0]}_{sp_class_names[0]}'].mean(0, keepdims=False)
+    core_ax2 = embeddings[f'{core_class_names[1]}_{sp_class_names[1]}'].mean(0, keepdims=False) - \
+                         embeddings[f'{core_class_names[0]}_{sp_class_names[1]}'].mean(0, keepdims=False)
     core_ax = 0.5 * core_ax1 + 0.5 * core_ax2
     
-    sp_ax1 = normalize(embeddings[f'{core_class_names[0]}_{sp_class_names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'{core_class_names[0]}_{sp_class_names[0]}'].mean(0, keepdims=False))
-    sp_ax2 = normalize(embeddings[f'{core_class_names[1]}_{sp_class_names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'{core_class_names[1]}_{sp_class_names[0]}'].mean(0, keepdims=False))
+    sp_ax1 = embeddings[f'{core_class_names[0]}_{sp_class_names[1]}'].mean(0, keepdims=False) - \
+                         embeddings[f'{core_class_names[0]}_{sp_class_names[0]}'].mean(0, keepdims=False)
+    sp_ax2 = embeddings[f'{core_class_names[1]}_{sp_class_names[1]}'].mean(0, keepdims=False) - \
+                         embeddings[f'{core_class_names[1]}_{sp_class_names[0]}'].mean(0, keepdims=False)
     sp_ax = 0.5 * sp_ax1 + 0.5 * sp_ax2
+    
+    print('axis ratio:', np.linalg.norm(core_ax) / np.linalg.norm(sp_ax))
     
     return core_ax, sp_ax
 
@@ -237,7 +239,7 @@ def calc_dists(ind_dict, ood_dict):
     ood_dists = np.array(ood_dists)
     
     ratio = ood_dists / ind_dists
-    ratio = ratio.mean(0)
+    ratio = ratio.mean()
     ratio = np.round(ratio, 4)
     
     print('ratio:', ratio)
@@ -282,7 +284,7 @@ mlp = nn_utils.MLP(n_feats).to(device)
 model = nn_utils.ProtoNet(mlp, device)
 
 loss_function = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
     
 for e in range(n_steps):
     
@@ -324,7 +326,7 @@ for e in range(n_steps):
                 }
                 
             loss, output = model.set_forward_loss(sample_dict)
-            print('acc; ', output['acc'])
+            print('acc: ', output['acc'])
 
         train_emb_dict = get_embeddings(mlp, train_dict)
         test_emb_dict = get_embeddings(mlp, test_dict)

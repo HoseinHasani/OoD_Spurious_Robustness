@@ -146,21 +146,43 @@ def visualize_correlations(embeddings, ood_embeddings, core_ax, sp_ax,
 
 def get_axis(embeddings):
     
-    core_ax1 = normalize(embeddings[f'1_{names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'0_{names[1]}'].mean(0, keepdims=False))
-    core_ax2 = normalize(embeddings[f'1_{names[0]}'].mean(0, keepdims=False) - \
-                         embeddings[f'0_{names[0]}'].mean(0, keepdims=False))
+    core_ax1 = embeddings[f'1_{names[1]}'].mean(0, keepdims=False) - \
+                         embeddings[f'0_{names[1]}'].mean(0, keepdims=False)
+    core_ax2 = embeddings[f'1_{names[0]}'].mean(0, keepdims=False) - \
+                         embeddings[f'0_{names[0]}'].mean(0, keepdims=False)
     core_ax = 0.5 * core_ax1 + 0.5 * core_ax2
     
-    sp_ax1 = normalize(embeddings[f'1_{names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'1_{names[0]}'].mean(0, keepdims=False))
-    sp_ax2 = normalize(embeddings[f'0_{names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'0_{names[0]}'].mean(0, keepdims=False))
+    sp_ax1 = embeddings[f'1_{names[1]}'].mean(0, keepdims=False) - \
+                         embeddings[f'1_{names[0]}'].mean(0, keepdims=False)
+    sp_ax2 = embeddings[f'0_{names[1]}'].mean(0, keepdims=False) - \
+                         embeddings[f'0_{names[0]}'].mean(0, keepdims=False)
     sp_ax = 0.5 * sp_ax1 + 0.5 * sp_ax2
+    
+    print('axis ratio:', np.linalg.norm(core_ax) / np.linalg.norm(sp_ax))
     
     return core_ax, sp_ax
 
 
+def calc_dists(ind_dict, ood_dict):
+    
+    #protos = [ind_dict[name].mean(0) for name in ind_dict.keys()]
+    
+    ind_dists = [np.linalg.norm(ind_dict[name] - ind_dict[name].mean(0)) for name in ind_dict.keys()]
+    ood_dists = []
+    for ooo in ood_dict.keys():
+        ood_dists_ = [np.linalg.norm(ood_dict[ooo] - ind_dict[name].mean(0)) for name in ind_dict.keys()]
+        ood_dists.append(ood_dists_)
+    
+    ind_dists = np.array(ind_dists)
+    ood_dists = np.array(ood_dists)
+    
+    ratio = ood_dists / ind_dists
+    ratio = ratio.mean()
+    ratio = np.round(ratio, 4)
+    
+    print('ratio:', ratio)
+    
+    
 def get_embeddings(model, group_data, max_l=32):
     
     model.eval()
@@ -189,6 +211,10 @@ core_ax, sp_ax = get_axis(train_dict)
 print('ax correlation: ', np.dot(core_ax, sp_ax))
 _ = visualize_correlations(test_dict, ood_dict, core_ax, sp_ax)
 
+calc_dists(train_dict, ood_dict)
+calc_dists(test_dict, ood_dict)
+        
+
 core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
 sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
 
@@ -196,7 +222,7 @@ mlp = nn_utils.MLP(n_feats).to(device)
 model = nn_utils.ProtoNet(mlp, device)
 
 loss_function = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
     
 for e in range(n_steps):
     
@@ -238,11 +264,14 @@ for e in range(n_steps):
                 }
                 
             loss, output = model.set_forward_loss(sample_dict)
-            print('acc; ', output['acc'])
+            print('acc: ', output['acc'])
 
         train_emb_dict = get_embeddings(mlp, train_dict)
         test_emb_dict = get_embeddings(mlp, test_dict)
         ood_emb_dict = get_embeddings(mlp, ood_dict)
+
+        calc_dists(train_emb_dict, ood_emb_dict)
+        calc_dists(test_emb_dict, ood_emb_dict)
         
         core_ax, sp_ax = get_axis(train_emb_dict)
         print('ax correlation: ', np.dot(core_ax, sp_ax))
