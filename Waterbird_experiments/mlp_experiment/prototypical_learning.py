@@ -15,6 +15,7 @@ normalize_embs = True
 n_steps = 100
 n_feats = 1024
 sp_rate = 0.9
+alpha_refine = 0.7
 
 n_way = 2
 n_support = 10
@@ -223,7 +224,10 @@ def get_axis(embeddings):
     
     print('axis ratio:', np.linalg.norm(core_ax) / np.linalg.norm(sp_ax))
     
-    return core_ax, sp_ax
+    core_ax_norm = 0.5 * normalize(core_ax1) + 0.5 * normalize(core_ax2)
+    sp_ax_norm = 0.5 * normalize(sp_ax1) + 0.5 * normalize(sp_ax2)
+    
+    return core_ax, sp_ax, core_ax_norm, sp_ax_norm
 
 
     
@@ -252,13 +256,24 @@ def get_embeddings(model, group_data, max_l=32):
     
 
     
-core_ax, sp_ax = get_axis(train_dict)
+core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_dict)
 print('ax correlation: ', np.dot(core_ax, sp_ax))
 _ = visualize_correlations(test_dict, ood_dict, core_ax, sp_ax)
 
+pseudo_ood_dict = {}
+for name in train_dict.keys():
+    embs = train_dict[name]
+    cr_coefs = np.dot(embs, core_ax_norm)
+    refined = embs - alpha_refine * cr_coefs[:, None] * np.repeat(core_ax_norm[None], embs.shape[0], axis=0)
+    pseudo_ood_dict[name] = refined
+
+_ = visualize_correlations(pseudo_ood_dict, ood_dict, core_ax_norm, sp_ax_norm)
+    
+sdf
 dist_utils.calc_dists_ratio(train_dict, ood_dict)
 dist_utils.calc_dists_ratio(test_dict, ood_dict)
-        
+
+
 core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
 sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
 
@@ -317,7 +332,7 @@ for e in range(n_steps):
         dist_utils.calc_dists_ratio(train_emb_dict, ood_emb_dict)
         dist_utils.calc_dists_ratio(test_emb_dict, ood_emb_dict)
         
-        core_ax, sp_ax = get_axis(train_emb_dict)
+        core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_emb_dict)
         print('ax correlation: ', np.dot(core_ax, sp_ax))
         
         
