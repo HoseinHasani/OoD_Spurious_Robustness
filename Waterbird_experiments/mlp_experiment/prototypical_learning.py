@@ -3,6 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
+import dist_utils
 import nn_utils
 import os
 import tqdm
@@ -225,25 +226,6 @@ def get_axis(embeddings):
     return core_ax, sp_ax
 
 
-def calc_dists(ind_dict, ood_dict):
-    
-    #protos = [ind_dict[name].mean(0) for name in ind_dict.keys()]
-    
-    ind_dists = [np.linalg.norm(ind_dict[name] - ind_dict[name].mean(0)) for name in ind_dict.keys()]
-    ood_dists = []
-    for ooo in ood_dict.keys():
-        ood_dists_ = [np.linalg.norm(ood_dict[ooo] - ind_dict[name].mean(0)) for name in ind_dict.keys()]
-        ood_dists.append(ood_dists_)
-    
-    ind_dists = np.array(ind_dists)
-    ood_dists = np.array(ood_dists)
-    
-    ratio = ood_dists / ind_dists
-    ratio = ratio.mean()
-    ratio = np.round(ratio, 4)
-    
-    print('ratio:', ratio)
-    
     
 
 def get_embeddings(model, group_data, max_l=32):
@@ -274,8 +256,8 @@ core_ax, sp_ax = get_axis(train_dict)
 print('ax correlation: ', np.dot(core_ax, sp_ax))
 _ = visualize_correlations(test_dict, ood_dict, core_ax, sp_ax)
 
-calc_dists(train_dict, ood_dict)
-calc_dists(test_dict, ood_dict)
+dist_utils.calc_dists_ratio(train_dict, ood_dict)
+dist_utils.calc_dists_ratio(test_dict, ood_dict)
         
 core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
 sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
@@ -332,8 +314,8 @@ for e in range(n_steps):
         test_emb_dict = get_embeddings(mlp, test_dict)
         ood_emb_dict = get_embeddings(mlp, ood_dict)
 
-        calc_dists(train_emb_dict, ood_emb_dict)
-        calc_dists(test_emb_dict, ood_emb_dict)
+        dist_utils.calc_dists_ratio(train_emb_dict, ood_emb_dict)
+        dist_utils.calc_dists_ratio(test_emb_dict, ood_emb_dict)
         
         core_ax, sp_ax = get_axis(train_emb_dict)
         print('ax correlation: ', np.dot(core_ax, sp_ax))
