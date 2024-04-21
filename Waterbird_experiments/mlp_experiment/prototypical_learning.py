@@ -15,7 +15,7 @@ normalize_embs = True
 n_steps = 100
 n_feats = 1024
 sp_rate = 0.9
-alpha_refine = 0.7
+alpha_refine = 0.8
 
 n_way = 2
 n_support = 10
@@ -245,15 +245,25 @@ def get_embeddings(model, group_data, max_l=32):
                 features = []
                 for b in range(len(data) // max_l):
                     batch_data = data[b * max_l: (b + 1) * max_l]
-                    feats = model(batch_data.to(device)) 
+                    feats = model(batch_data.to(device))
                     features.append(feats)
-                features = torch.cat(features)
+                features = torch.cat(features).cpu().numpy()
             else:
-                features = model(data.to(device))
+                features = model(data.to(device)).cpu().numpy()
         embeddings[key] = features.squeeze()
 
     return embeddings
-    
+
+def get_class_dicts(input_dict):
+    class_dicts = []
+    for core_name in core_class_names:
+        class_dict = {}
+        for sp_name in sp_class_names:
+            name = f'{core_name}_{sp_name}'
+            class_dict[name] = input_dict[name]
+        class_dicts.append(class_dict)
+
+    return class_dicts
 
     
 core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_dict)
@@ -269,10 +279,17 @@ for name in train_dict.keys():
 
 _ = visualize_correlations(pseudo_ood_dict, ood_dict, core_ax_norm, sp_ax_norm)
     
-sdf
 dist_utils.calc_dists_ratio(train_dict, ood_dict)
 dist_utils.calc_dists_ratio(test_dict, ood_dict)
 
+train_dict_list = get_class_dicts(train_dict)
+ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
+dist_utils.calc_ROC(train_dict_list[0], ood_embs)
+dist_utils.calc_ROC(train_dict_list[1], ood_embs)
+
+# ood_embs = np.concatenate([pseudo_ood_dict[key] for key in pseudo_ood_dict.keys()])
+# dist_utils.calc_ROC(train_dict_list[0], ood_embs)
+# dist_utils.calc_ROC(train_dict_list[1], ood_embs)
 
 core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
 sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
@@ -328,6 +345,12 @@ for e in range(n_steps):
         train_emb_dict = get_embeddings(mlp, train_dict)
         test_emb_dict = get_embeddings(mlp, test_dict)
         ood_emb_dict = get_embeddings(mlp, ood_dict)
+        
+        train_dict_list = get_class_dicts(train_emb_dict)
+        ood_embs = np.concatenate([ood_emb_dict[key] for key in ood_emb_dict.keys()])
+        dist_utils.calc_ROC(train_dict_list[0], ood_embs)
+        dist_utils.calc_ROC(train_dict_list[1], ood_embs)
+
 
         dist_utils.calc_dists_ratio(train_emb_dict, ood_emb_dict)
         dist_utils.calc_dists_ratio(test_emb_dict, ood_emb_dict)
