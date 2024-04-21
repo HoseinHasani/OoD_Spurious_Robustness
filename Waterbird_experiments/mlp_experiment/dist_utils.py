@@ -56,7 +56,7 @@ def find_thresh_val(main_vals, th=0.95):
     
 
 
-def calc_ROC(embs_dict, ood_embs):
+def calc_ROC(embs_dict, ood_embs, plot=False):
         
     ood_dists = get_dist_vals_ood(embs_dict, ood_embs)
 
@@ -92,13 +92,14 @@ def calc_ROC(embs_dict, ood_embs):
     
     auc_val = np.round(auc(fps, tps), 4)
     
-    plt.figure()
-    plt.plot(fps, tps, label=f'area={auc_val}', linewidth=2)
-    plt.xlabel('FPR')
-    plt.ylabel('TPR')
-    #plt.ylim([0.55, 1.001])
-    plt.legend()
-    plt.title('ROC', fontsize=17)
+    if plot:
+        plt.figure()
+        plt.plot(fps, tps, label=f'area={auc_val}', linewidth=2)
+        plt.xlabel('FPR')
+        plt.ylabel('TPR')
+        #plt.ylim([0.55, 1.001])
+        plt.legend()
+        plt.title('ROC', fontsize=17)
     
     
     print('auc: ', auc_val, ', err: ', 100 * err,
