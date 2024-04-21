@@ -3,6 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
+import dist_utils
 import nn_utils
 import os
 import tqdm
@@ -198,26 +199,46 @@ def get_embeddings(model, group_data, max_l=32):
                     batch_data = data[b * max_l: (b + 1) * max_l]
                     feats = model(batch_data.to(device)) 
                     features.append(feats)
-                features = torch.cat(features)
+                features = torch.cat(features).cpu().numpy()
             else:
-                features = model(data.to(device))
+                features = model(data.to(device)).cpu().numpy()
         embeddings[key] = features.squeeze()
 
     return embeddings
     
 
-    
+
+def get_class_dicts(input_dict):
+    class_dicts = []
+    for core_name in ['0', '1']:
+        class_dict = {}
+        for sp_name in names:
+            name = f'{core_name}_{sp_name}'
+            class_dict[name] = input_dict[name]
+        class_dicts.append(class_dict)
+
+    return class_dicts
+
 core_ax, sp_ax = get_axis(train_dict)
 print('ax correlation: ', np.dot(core_ax, sp_ax))
 _ = visualize_correlations(test_dict, ood_dict, core_ax, sp_ax)
 
-calc_dists(train_dict, ood_dict)
-calc_dists(test_dict, ood_dict)
-        
+dist_utils.calc_dists_ratio(train_dict, ood_dict)
+dist_utils.calc_dists_ratio(test_dict, ood_dict)
+
+train_dict_list = get_class_dicts(train_dict)
+ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
+print()
+dist_utils.calc_ROC(train_dict_list[0], ood_embs)
+dist_utils.calc_ROC(train_dict_list[1], ood_embs)
+
+# ood_embs = np.concatenate([pseudo_ood_dict[key] for key in pseudo_ood_dict.keys()])
+# print()
+# dist_utils.calc_ROC(train_dict_list[0], ood_embs)
+# dist_utils.calc_ROC(train_dict_list[1], ood_embs)
 
 core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
 sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
-
 mlp = nn_utils.MLP(n_feats).to(device)  
 model = nn_utils.ProtoNet(mlp, device)
 
@@ -270,8 +291,16 @@ for e in range(n_steps):
         test_emb_dict = get_embeddings(mlp, test_dict)
         ood_emb_dict = get_embeddings(mlp, ood_dict)
 
-        calc_dists(train_emb_dict, ood_emb_dict)
-        calc_dists(test_emb_dict, ood_emb_dict)
+        train_dict_list = get_class_dicts(train_emb_dict)
+        ood_embs = np.concatenate([ood_emb_dict[key] for key in ood_emb_dict.keys()])
+        
+        print()
+        dist_utils.calc_ROC(train_dict_list[0], ood_embs)
+        dist_utils.calc_ROC(train_dict_list[1], ood_embs)
+
+
+        dist_utils.calc_dists_ratio(train_emb_dict, ood_emb_dict)
+        dist_utils.calc_dists_ratio(test_emb_dict, ood_emb_dict)
         
         core_ax, sp_ax = get_axis(train_emb_dict)
         print('ax correlation: ', np.dot(core_ax, sp_ax))
