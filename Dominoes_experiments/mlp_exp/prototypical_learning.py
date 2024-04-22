@@ -12,11 +12,12 @@ warnings.filterwarnings("ignore")
 
 normalize_embs = True
 
+alpha_refine = 0.4
+
 n_steps = 100
 n_feats = 1024
-sp_rate = 0.5
+sp_rate = 0.8
 
-n_way = 2
 n_support = 10
 n_query = 10
 n_query_test = 100
@@ -74,7 +75,29 @@ def sample_data(n_data, sp_rate):
     return data_np
 
 
+def sample_ood_data(n_data, sp_rate):
+    
+    n_maj = int(sp_rate * n_data)
+    n_min = n_data - n_maj
+    
+    ind_0_maj = np.random.choice(l_maj, size=n_maj, replace=False).ravel()
+    ind_0_min = np.random.choice(l_min, size=n_min, replace=False).ravel()
 
+    ind_1_maj = np.random.choice(l_maj, size=n_maj, replace=False).ravel()
+    ind_1_min = np.random.choice(l_min, size=n_min, replace=False).ravel()
+        
+    data0 = np.concatenate([pseudo_ood_dict[f'0_{names[0]}'][ind_0_maj],
+                            pseudo_ood_dict[f'0_{names[1]}'][ind_0_min]])
+    
+    data1 = np.concatenate([pseudo_ood_dict[f'1_{names[1]}'][ind_1_maj],
+                            pseudo_ood_dict[f'1_{names[0]}'][ind_1_min]])
+    
+    data_np = np.concatenate([
+                            data0[None],
+                            data1[None],
+                            ])
+    
+    return data_np
     
 
 def visualize_correlations(embeddings, ood_embeddings, core_ax, sp_ax,
@@ -207,6 +230,16 @@ core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_dict)
 print('ax correlation: ', np.dot(core_ax, sp_ax))
 _ = visualize_correlations(test_dict, ood_dict, core_ax, sp_ax)
 
+pseudo_ood_dict = {}
+for name in train_dict.keys():
+    embs = train_dict[name]
+    cr_coefs = np.dot(embs, core_ax_norm)
+    refined = embs - alpha_refine * cr_coefs[:, None] * np.repeat(core_ax_norm[None], embs.shape[0], axis=0)
+    pseudo_ood_dict[name] = refined
+
+_ = visualize_correlations(pseudo_ood_dict, ood_dict, core_ax_norm, sp_ax_norm)
+
+
 dist_utils.calc_dists_ratio(train_dict, ood_dict)
 dist_utils.calc_dists_ratio(test_dict, ood_dict)
 
@@ -235,15 +268,74 @@ for e in range(n_steps):
     
     support_np = sample_data(n_support, sp_rate=0.5)
     query_np = sample_data(n_query, sp_rate=sp_rate)
+    
+    if e % 8 == 1:
+        ood_support_np = sample_data(n_support, sp_rate=0.5)
+        ood_query_np = sample_data(n_query, sp_rate=sp_rate)
+        
+        support_np = np.concatenate([support_np, ood_support_np[:1]])
+        query_np = np.concatenate([query_np, ood_support_np[:1]])
+        
+    elif e % 8 == 2:
+        ood_support_np = sample_data(n_support, sp_rate=0.5)
+        ood_query_np = sample_data(n_query, sp_rate=sp_rate)
+        
+        support_np = np.concatenate([support_np, ood_support_np[1:]])
+        query_np = np.concatenate([query_np, ood_support_np[1:]])
+        
+    elif e % 8 == 3:
+        ood_support_np = sample_data(n_support, sp_rate=0.5)
+        ood_query_np = sample_data(n_query, sp_rate=sp_rate)
+        
+        ood_support_np = np.concatenate(ood_support_np)[None]
+        ood_query_np = np.concatenate(ood_query_np)[None]
+        
+        selected_support = np.random.permutation(2*n_support)[: n_support]
+        selected_query = np.random.permutation(2*n_query)[: n_query]
+
+        support_np = np.concatenate([support_np, ood_support_np[:, selected_support]])
+        query_np = np.concatenate([query_np, ood_support_np[:, selected_query]])
+        
+        
+    
+    elif e % 8 == 5:
+        ood_support_np = sample_data(n_support, sp_rate=0.5)
+        ood_query_np = sample_data(n_query, sp_rate=sp_rate)
+        
+        support_np = np.concatenate([support_np, ood_support_np[:1]])
+        query_np = np.concatenate([query_np, ood_support_np[1:]])
+        
+    elif e % 8 == 6:
+        ood_support_np = sample_data(n_support, sp_rate=0.5)
+        ood_query_np = sample_data(n_query, sp_rate=sp_rate)
+        
+        support_np = np.concatenate([support_np, ood_support_np[1:]])
+        query_np = np.concatenate([query_np, ood_support_np[:1]])
+        
+    elif e % 8 == 7:
+        ood_support_np = sample_data(n_support, sp_rate=0.5)
+        ood_query_np = sample_data(n_query, sp_rate=sp_rate)
+        
+        ood_support_np = np.concatenate(ood_support_np)[None]
+        ood_query_np = np.concatenate(ood_query_np)[None]
+        
+        selected_support = np.random.permutation(2*n_support)[: n_support]
+        selected_query = np.random.permutation(2*n_query)[: n_query]
+
+        support_np = np.concatenate([support_np, ood_support_np[:, selected_support]])
+        query_np = np.concatenate([query_np, ood_support_np[:, selected_query]])
+    
     data_np = np.concatenate([support_np, query_np], 1)
     
     data = torch.from_numpy(data_np).float().to(device)
     
+    n_way = data.shape[0]
+    
     sample_dict = {
         'data': data,
         'n_way': n_way,
-        'n_support': n_support,
-        'n_query': n_query
+        'n_support': support_np.shape[1],
+        'n_query': query_np.shape[1]
         }
         
     loss, output = model.set_forward_loss(sample_dict)
@@ -260,6 +352,8 @@ for e in range(n_steps):
             data_np = np.concatenate([support_np, query_np], 1)
             
             data = torch.from_numpy(data_np).float().to(device)
+            
+            n_way = data.shape[0]
             
             sample_dict = {
                 'data': data,

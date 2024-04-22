@@ -52,16 +52,16 @@ def prepare_train_data():
         
     data_np = np.concatenate([
                             train_dict[f'0_{names[0]}'][ind_0_maj],
-                            train_dict[f'1_{names[0]}'][ind_0_min],
+                            train_dict[f'1_{names[0]}'][ind_1_min],
                             train_dict[f'1_{names[1]}'][ind_1_maj],
-                            train_dict[f'0_{names[1]}'][ind_1_min],
+                            train_dict[f'0_{names[1]}'][ind_0_min],
                             ])
     
     lbl_np = np.concatenate([
                             np.zeros(len(ind_0_maj)),
-                            np.ones(len(ind_0_min)),
+                            np.ones(len(ind_1_min)),
                             np.ones(len(ind_1_maj)),
-                            np.zeros(len(ind_1_min)),
+                            np.zeros(len(ind_0_min)),
                             ])
     
     return data_np, lbl_np
