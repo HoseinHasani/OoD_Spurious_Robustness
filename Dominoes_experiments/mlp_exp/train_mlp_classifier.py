@@ -3,6 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
+import dist_utils
 import os
 import tqdm
 import warnings
@@ -10,10 +11,10 @@ warnings.filterwarnings("ignore")
 
 normalize_embs = True
 
-n_steps = 100
+n_steps = 1000
 n_feats = 1024
 batch_size = 128
-sp_rate = 0.95
+sp_rate = 0.5
 
 names = ['automobile', 'truck']
 
@@ -136,19 +137,24 @@ def visualize_correlations(embeddings, ood_embeddings, core_ax, sp_ax,
 
 def get_axis(embeddings):
     
-    core_ax1 = normalize(embeddings[f'1_{names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'0_{names[1]}'].mean(0, keepdims=False))
-    core_ax2 = normalize(embeddings[f'1_{names[0]}'].mean(0, keepdims=False) - \
-                         embeddings[f'0_{names[0]}'].mean(0, keepdims=False))
+    core_ax1 = embeddings[f'1_{names[1]}'].mean(0, keepdims=False) - \
+                         embeddings[f'0_{names[1]}'].mean(0, keepdims=False)
+    core_ax2 = embeddings[f'1_{names[0]}'].mean(0, keepdims=False) - \
+                         embeddings[f'0_{names[0]}'].mean(0, keepdims=False)
     core_ax = 0.5 * core_ax1 + 0.5 * core_ax2
     
-    sp_ax1 = normalize(embeddings[f'1_{names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'1_{names[0]}'].mean(0, keepdims=False))
-    sp_ax2 = normalize(embeddings[f'0_{names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'0_{names[0]}'].mean(0, keepdims=False))
+    sp_ax1 = embeddings[f'1_{names[1]}'].mean(0, keepdims=False) - \
+                         embeddings[f'1_{names[0]}'].mean(0, keepdims=False)
+    sp_ax2 = embeddings[f'0_{names[1]}'].mean(0, keepdims=False) - \
+                         embeddings[f'0_{names[0]}'].mean(0, keepdims=False)
     sp_ax = 0.5 * sp_ax1 + 0.5 * sp_ax2
     
-    return core_ax, sp_ax
+    print('axis ratio:', np.linalg.norm(core_ax) / np.linalg.norm(sp_ax))
+    
+    core_ax_norm = 0.5 * normalize(core_ax1) + 0.5 * normalize(core_ax2)
+    sp_ax_norm = 0.5 * normalize(sp_ax1) + 0.5 * normalize(sp_ax2)
+    
+    return core_ax, sp_ax, core_ax_norm, sp_ax_norm
 
 
 def alignment_score_v2(embs, core_ax, sp_ax, target, ood_embs=None,
@@ -201,9 +207,9 @@ def get_embeddings(model, group_data, max_l=32):
                     batch_data = data[b * max_l: (b + 1) * max_l]
                     feats, _ = model(batch_data.to(device)) 
                     features.append(feats)
-                features = torch.cat(features)
+                features = torch.cat(features).cpu().numpy()
             else:
-                features, _ = model(data.to(device))
+                features, _ = model(data.to(device)).cpu().numpy()
         embeddings[key] = features.squeeze()
 
     return embeddings
@@ -213,19 +219,41 @@ class MLP(nn.Module):
     def __init__(self, n_feat=n_feats, n_out=2):
         super().__init__()
         self.layer1 = nn.Linear(n_feat, n_feat)
-        self.layer2 = nn.Linear(n_feat, n_feat//18)
-        self.layer3 = nn.Linear(n_feat//18, n_out)
+        self.layer2 = nn.Linear(n_feat, n_feat//1)
+        self.layer3 = nn.Linear(n_feat//1, n_out)
         #self.dropout = nn.Dropout(p=0.5)
 
     def forward(self, x):
         x1 = F.relu(self.layer1(x))
-        x2 = self.layer2(x1)
+        x2 = F.relu(self.layer2(x1))
         x3 = self.layer3(x2)
         return x2, x3
     
-core_ax, sp_ax = get_axis(train_dict)
+def get_class_dicts(input_dict):
+    class_dicts = []
+    for core_name in ['0', '1']:
+        class_dict = {}
+        for sp_name in names:
+            name = f'{core_name}_{sp_name}'
+            class_dict[name] = input_dict[name]
+        class_dicts.append(class_dict)
+
+    return class_dicts
+
+
+core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_dict)
 print('ax correlation: ', np.dot(core_ax, sp_ax))
 _ = visualize_correlations(test_dict, ood_dict, core_ax, sp_ax)
+
+dist_utils.calc_dists_ratio(train_dict, ood_dict)
+dist_utils.calc_dists_ratio(test_dict, ood_dict)
+
+train_dict_list = get_class_dicts(train_dict)
+ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
+print()
+dist_utils.calc_ROC(train_dict_list[0], ood_embs)
+dist_utils.calc_ROC(train_dict_list[1], ood_embs)
+
 
 core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
 sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
@@ -250,7 +278,7 @@ for e in range(n_steps):
     
     if e > 3:
         alignment_val = alignment_score_v2(feats, core_ax_torch, sp_ax_torch, lbl)
-        loss = ce_loss - 0.001 * alignment_val
+        loss = ce_loss - 0.0 * alignment_val
     else:
         loss = ce_loss
         
@@ -289,8 +317,19 @@ for e in range(n_steps):
         train_emb_dict = get_embeddings(mlp, train_dict)
         test_emb_dict = get_embeddings(mlp, test_dict)
         ood_emb_dict = get_embeddings(mlp, ood_dict)
+
+        train_dict_list = get_class_dicts(train_emb_dict)
+        ood_embs = np.concatenate([ood_emb_dict[key] for key in ood_emb_dict.keys()])
         
-        core_ax, sp_ax = get_axis(train_emb_dict)
+        print()
+        dist_utils.calc_ROC(train_dict_list[0], ood_embs)
+        dist_utils.calc_ROC(train_dict_list[1], ood_embs)
+
+
+        dist_utils.calc_dists_ratio(train_emb_dict, ood_emb_dict)
+        dist_utils.calc_dists_ratio(test_emb_dict, ood_emb_dict)
+        
+        core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_emb_dict)
         print('ax correlation: ', np.dot(core_ax, sp_ax))
         
         

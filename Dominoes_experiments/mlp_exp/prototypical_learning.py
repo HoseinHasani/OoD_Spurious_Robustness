@@ -161,28 +161,12 @@ def get_axis(embeddings):
     
     print('axis ratio:', np.linalg.norm(core_ax) / np.linalg.norm(sp_ax))
     
-    return core_ax, sp_ax
+    core_ax_norm = 0.5 * normalize(core_ax1) + 0.5 * normalize(core_ax2)
+    sp_ax_norm = 0.5 * normalize(sp_ax1) + 0.5 * normalize(sp_ax2)
+    
+    return core_ax, sp_ax, core_ax_norm, sp_ax_norm
 
 
-def calc_dists(ind_dict, ood_dict):
-    
-    #protos = [ind_dict[name].mean(0) for name in ind_dict.keys()]
-    
-    ind_dists = [np.linalg.norm(ind_dict[name] - ind_dict[name].mean(0)) for name in ind_dict.keys()]
-    ood_dists = []
-    for ooo in ood_dict.keys():
-        ood_dists_ = [np.linalg.norm(ood_dict[ooo] - ind_dict[name].mean(0)) for name in ind_dict.keys()]
-        ood_dists.append(ood_dists_)
-    
-    ind_dists = np.array(ind_dists)
-    ood_dists = np.array(ood_dists)
-    
-    ratio = ood_dists / ind_dists
-    ratio = ratio.mean()
-    ratio = np.round(ratio, 4)
-    
-    print('ratio:', ratio)
-    
     
 def get_embeddings(model, group_data, max_l=32):
     
@@ -219,7 +203,7 @@ def get_class_dicts(input_dict):
 
     return class_dicts
 
-core_ax, sp_ax = get_axis(train_dict)
+core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_dict)
 print('ax correlation: ', np.dot(core_ax, sp_ax))
 _ = visualize_correlations(test_dict, ood_dict, core_ax, sp_ax)
 
@@ -302,7 +286,7 @@ for e in range(n_steps):
         dist_utils.calc_dists_ratio(train_emb_dict, ood_emb_dict)
         dist_utils.calc_dists_ratio(test_emb_dict, ood_emb_dict)
         
-        core_ax, sp_ax = get_axis(train_emb_dict)
+        core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_emb_dict)
         print('ax correlation: ', np.dot(core_ax, sp_ax))
         
         
