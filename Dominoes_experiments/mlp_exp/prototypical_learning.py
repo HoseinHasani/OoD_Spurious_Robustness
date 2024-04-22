@@ -12,7 +12,7 @@ warnings.filterwarnings("ignore")
 
 normalize_embs = True
 
-alpha_refine = 0.4
+alpha_refine = 0.5
 
 n_steps = 100
 n_feats = 1024
@@ -270,22 +270,22 @@ for e in range(n_steps):
     query_np = sample_data(n_query, sp_rate=sp_rate)
     
     if e % 8 == 1:
-        ood_support_np = sample_data(n_support, sp_rate=0.5)
-        ood_query_np = sample_data(n_query, sp_rate=sp_rate)
+        ood_support_np = sample_ood_data(n_support, sp_rate=0.5)
+        ood_query_np = sample_ood_data(n_query, sp_rate=sp_rate)
         
         support_np = np.concatenate([support_np, ood_support_np[:1]])
         query_np = np.concatenate([query_np, ood_support_np[:1]])
         
     elif e % 8 == 2:
-        ood_support_np = sample_data(n_support, sp_rate=0.5)
-        ood_query_np = sample_data(n_query, sp_rate=sp_rate)
+        ood_support_np = sample_ood_data(n_support, sp_rate=0.5)
+        ood_query_np = sample_ood_data(n_query, sp_rate=sp_rate)
         
         support_np = np.concatenate([support_np, ood_support_np[1:]])
         query_np = np.concatenate([query_np, ood_support_np[1:]])
         
     elif e % 8 == 3:
-        ood_support_np = sample_data(n_support, sp_rate=0.5)
-        ood_query_np = sample_data(n_query, sp_rate=sp_rate)
+        ood_support_np = sample_ood_data(n_support, sp_rate=0.5)
+        ood_query_np = sample_ood_data(n_query, sp_rate=sp_rate)
         
         ood_support_np = np.concatenate(ood_support_np)[None]
         ood_query_np = np.concatenate(ood_query_np)[None]
@@ -299,22 +299,22 @@ for e in range(n_steps):
         
     
     elif e % 8 == 5:
-        ood_support_np = sample_data(n_support, sp_rate=0.5)
-        ood_query_np = sample_data(n_query, sp_rate=sp_rate)
+        ood_support_np = sample_ood_data(n_support, sp_rate=0.5)
+        ood_query_np = sample_ood_data(n_query, sp_rate=sp_rate)
         
         support_np = np.concatenate([support_np, ood_support_np[:1]])
         query_np = np.concatenate([query_np, ood_support_np[1:]])
         
     elif e % 8 == 6:
-        ood_support_np = sample_data(n_support, sp_rate=0.5)
-        ood_query_np = sample_data(n_query, sp_rate=sp_rate)
+        ood_support_np = sample_ood_data(n_support, sp_rate=0.5)
+        ood_query_np = sample_ood_data(n_query, sp_rate=sp_rate)
         
         support_np = np.concatenate([support_np, ood_support_np[1:]])
         query_np = np.concatenate([query_np, ood_support_np[:1]])
         
     elif e % 8 == 7:
-        ood_support_np = sample_data(n_support, sp_rate=0.5)
-        ood_query_np = sample_data(n_query, sp_rate=sp_rate)
+        ood_support_np = sample_ood_data(n_support, sp_rate=0.5)
+        ood_query_np = sample_ood_data(n_query, sp_rate=sp_rate)
         
         ood_support_np = np.concatenate(ood_support_np)[None]
         ood_query_np = np.concatenate(ood_query_np)[None]
