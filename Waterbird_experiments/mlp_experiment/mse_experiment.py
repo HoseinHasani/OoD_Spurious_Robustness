@@ -15,7 +15,9 @@ normalize_embs = True
 n_steps = 100
 n_feats = 1024
 sp_rate = 0.9
-alpha_refine = 0.6
+alpha_refine = 0.9
+
+lbl_scale = 0.1
 
 n_way = 2
 n_support = 10
@@ -87,11 +89,8 @@ grouped_embs_train0 = {name: np.array(grouped_embs_train0[name]) for name in gro
 
 
 
-def normalize(x, scale=None):
-    if scale == None:
-        scale = 1 #np.sqrt(n_feats)
-        
-    return x / np.linalg.norm(x, axis=-1, keepdims=True) * scale
+def normalize(x):
+    return x / np.linalg.norm(x, axis=-1, keepdims=True)
 
 
 grouped_embs = {name: grouped_embs0[name] for name in grouped_embs0.keys()}
@@ -117,7 +116,7 @@ l_maj1 = len(train_dict[f'{core_class_names[1]}_{sp_class_names[1]}'])
 l_min1 = len(train_dict[f'{core_class_names[1]}_{sp_class_names[0]}'])
 
 
-def sample_data(n_data, sp_rate, lbl_scale=0.1):
+def sample_data(n_data, sp_rate):
     
     n_maj = int(sp_rate * n_data)
     n_min = n_data - n_maj
@@ -182,8 +181,8 @@ def visualize_correlations(embeddings, ood_embeddings, core_ax, sp_ax,
     s_vals = []
     
     for key in embeddings.keys():
-        c_vals_ = np.abs(np.dot(embeddings[key], core_ax))
-        s_vals_ = np.abs(np.dot(embeddings[key], sp_ax))
+        c_vals_ = np.abs(np.dot(normalize(embeddings[key]), core_ax))
+        s_vals_ = np.abs(np.dot(normalize(embeddings[key]), sp_ax))
         
         c_vals.append(c_vals_)
         s_vals.append(s_vals_)
@@ -192,8 +191,8 @@ def visualize_correlations(embeddings, ood_embeddings, core_ax, sp_ax,
     s_vals_ood = []
 
     for key in ood_embeddings.keys():
-        c_vals_ = np.abs(np.dot(ood_embeddings[key], core_ax))
-        s_vals_ = np.abs(np.dot(ood_embeddings[key], sp_ax))
+        c_vals_ = np.abs(np.dot(normalize(ood_embeddings[key]), core_ax))
+        s_vals_ = np.abs(np.dot(normalize(ood_embeddings[key]), sp_ax))
         
         c_vals_ood.append(c_vals_)
         s_vals_ood.append(s_vals_)
@@ -259,8 +258,8 @@ def get_axis(embeddings):
     
     print('axis ratio:', np.linalg.norm(core_ax) / np.linalg.norm(sp_ax))
     
-    core_ax_norm = 0.5 * normalize(core_ax1, scale=1) + 0.5 * normalize(core_ax2, scale=1)
-    sp_ax_norm = 0.5 * normalize(sp_ax1, scale=1) + 0.5 * normalize(sp_ax2, scale=1)
+    core_ax_norm = 0.5 * normalize(core_ax1) + 0.5 * normalize(core_ax2)
+    sp_ax_norm = 0.5 * normalize(sp_ax1) + 0.5 * normalize(sp_ax2)
     
     return core_ax, sp_ax, core_ax_norm, sp_ax_norm
 
@@ -333,7 +332,11 @@ dist_utils.calc_ROC(train_dict_list[1], ood_embs)
 core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
 sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
 
-mlp = nn_utils.MLP(n_feats, n_outputs=output_size, sigmoid_output=True).to(device)  
+mlp = nn_utils.MLP(n_feats,
+                   n_outputs=output_size,
+                   input_scale=np.sqrt(n_feats),
+                   sigmoid_output=True).to(device) 
+ 
 model = nn_utils.ProtoNet(mlp, device)
 
 loss_function = nn.MSELoss()
@@ -365,19 +368,42 @@ for e in range(n_steps):
             
             
             data = torch.from_numpy(data_np).float().to(device)
-            lbl = torch.tensor(lbl_np, dtype=torch.long).to(device) 
+            lbl = torch.tensor(lbl_np).float().to(device) 
             
                 
             feats = mlp(data)
             mse_loss = loss_function(feats, lbl)
             
-            print('mse loss: ', mse_loss.item())
+            print('Train MSE loss: ', mse_loss.item())
 
+        with torch.no_grad():
+            
+            mse_err_dict = {}
+            
+            for sp_name in sp_class_names:
+                for lbl_ind, cr_name in enumerate(core_class_names):
+                    
+                    name = f'{cr_name}_{sp_name}'
+                    
+                    data_np = test_dict[name]
+                    lbl_np = lbl_scale * (2*lbl_ind - 1) * np.ones((len(data_np), output_size))
+                    data = torch.from_numpy(data_np).float().to(device)
+                    lbl = torch.tensor(lbl_np).float().to(device) 
+                    
+                        
+                    feats = mlp(data)
+                    mse_loss = loss_function(feats, lbl)
+                    
+                    mse_err_dict[name] = np.round(mse_loss.item(), 5)
+                    
+                    
+            print('Test MSE loss:', mse_err_dict)
+            
         train_emb_dict = get_embeddings(mlp, train_dict)
         test_emb_dict = get_embeddings(mlp, test_dict)
         ood_emb_dict = get_embeddings(mlp, ood_dict)
         
-        train_dict_list = get_class_dicts(train_emb_dict)
+        train_dict_list = get_class_dicts(test_emb_dict)
         ood_embs = np.concatenate([ood_emb_dict[key] for key in ood_emb_dict.keys()])
         dist_utils.calc_ROC(train_dict_list[0], ood_embs)
         dist_utils.calc_ROC(train_dict_list[1], ood_embs)
@@ -387,13 +413,13 @@ for e in range(n_steps):
         dist_utils.calc_dists_ratio(test_emb_dict, ood_emb_dict)
         
         core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_emb_dict)
-        print('ax correlation: ', np.dot(core_ax, sp_ax))
+        print('ax correlation: ', np.dot(core_ax_norm, sp_ax_norm))
         
         
         core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
         sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
         
         if e % 5 == 0:
-            _ = visualize_correlations(test_emb_dict, ood_emb_dict, core_ax, sp_ax)
+            _ = visualize_correlations(test_emb_dict, ood_emb_dict, core_ax_norm, sp_ax_norm)
         
         mlp.train()

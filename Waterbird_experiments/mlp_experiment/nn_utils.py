@@ -5,8 +5,11 @@ from torch.autograd import Variable
 
 
 class MLP(nn.Module):
-    def __init__(self, n_feat=1024, n_outputs=1024, sigmoid_output=False):
+    def __init__(self, n_feat=1024, n_outputs=1024, input_scale=1., sigmoid_output=False):
         super().__init__()
+        
+        self.input_scale = input_scale
+        
         self.layer1 = nn.Linear(n_feat, n_feat)
         self.layer2 = nn.Linear(n_feat, n_feat)
         self.layer3 = nn.Linear(n_feat, n_outputs)
@@ -15,7 +18,7 @@ class MLP(nn.Module):
         self.sigmoid_output = sigmoid_output
 
     def forward(self, x):
-        x1 = F.relu(self.layer1(x))
+        x1 = self.input_scale * F.relu(self.layer1(x))
         x2 = F.relu(self.layer2(x1))
         if self.sigmoid_output:
             x3 = F.sigmoid(self.layer3(x2))
