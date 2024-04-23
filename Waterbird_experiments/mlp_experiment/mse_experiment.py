@@ -17,10 +17,11 @@ batch_size = 64
 n_steps = 100
 n_feats = 1024
 sp_rate = 0.9
-alpha_refine = 0.9
+alpha_refine = 0.95
+alpha_ood = 0.5
 
 lbl_scale = 0.1
-output_size = n_feats // 4
+output_size = n_feats // 8
 
 
 backbones = ['dino', 'res50', 'res18']
@@ -112,7 +113,7 @@ l_maj1 = len(train_dict[f'{core_class_names[1]}_{sp_class_names[1]}'])
 l_min1 = len(train_dict[f'{core_class_names[1]}_{sp_class_names[0]}'])
 
 
-def sample_data(n_data, sp_rate):
+def sample_data(data_dict, n_data, sp_rate):
     
     n_maj = int(sp_rate * n_data)
     n_min = n_data - n_maj
@@ -123,11 +124,11 @@ def sample_data(n_data, sp_rate):
     ind_1_maj = np.random.choice(l_maj1, size=n_maj, replace=False).ravel()
     ind_1_min = np.random.choice(l_min1, size=n_min, replace=False).ravel()
         
-    data0 = np.concatenate([train_dict[f'{core_class_names[0]}_{sp_class_names[0]}'][ind_0_maj],
-                            train_dict[f'{core_class_names[0]}_{sp_class_names[1]}'][ind_0_min]])
+    data0 = np.concatenate([data_dict[f'{core_class_names[0]}_{sp_class_names[0]}'][ind_0_maj],
+                            data_dict[f'{core_class_names[0]}_{sp_class_names[1]}'][ind_0_min]])
     
-    data1 = np.concatenate([train_dict[f'{core_class_names[1]}_{sp_class_names[1]}'][ind_1_maj],
-                            train_dict[f'{core_class_names[1]}_{sp_class_names[0]}'][ind_1_min]])
+    data1 = np.concatenate([data_dict[f'{core_class_names[1]}_{sp_class_names[1]}'][ind_1_maj],
+                            data_dict[f'{core_class_names[1]}_{sp_class_names[0]}'][ind_1_min]])
     
     data_np = np.concatenate([
                             data0,
@@ -313,12 +314,18 @@ print()
 dist_utils.calc_dists_ratio(train_dict, ood_dict)
 dist_utils.calc_dists_ratio(test_dict, ood_dict)
 
-train_dict_list = get_class_dicts(train_dict)
+test_dict_list = get_class_dicts(test_dict)
 ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
+pseudo_ood_embs = np.concatenate([pseudo_ood_dict[key] for key in pseudo_ood_dict.keys()])
 
-print()
-dist_utils.calc_ROC(train_dict_list[0], ood_embs)
-dist_utils.calc_ROC(train_dict_list[1], ood_embs)
+print('OOD:')
+dist_utils.calc_ROC(test_dict_list[0], ood_embs)
+dist_utils.calc_ROC(test_dict_list[1], ood_embs)
+
+print('PSEUDO-OOD:')
+dist_utils.calc_ROC(test_dict_list[0], pseudo_ood_embs)
+dist_utils.calc_ROC(test_dict_list[1], pseudo_ood_embs)
+
 
 # ood_embs = np.concatenate([pseudo_ood_dict[key] for key in pseudo_ood_dict.keys()])
 # print()
@@ -336,13 +343,13 @@ mlp = nn_utils.MLP(n_feats,
 model = nn_utils.ProtoNet(mlp, device)
 
 loss_function = nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
+optimizer = torch.optim.Adam(model.parameters(), lr=2e-4)
     
 for e in range(n_steps):
     
     optimizer.zero_grad()
     
-    data_np, lbl_np = sample_data(batch_size, sp_rate=sp_rate)
+    data_np, lbl_np = sample_data(train_dict, batch_size, sp_rate=sp_rate)
     
     
     data = torch.from_numpy(data_np).float().to(device)
@@ -360,7 +367,7 @@ for e in range(n_steps):
         
         with torch.no_grad():
             
-            data_np, lbl_np = sample_data(batch_size, sp_rate=sp_rate)
+            data_np, lbl_np = sample_data(train_dict, batch_size, sp_rate=sp_rate)
             
             
             data = torch.from_numpy(data_np).float().to(device)
@@ -372,6 +379,20 @@ for e in range(n_steps):
             
             print('Train MSE loss: ', mse_loss.item())
 
+        with torch.no_grad():
+            
+            data_np, lbl_np = sample_data(pseudo_ood_dict, batch_size, sp_rate=sp_rate)
+            
+            
+            data = torch.from_numpy(data_np).float().to(device)
+            lbl = torch.tensor(lbl_np).float().to(device) 
+            
+                
+            feats = mlp(data)
+            mse_loss = loss_function(feats, lbl)
+            
+            print('POOD MSE loss: ', mse_loss.item())
+            
         with torch.no_grad():
             
             mse_err_dict = {}
@@ -398,16 +419,29 @@ for e in range(n_steps):
         train_emb_dict = get_embeddings(mlp, train_dict)
         test_emb_dict = get_embeddings(mlp, test_dict)
         ood_emb_dict = get_embeddings(mlp, ood_dict)
+        pseudo_ood_emb_dict = get_embeddings(mlp, pseudo_ood_dict)
         
-        train_dict_list = get_class_dicts(test_emb_dict)
+        test_dict_list = get_class_dicts(test_emb_dict)
         ood_embs = np.concatenate([ood_emb_dict[key] for key in ood_emb_dict.keys()])
-        dist_utils.calc_ROC(train_dict_list[0], ood_embs)
-        dist_utils.calc_ROC(train_dict_list[1], ood_embs)
-
+        pseudo_ood_embs = np.concatenate([pseudo_ood_emb_dict[key] for key in \
+                                          pseudo_ood_emb_dict.keys()])     
+        
+        dist_utils.calc_ROC(test_dict_list[0], ood_embs)
+        dist_utils.calc_ROC(test_dict_list[1], ood_embs)
+        
+        print('OOD:')
+        dist_utils.calc_ROC(test_dict_list[0], ood_embs)
+        dist_utils.calc_ROC(test_dict_list[1], ood_embs)
+        
+        print('PSEUDO-OOD:')
+        dist_utils.calc_ROC(test_dict_list[0], pseudo_ood_embs)
+        dist_utils.calc_ROC(test_dict_list[1], pseudo_ood_embs)
+        
+        
         print()
         dist_utils.calc_dists_ratio(train_emb_dict, ood_emb_dict)
         dist_utils.calc_dists_ratio(test_emb_dict, ood_emb_dict)
-        
+
         core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_emb_dict)
         print('ax correlation: ', np.dot(core_ax_norm, sp_ax_norm))
         

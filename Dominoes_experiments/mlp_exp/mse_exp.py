@@ -251,11 +251,11 @@ _ = visualize_correlations(pseudo_ood_dict, ood_dict, core_ax_norm, sp_ax_norm)
 dist_utils.calc_dists_ratio(train_dict, ood_dict)
 dist_utils.calc_dists_ratio(test_dict, ood_dict)
 
-train_dict_list = get_class_dicts(train_dict)
+test_dict_list = get_class_dicts(test_dict)
 ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
 print()
-dist_utils.calc_ROC(train_dict_list[0], ood_embs)
-dist_utils.calc_ROC(train_dict_list[1], ood_embs)
+dist_utils.calc_ROC(test_dict_list[0], ood_embs)
+dist_utils.calc_ROC(test_dict_list[1], ood_embs)
 
 # ood_embs = np.concatenate([pseudo_ood_dict[key] for key in pseudo_ood_dict.keys()])
 # print()
@@ -314,10 +314,10 @@ for e in range(n_steps):
         test_emb_dict = get_embeddings(mlp, test_dict)
         ood_emb_dict = get_embeddings(mlp, ood_dict)
         
-        train_dict_list = get_class_dicts(test_emb_dict)
+        test_dict_list = get_class_dicts(test_emb_dict)
         ood_embs = np.concatenate([ood_emb_dict[key] for key in ood_emb_dict.keys()])
-        dist_utils.calc_ROC(train_dict_list[0], ood_embs)
-        dist_utils.calc_ROC(train_dict_list[1], ood_embs)
+        dist_utils.calc_ROC(test_dict_list[0], ood_embs)
+        dist_utils.calc_ROC(test_dict_list[1], ood_embs)
 
         print()
         dist_utils.calc_dists_ratio(train_emb_dict, ood_emb_dict)
