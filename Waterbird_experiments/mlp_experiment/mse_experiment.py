@@ -17,8 +17,8 @@ batch_size = 64
 n_steps = 100
 n_feats = 1024
 sp_rate = 0.9
-alpha_refine = 0.95
-alpha_ood = 0.5
+alpha_refine = 0.6
+alpha_ood = 0.6
 
 lbl_scale = 0.1
 output_size = n_feats // 8
@@ -351,15 +351,23 @@ for e in range(n_steps):
     
     data_np, lbl_np = sample_data(train_dict, batch_size, sp_rate=sp_rate)
     
+    data = torch.from_numpy(data_np).float().to(device)
+    lbl = torch.tensor(lbl_np).float().to(device) 
+        
+    feats = mlp(data)
+    mse_loss = loss_function(feats, lbl)
+    
+    data_np, lbl_np = sample_data(pseudo_ood_dict, batch_size, sp_rate=sp_rate)
     
     data = torch.from_numpy(data_np).float().to(device)
     lbl = torch.tensor(lbl_np).float().to(device) 
     
-        
     feats = mlp(data)
-    mse_loss = loss_function(feats, lbl)
+    mse_ood = loss_function(feats, lbl)
         
-    mse_loss.backward()
+    loss = mse_loss - alpha_ood * mse_ood
+    
+    loss.backward()
     optimizer.step()
     
     if e > 2:
@@ -425,9 +433,6 @@ for e in range(n_steps):
         ood_embs = np.concatenate([ood_emb_dict[key] for key in ood_emb_dict.keys()])
         pseudo_ood_embs = np.concatenate([pseudo_ood_emb_dict[key] for key in \
                                           pseudo_ood_emb_dict.keys()])     
-        
-        dist_utils.calc_ROC(test_dict_list[0], ood_embs)
-        dist_utils.calc_ROC(test_dict_list[1], ood_embs)
         
         print('OOD:')
         dist_utils.calc_ROC(test_dict_list[0], ood_embs)
