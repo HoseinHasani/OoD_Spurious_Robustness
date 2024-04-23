@@ -28,7 +28,7 @@ def calc_dists_ratio(ind_dict, ood_dict):
     
     
     
-def get_dist_vals(embs_dict):
+def get_dist_vals(embs_dict, embs_std_dict=None):
     
         
     all_dist_vals = []
@@ -36,15 +36,31 @@ def get_dist_vals(embs_dict):
     for key in embs_dict.keys():
         dist_vals = [calc_euc_dist(embs_dict[key],
                                   embs_dict[k].mean(0)) for k in embs_dict.keys()]
+        
+        if embs_std_dict is not None:
+            new_dist_vals = []
+            for j in range(len(embs_dict.keys())):
+                new_dist_vals.append(dist_vals[j] * (0.001 + embs_std_dict[key]))
+                
+            dist_vals = new_dist_vals
+            
         dist_vals = np.min(dist_vals, axis=0)
         all_dist_vals.append(dist_vals)
     
     return np.concatenate(all_dist_vals)
     
 
-def get_dist_vals_ood(embs_dict, ood_embs):
+def get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std=None):
     
     dist_vals = [calc_euc_dist(ood_embs, embs_dict[k].mean(0)) for k in embs_dict.keys()]
+    
+    if ood_embs_std is not None:
+        new_dist_vals = []
+        for j in range(len(embs_dict.keys())):
+            new_dist_vals.append(dist_vals[j] * (0.001 + ood_embs_std))
+        
+        dist_vals = new_dist_vals
+            
     dist_vals = np.min(dist_vals, axis=0)
     
     return dist_vals
@@ -56,19 +72,17 @@ def find_thresh_val(main_vals, th=0.95):
     
 
 
-def calc_ROC(embs_dict, ood_embs, plot=False):
+def calc_ROC(embs_dict, ood_embs, embs_std_dict=None, ood_embs_std=None, plot=False):
         
-    ood_dists = get_dist_vals_ood(embs_dict, ood_embs)
+    ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std)
 
-    ind_dists = get_dist_vals(embs_dict)
+    ind_dists = get_dist_vals(embs_dict, embs_std_dict)
 
             
     thresh = find_thresh_val(ind_dists)
     err = ood_dists[ood_dists < thresh].shape[0] / ood_dists.shape[0]
 
     
-    
-
     
     
     thresholds = [th for th in np.arange(1, 100) / 100]
