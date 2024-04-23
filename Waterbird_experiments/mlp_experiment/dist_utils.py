@@ -28,41 +28,66 @@ def calc_dists_ratio(ind_dict, ood_dict):
     
     
     
-def get_dist_vals(embs_dict, embs_std_dict=None):
-    
+def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False, prototype=None):
         
     all_dist_vals = []
-
-    for key in embs_dict.keys():
-        dist_vals = [calc_euc_dist(embs_dict[key],
-                                  embs_dict[k].mean(0)) for k in embs_dict.keys()]
-        
-        if embs_std_dict is not None:
-            new_dist_vals = []
-            for j in range(len(embs_dict.keys())):
-                new_dist_vals.append(dist_vals[j] * (0.001 + embs_std_dict[key]))
-                
-            dist_vals = new_dist_vals
+    if known_group:
+        for key in embs_dict.keys():
+            dist_vals = [calc_euc_dist(embs_dict[key],
+                                      embs_dict[k].mean(0)) for k in embs_dict.keys()]
             
-        dist_vals = np.min(dist_vals, axis=0)
-        all_dist_vals.append(dist_vals)
+            if embs_std_dict is not None:
+                new_dist_vals = []
+                for j in range(len(embs_dict.keys())):
+                    new_dist_vals.append(dist_vals[j] * (0.001 + embs_std_dict[key]))
+                    
+                dist_vals = new_dist_vals
+                
+            dist_vals = np.min(dist_vals, axis=0)
+            all_dist_vals.append(dist_vals)
     
+    else:
+        if prototype is None:
+            embs_dict_all = np.concatenate([embs_dict[k] for k in embs_dict.keys()])
+            prototype = embs_dict_all.mean(0)
+            
+        for key in embs_dict.keys():
+            dist_vals = calc_euc_dist(embs_dict[key], prototype)
+            
+            if embs_std_dict is not None:
+                dist_vals = dist_vals * (0.001 + embs_std_dict[key])
+                
+            all_dist_vals.append(dist_vals)
+            
     return np.concatenate(all_dist_vals)
     
 
-def get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std=None):
+def get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std=None, known_group=False, prototype=None):
     
-    dist_vals = [calc_euc_dist(ood_embs, embs_dict[k].mean(0)) for k in embs_dict.keys()]
-    
-    if ood_embs_std is not None:
-        new_dist_vals = []
-        for j in range(len(embs_dict.keys())):
-            new_dist_vals.append(dist_vals[j] * (0.001 + ood_embs_std))
+    if known_group:
+        dist_vals = [calc_euc_dist(ood_embs, embs_dict[k].mean(0)) for k in embs_dict.keys()]
         
-        dist_vals = new_dist_vals
+        if ood_embs_std is not None:
+            new_dist_vals = []
+            for j in range(len(embs_dict.keys())):
+                new_dist_vals.append(dist_vals[j] * (0.001 + ood_embs_std))
             
-    dist_vals = np.min(dist_vals, axis=0)
+            dist_vals = new_dist_vals
+                
+        dist_vals = np.min(dist_vals, axis=0)
     
+    else:
+        
+        if prototype is None:
+            embs_dict_all = np.concatenate([embs_dict[k] for k in embs_dict.keys()])
+            prototype = embs_dict_all.mean(0)
+            
+        dist_vals = calc_euc_dist(ood_embs, prototype)
+        
+        if ood_embs_std is not None:
+            
+            dist_vals = dist_vals * (0.001 + ood_embs_std)
+                
     return dist_vals
 
 
@@ -72,11 +97,19 @@ def find_thresh_val(main_vals, th=0.95):
     
 
 
-def calc_ROC(embs_dict, ood_embs, embs_std_dict=None, ood_embs_std=None, plot=False):
+def calc_ROC(embs_dict, ood_embs,
+             embs_std_dict=None, ood_embs_std=None, train_embs_dict=None,
+             known_group=False, plot=False):
         
-    ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std)
+    if train_embs_dict is not None:
+        embs_dict_all = np.concatenate([train_embs_dict[k] for k in train_embs_dict.keys()])
+        prototype = embs_dict_all.mean(0)
+    else:
+        prototype=None
+        
+    ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std, known_group, prototype=prototype)
 
-    ind_dists = get_dist_vals(embs_dict, embs_std_dict)
+    ind_dists = get_dist_vals(embs_dict, embs_std_dict, known_group, prototype=prototype)
 
             
     thresh = find_thresh_val(ind_dists)
