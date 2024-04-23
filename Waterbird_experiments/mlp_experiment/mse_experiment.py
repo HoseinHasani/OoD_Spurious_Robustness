@@ -14,6 +14,8 @@ normalize_embs = True
 
 batch_size = 64
 
+n_ensemble = 7
+
 n_steps = 100
 n_feats = 1024
 sp_rate = 0.9
@@ -296,6 +298,32 @@ def get_class_dicts(input_dict):
 
     return class_dicts
 
+def process_ens_dicts(data_dicts):
+    
+    final_mean = {}
+    final_std = {}
+    
+    for name in data_dicts[0].keys():
+        embs_list = []
+        for j in range(n_ensemble):
+            embs = data_dicts[j][name]
+            embs_list.append(embs)
+            
+        final_mean[name] = np.mean(embs_list, 0)
+        final_std[name] = np.std(embs_list, 0).mean(-1)
+        
+    return final_mean, final_std
+
+def plot_dict_hist(dict_data, fig_name):
+    data = []
+    for name in dict_data:
+        data.append(dict_data[name])
+    
+    data = np.concatenate(data)
+    
+    plt.hist(data, 100, histtype='step', label=fig_name)
+    plt.legend()
+
     
 core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_dict)
 print('ax correlation: ', np.dot(core_ax, sp_ax))
@@ -335,40 +363,47 @@ dist_utils.calc_ROC(test_dict_list[1], pseudo_ood_embs)
 core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
 sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
 
-mlp = nn_utils.MLP(n_feats,
-                   n_outputs=output_size,
-                   input_scale=np.sqrt(n_feats),
-                   sigmoid_output=True).to(device) 
- 
-model = nn_utils.ProtoNet(mlp, device)
-
 loss_function = nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=2e-4)
+mlps = []
+optimizers = []
+
+for ens in range(n_ensemble):
+    mlp = nn_utils.MLP(n_feats,
+                       n_outputs=output_size,
+                       input_scale=np.sqrt(n_feats),
+                       sigmoid_output=True).to(device) 
+     
+    optimizer = torch.optim.Adam(mlp.parameters(), lr=2e-4)
+    
+    mlps.append(mlp)
+    optimizers.append(optimizer)
     
 for e in range(n_steps):
     
-    optimizer.zero_grad()
+    for ens in range(n_ensemble):
     
-    data_np, lbl_np = sample_data(train_dict, batch_size, sp_rate=sp_rate)
-    
-    data = torch.from_numpy(data_np).float().to(device)
-    lbl = torch.tensor(lbl_np).float().to(device) 
+        optimizers[ens].zero_grad()
         
-    feats = mlp(data)
-    mse_loss = loss_function(feats, lbl)
-    
-    data_np, lbl_np = sample_data(pseudo_ood_dict, batch_size, sp_rate=sp_rate)
-    
-    data = torch.from_numpy(data_np).float().to(device)
-    lbl = torch.tensor(lbl_np).float().to(device) 
-    
-    feats = mlp(data)
-    mse_ood = loss_function(feats, lbl)
+        data_np, lbl_np = sample_data(train_dict, batch_size, sp_rate=sp_rate)
         
-    loss = mse_loss - alpha_ood * mse_ood
-    
-    loss.backward()
-    optimizer.step()
+        data = torch.from_numpy(data_np).float().to(device)
+        lbl = torch.tensor(lbl_np).float().to(device) 
+            
+        feats = mlps[ens](data)
+        mse_loss = loss_function(feats, lbl)
+        
+        data_np, lbl_np = sample_data(pseudo_ood_dict, batch_size, sp_rate=sp_rate)
+        
+        # data = torch.from_numpy(data_np).float().to(device)
+        # lbl = torch.tensor(lbl_np).float().to(device) 
+        
+        # feats = mlp(data)
+        # mse_ood = loss_function(feats, lbl)
+            
+        loss = mse_loss #- alpha_ood * mse_ood
+        
+        loss.backward()
+        optimizers[ens].step()
     
     if e > 2:
         mlp.eval()
@@ -382,7 +417,7 @@ for e in range(n_steps):
             lbl = torch.tensor(lbl_np).float().to(device) 
             
                 
-            feats = mlp(data)
+            feats = mlps[0](data)
             mse_loss = loss_function(feats, lbl)
             
             print('Train MSE loss: ', mse_loss.item())
@@ -424,10 +459,21 @@ for e in range(n_steps):
                     
             print('Test MSE loss:', mse_err_dict)
             
-        train_emb_dict = get_embeddings(mlp, train_dict)
-        test_emb_dict = get_embeddings(mlp, test_dict)
-        ood_emb_dict = get_embeddings(mlp, ood_dict)
-        pseudo_ood_emb_dict = get_embeddings(mlp, pseudo_ood_dict)
+        train_emb_dicts = [get_embeddings(mlp, train_dict) for mlp in mlps]
+        test_emb_dicts = [get_embeddings(mlp, test_dict) for mlp in mlps]
+        ood_emb_dicts = [get_embeddings(mlp, ood_dict) for mlp in mlps]
+        pseudo_ood_emb_dicts = [get_embeddings(mlp, pseudo_ood_dict) for mlp in mlps]
+        
+        train_emb_dict, train_emb_dict_std = process_ens_dicts(train_emb_dicts)
+        test_emb_dict, test_emb_dict_std = process_ens_dicts(test_emb_dicts)
+        ood_emb_dict, ood_emb_dict_std = process_ens_dicts(ood_emb_dicts)
+        pseudo_ood_emb_dict, pseudo_ood_emb_std = process_ens_dicts(pseudo_ood_emb_dicts)
+        
+        plt.figure()
+        plot_dict_hist(train_emb_dict_std, 'train')
+        plot_dict_hist(test_emb_dict_std, 'test')
+        plot_dict_hist(ood_emb_dict_std, 'ood')
+        plot_dict_hist(pseudo_ood_emb_std, 'pood')
         
         test_dict_list = get_class_dicts(test_emb_dict)
         ood_embs = np.concatenate([ood_emb_dict[key] for key in ood_emb_dict.keys()])
