@@ -14,7 +14,7 @@ normalize_embs = True
 
 batch_size = 64
 
-n_ensemble = 7
+n_ensemble = 3
 
 n_steps = 100
 n_feats = 1024
@@ -23,7 +23,7 @@ alpha_refine = 0.6
 alpha_ood = 0.6
 
 lbl_scale = 0.1
-output_size = n_feats // 8
+output_size = n_feats // 4
 
 
 backbones = ['dino', 'res50', 'res18']

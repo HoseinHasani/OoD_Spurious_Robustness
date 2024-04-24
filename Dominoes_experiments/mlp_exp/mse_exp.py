@@ -21,7 +21,7 @@ n_feats = 1024
 sp_rate = 0.9
 
 lbl_scale = 0.1
-output_size = n_feats // 10
+output_size = n_feats // 4
 
 
 names = ['automobile', 'truck']
@@ -251,11 +251,14 @@ _ = visualize_correlations(pseudo_ood_dict, ood_dict, core_ax_norm, sp_ax_norm)
 dist_utils.calc_dists_ratio(train_dict, ood_dict)
 dist_utils.calc_dists_ratio(test_dict, ood_dict)
 
+train_dict_list = get_class_dicts(train_dict)
 test_dict_list = get_class_dicts(test_dict)
+
 ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
 print()
-dist_utils.calc_ROC(test_dict_list[0], ood_embs)
-dist_utils.calc_ROC(test_dict_list[1], ood_embs)
+dist_utils.calc_ROC(test_dict_list[0], ood_embs, train_embs_dict=train_dict_list[0])
+dist_utils.calc_ROC(test_dict_list[1], ood_embs, train_embs_dict=train_dict_list[1])
+
 
 # ood_embs = np.concatenate([pseudo_ood_dict[key] for key in pseudo_ood_dict.keys()])
 # print()
@@ -315,9 +318,12 @@ for e in range(n_steps):
         ood_emb_dict = get_embeddings(mlp, ood_dict)
         
         test_dict_list = get_class_dicts(test_emb_dict)
+        train_dict_list = get_class_dicts(train_emb_dict)
+        
         ood_embs = np.concatenate([ood_emb_dict[key] for key in ood_emb_dict.keys()])
-        dist_utils.calc_ROC(test_dict_list[0], ood_embs)
-        dist_utils.calc_ROC(test_dict_list[1], ood_embs)
+        dist_utils.calc_ROC(test_dict_list[0], ood_embs, train_embs_dict=train_dict_list[0])
+        dist_utils.calc_ROC(test_dict_list[1], ood_embs, train_embs_dict=train_dict_list[1])
+        
 
         print()
         dist_utils.calc_dists_ratio(train_emb_dict, ood_emb_dict)
@@ -330,7 +336,7 @@ for e in range(n_steps):
         core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
         sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
         
-        if e % 5 == 0:
+        if e % 50 == 0:
             _ = visualize_correlations(test_emb_dict, ood_emb_dict, core_ax_norm, sp_ax_norm)
         
         mlp.train()
