@@ -11,6 +11,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 normalize_embs = True
+apply_mixup = True
 
 batch_size = 64
 
@@ -132,10 +133,39 @@ def sample_data(data_dict, n_data, sp_rate):
     data1 = np.concatenate([data_dict[f'{core_class_names[1]}_{sp_class_names[1]}'][ind_1_maj],
                             data_dict[f'{core_class_names[1]}_{sp_class_names[0]}'][ind_1_min]])
     
-    data_np = np.concatenate([
+    data_np1 = np.concatenate([
                             data0,
                             data1,
                             ])
+    
+    if apply_mixup:
+        ind_0_maj = np.random.choice(l_maj0, size=n_maj, replace=False).ravel()
+        ind_0_min = np.random.choice(l_min0, size=n_min, replace=False).ravel()
+    
+        ind_1_maj = np.random.choice(l_maj1, size=n_maj, replace=False).ravel()
+        ind_1_min = np.random.choice(l_min1, size=n_min, replace=False).ravel()
+            
+        data0 = np.concatenate([data_dict[f'{core_class_names[0]}_{sp_class_names[0]}'][ind_0_maj],
+                                data_dict[f'{core_class_names[0]}_{sp_class_names[1]}'][ind_0_min]])
+        
+        data1 = np.concatenate([data_dict[f'{core_class_names[1]}_{sp_class_names[1]}'][ind_1_maj],
+                                data_dict[f'{core_class_names[1]}_{sp_class_names[0]}'][ind_1_min]])
+        
+        data_np2 = np.concatenate([
+                                data0,
+                                data1,
+                                ])
+        
+        alpha_vals = np.random.rand(2 * n_data)[:, None]
+        inds_ = np.random.choice(n_data, n_data//4, replace=False).ravel()
+        
+        alpha_vals[inds_] = 0
+        
+        data_np = alpha_vals * data_np1 + (1 - alpha_vals) * data_np2
+    
+    else:
+        data_np = data_np1
+        
     
     lbl0 = -lbl_scale * np.ones((len(data0), output_size))
     lbl1 = lbl_scale * np.ones((len(data1), output_size))
@@ -169,6 +199,9 @@ def sample_ood_data(n_data, sp_rate):
                             data0[None],
                             data1[None],
                             ])
+    
+    
+    
     
     return data_np
 
