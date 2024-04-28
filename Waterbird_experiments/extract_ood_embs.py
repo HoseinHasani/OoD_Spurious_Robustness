@@ -20,8 +20,6 @@ for name in place_names:
     print(name, len(f_list))
     file_lists[name] = f_list
 
-model_dino = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitl14')
-model_dino.eval()
 
 def center_pad(img, target_size):
     _, height, width = img.shape
@@ -51,18 +49,38 @@ transform = transforms.Compose([
 
 
 for name in place_names:
+    
+    f_list = np.array(file_lists[name])
+    perm = np.random.permutation(len(f_list))
+    n_eval = int(0.9 * len(f_list))
+    eval_list = f_list[perm[: n_eval]]
+    train_list = f_list[perm[n_eval:]]
+    
+    print(len(eval_list), len(train_list))
+    
     emb_dict = {}
-    f_list = file_lists[name]
-    for i in tqdm.tqdm(range(len(f_list))):
+    for i in tqdm.tqdm(range(len(eval_list))):
         key_name = f'{name}_{i}'
-        image_path = f_list[i]
+        image_path = eval_list[i]
         with torch.no_grad():
             image = Image.open(image_path)
             image_tensor = transform(image)
             emb = model_dino(image_tensor.unsqueeze(0).to(device)).squeeze().cpu().numpy()
             emb_dict[key_name] = emb
-    np.save(name + '.npy', emb_dict)
+    np.save(f'OOD_{name}_DINO_eval.npy', emb_dict)
+    print(len(emb_dict.keys()))
     
+    emb_dict = {}
+    for i in tqdm.tqdm(range(len(train_list))):
+        key_name = f'{name}_{i}'
+        image_path = train_list[i]
+        with torch.no_grad():
+            image = Image.open(image_path)
+            image_tensor = transform(image)
+            emb = model_dino(image_tensor.unsqueeze(0).to(device)).squeeze().cpu().numpy()
+            emb_dict[key_name] = emb
+    np.save(f'OOD_{name}_DINO_train.npy', emb_dict)
+    print(len(emb_dict.keys()))
 
     
     
