@@ -19,8 +19,8 @@ n_ensemble = 3
 
 n_steps = 100
 n_feats = 1024
-sp_rate = 0.9
-alpha_refine = 0.6
+sp_rate = 0.95
+alpha_refine = 0.99
 alpha_ood = 0.6
 
 lbl_scale = 0.1
@@ -51,14 +51,14 @@ elif backbone == 'res50':
 
 ood_embs0 = {}
 if backbone == 'dino':
-    dict_ = np.load(data_path + 'land.npy', allow_pickle=True).item()
+    dict_ = np.load(data_path + 'OOD_land_DINO_eval.npy', allow_pickle=True).item()
 elif backbone == 'res50':
     dict_ = np.load(data_path + f'land_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
     
 ood_embs0['0'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
 
 if backbone == 'dino':
-    dict_ = np.load(data_path + 'water.npy', allow_pickle=True).item()
+    dict_ = np.load(data_path + 'OOD_water_DINO_eval.npy', allow_pickle=True).item()
 elif backbone == 'res50':
     dict_ = np.load(data_path + f'water_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
 ood_embs0['1'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
@@ -377,16 +377,21 @@ dist_utils.calc_dists_ratio(test_dict, ood_dict)
 
 train_dict_list = get_class_dicts(train_dict)
 test_dict_list = get_class_dicts(test_dict)
+
 ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
 pseudo_ood_embs = np.concatenate([pseudo_ood_dict[key] for key in pseudo_ood_dict.keys()])
 
+train_prototypes = [train_dict[key].mean(0) for key in train_dict.keys()]
+
 print('OOD:')
-dist_utils.calc_ROC(test_dict_list[0], ood_embs, train_embs_dict=train_dict_list[0])
-dist_utils.calc_ROC(test_dict_list[1], ood_embs, train_embs_dict=train_dict_list[1])
+#dist_utils.calc_ROC(test_dict_list[0], ood_embs, prototypes=train_dict_list[0])
+#dist_utils.calc_ROC(test_dict_list[1], ood_embs, prototypes=train_dict_list[1])
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes)
 
 print('PSEUDO-OOD:')
-dist_utils.calc_ROC(test_dict_list[0], pseudo_ood_embs, train_embs_dict=train_dict_list[0])
-dist_utils.calc_ROC(test_dict_list[1], pseudo_ood_embs, train_embs_dict=train_dict_list[1])
+#dist_utils.calc_ROC(test_dict_list[0], pseudo_ood_embs, prototypes=train_dict_list[0])
+#dist_utils.calc_ROC(test_dict_list[1], pseudo_ood_embs, prototypes=train_dict_list[1])
+dist_utils.calc_ROC(test_dict, pseudo_ood_embs, prototypes=train_prototypes)
 
 
 # ood_embs = np.concatenate([pseudo_ood_dict[key] for key in pseudo_ood_dict.keys()])
@@ -503,6 +508,12 @@ for e in range(n_steps):
         ood_emb_dict, ood_emb_dict_std = process_ens_dicts(ood_emb_dicts)
         pseudo_ood_emb_dict, pseudo_ood_emb_dict_std = process_ens_dicts(pseudo_ood_emb_dicts)
         
+        ens_train_emb_prototypes = []
+        for jj in range(n_ensemble):
+            ens_train_emb_prototypes.append([train_emb_dicts[jj][key].mean(0) for key in train_emb_dicts[jj].keys()])
+        
+        train_emb_prototypes = np.mean(ens_train_emb_prototypes, 0)
+        
         # plt.figure()
         # plot_dict_hist(train_emb_dict_std, 'train')
         # plot_dict_hist(test_emb_dict_std, 'test')
@@ -524,16 +535,24 @@ for e in range(n_steps):
             
             
         print('OOD:')
-        dist_utils.calc_ROC(test_dict_list[0], ood_embs, train_embs_dict=train_dict_list[0])
-        dist_utils.calc_ROC(test_dict_list[1], ood_embs, train_embs_dict=train_dict_list[1])
+#        dist_utils.calc_ROC(test_dict_list[0], ood_embs, train_embs_dict=train_dict_list[0])
+#        dist_utils.calc_ROC(test_dict_list[1], ood_embs, train_embs_dict=train_dict_list[1])
+        
+        dist_utils.calc_ROC(test_emb_dict, ood_embs, prototypes=train_emb_prototypes)
+        
         
         print('OOD (STD):')
-        dist_utils.calc_ROC(test_dict_list[0], ood_embs,
-                            test_dict_std_list[0], ood_embs_std,
-                            train_dict_list[0])
-        dist_utils.calc_ROC(test_dict_list[1], ood_embs,
-                            test_dict_std_list[1], ood_embs_std,
-                            train_dict_list[1])
+#        dist_utils.calc_ROC(test_dict_list[0], ood_embs,
+#                            test_dict_std_list[0], ood_embs_std,
+#                            train_dict_list[0])
+#        dist_utils.calc_ROC(test_dict_list[1], ood_embs,
+#                            test_dict_std_list[1], ood_embs_std,
+#                            train_dict_list[1])
+        
+        
+        dist_utils.calc_ROC(test_emb_dict, ood_embs,
+                            test_emb_dict_std, ood_embs_std,
+                            prototypes=train_emb_prototypes)
         
         # print('PSEUDO-OOD:')
         # dist_utils.calc_ROC(test_dict_list[0], pseudo_ood_embs)
