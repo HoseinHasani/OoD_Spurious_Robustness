@@ -1,5 +1,5 @@
 import numpy as np
-from sklearn.metrics import auc
+from sklearn import metrics
 import matplotlib.pyplot as plt
 
 
@@ -139,26 +139,33 @@ def calc_ROC(embs_dict, ood_embs,
     err = ood_dists[ood_dists < thresh].shape[0] / ood_dists.shape[0]
     
     
-    thresholds = [th for th in np.arange(1, 100) / 100]
+    # thresholds = [th for th in np.arange(1, 100) / 100]
     
-    fps = [0]
-    tps = [0]
+    # fps = [0]
+    # tps = [0]
     
     
-    for th in thresholds:
+    # for th in thresholds:
         
-        thresh = find_thresh_val(ind_dists)
+    #     thresh = find_thresh_val(ind_dists)
         
-        fp = ood_dists[ood_dists < thresh].shape[0] / ood_dists.shape[0]
-        tp = ind_dists[ind_dists < thresh].shape[0] / ind_dists.shape[0]
+    #     fp = ood_dists[ood_dists < thresh].shape[0] / ood_dists.shape[0]
+    #     tp = ind_dists[ind_dists < thresh].shape[0] / ind_dists.shape[0]
         
-        fps.append(fp)
-        tps.append(tp)
+    #     fps.append(fp)
+    #     tps.append(tp)
                 
-    fps.append(1)
-    tps.append(1)
+    # fps.append(1)
+    # tps.append(1)
     
-    auc_val = np.round(auc(fps, tps), 4)
+    # auc_val = np.round(metrics.auc(fps, tps), 4)
+    
+    y = np.concatenate((np.ones(len(ind_dists)), 2*np.ones(len(ood_dists))))
+    pred = np.concatenate((ind_dists, ood_dists))
+    
+    fps, tps, thresholds = metrics.roc_curve(y, pred, pos_label=2)
+    auc_val = np.round(metrics.auc(fps, tps), 4)
+    
     
     if plot:
         plt.figure()
