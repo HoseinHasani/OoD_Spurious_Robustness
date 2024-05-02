@@ -4,68 +4,207 @@ import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
 import dist_utils
+import nn_utils
 import os
 import tqdm
 import warnings
 warnings.filterwarnings("ignore")
 
 normalize_embs = True
+apply_mixup = True
 
-n_steps = 1000
+batch_size = 64
+
+n_ensemble = 3
+
+n_steps = 100
 n_feats = 1024
-batch_size = 128
-sp_rate = 0.5
+sp_rate = 0.95
+alpha_refine = 0.99
+alpha_ood = 0.6
 
-names = ['automobile', 'truck']
+lbl_scale = 0.1
+output_size = n_feats // 4
+
+
+backbones = ['dino', 'res50', 'res18']
+backbone = backbones[0]
+resnet_types = ['pretrained', 'finetuned', 'scratch']
+resnet_type = resnet_types[0]
+
+core_class_names = ['0', '1']
+ood_class_names = ['0', '1']
+sp_class_names = ['0', '1']
+place_names = ['land', 'water']
+
+data_path = '../embeddings/'
+
+
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-data_path = 'data'
-train_dict0 = np.load(f'{data_path}/Dominoes_train_embs.npy', allow_pickle=True).item()
-test_dict0 = np.load(f'{data_path}/Dominoes_test_embs.npy', allow_pickle=True).item()
-ood_dict0 = np.load(f'{data_path}/Dominoes_ood_embs.npy', allow_pickle=True).item()
+
+if backbone == 'dino':
+    in_data_embs0 = np.load(data_path + 'waterbird_embs.npy', allow_pickle=True).item()
+elif backbone == 'res50':
+    in_data_embs0 = np.load(data_path + f'wb_embs_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
+
+ood_embs0 = {}
+if backbone == 'dino':
+    dict_ = np.load(data_path + 'OOD_land_DINO_eval.npy', allow_pickle=True).item()
+elif backbone == 'res50':
+    dict_ = np.load(data_path + f'land_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
+    
+ood_embs0['0'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
+
+if backbone == 'dino':
+    dict_ = np.load(data_path + 'OOD_water_DINO_eval.npy', allow_pickle=True).item()
+elif backbone == 'res50':
+    dict_ = np.load(data_path + f'water_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
+ood_embs0['1'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
+
+grouped_embs0 = {}
+grouped_embs_train0 = {}
+
+for key in in_data_embs0.keys():
+    emb = in_data_embs0[key].squeeze()
+    label = key[0]
+    place = key[2]
+    split = key[4]
+    name = f'{label}_{place}'
+    
+    if split != '0':
+        if name not in grouped_embs0.keys():
+            grouped_embs0[name] = []
+        
+        grouped_embs0[name].append(emb)
+    else:
+        if name not in grouped_embs_train0.keys():
+            grouped_embs_train0[name] = []
+        
+        grouped_embs_train0[name].append(emb)
+
+grouped_embs0 = {name: np.array(grouped_embs0[name]) for name in grouped_embs0.keys()}
+grouped_embs_train0 = {name: np.array(grouped_embs_train0[name]) for name in grouped_embs_train0.keys()}
+
 
 
 def normalize(x):
     return x / np.linalg.norm(x, axis=-1, keepdims=True)
 
+
+grouped_embs = {name: grouped_embs0[name] for name in grouped_embs0.keys()}
+grouped_embs_train = {name: grouped_embs_train0[name] for name in grouped_embs_train0.keys()}
+ood_embs = {name: ood_embs0[name] for name in ood_embs0.keys()}
+
+
 if normalize_embs:
-    train_dict = {key: normalize(train_dict0[key]) for key in train_dict0.keys()}
-    test_dict = {key: normalize(test_dict0[key]) for key in test_dict0.keys()}
-    ood_dict = {key: normalize(ood_dict0[key]) for key in ood_dict0.keys()}
+    train_dict = {key: normalize(grouped_embs_train0[key]) for key in grouped_embs_train0.keys()}
+    test_dict = {key: normalize(grouped_embs0[key]) for key in grouped_embs0.keys()}
+    ood_dict = {key: normalize(ood_embs0[key]) for key in ood_embs0.keys()}
 else:
-    train_dict = train_dict0
-    test_dict = test_dict0
-    ood_dict = ood_dict0
+    train_dict = grouped_embs_train0
+    test_dict = grouped_embs
+    ood_dict = ood_embs0
 
 
 
-l_maj = len(train_dict[f'0_{names[0]}'])
-l_min = len(train_dict[f'1_{names[0]}'])
+l_maj0 = len(train_dict[f'{core_class_names[0]}_{sp_class_names[0]}'])
+l_min0 = len(train_dict[f'{core_class_names[0]}_{sp_class_names[1]}'])
 
-def prepare_train_data():
-    ind_0_maj = np.random.choice(l_maj, size=int(sp_rate * batch_size), replace=False).ravel()
-    ind_0_min = np.random.choice(l_min, size=int((1 - sp_rate) * batch_size), replace=False).ravel()
+l_maj1 = len(train_dict[f'{core_class_names[1]}_{sp_class_names[1]}'])
+l_min1 = len(train_dict[f'{core_class_names[1]}_{sp_class_names[0]}'])
 
-    ind_1_maj = np.random.choice(l_maj, size=int(sp_rate * batch_size), replace=False).ravel()
-    ind_1_min = np.random.choice(l_min, size=int((1 - sp_rate) * batch_size), replace=False).ravel()
+
+def sample_data(data_dict, n_data, sp_rate):
+    
+    n_maj = int(sp_rate * n_data)
+    n_min = n_data - n_maj
+    
+    ind_0_maj = np.random.choice(l_maj0, size=n_maj, replace=False).ravel()
+    ind_0_min = np.random.choice(l_min0, size=n_min, replace=False).ravel()
+
+    ind_1_maj = np.random.choice(l_maj1, size=n_maj, replace=False).ravel()
+    ind_1_min = np.random.choice(l_min1, size=n_min, replace=False).ravel()
         
-    data_np = np.concatenate([
-                            train_dict[f'0_{names[0]}'][ind_0_maj],
-                            train_dict[f'1_{names[0]}'][ind_1_min],
-                            train_dict[f'1_{names[1]}'][ind_1_maj],
-                            train_dict[f'0_{names[1]}'][ind_0_min],
+    data0 = np.concatenate([data_dict[f'{core_class_names[0]}_{sp_class_names[0]}'][ind_0_maj],
+                            data_dict[f'{core_class_names[0]}_{sp_class_names[1]}'][ind_0_min]])
+    
+    data1 = np.concatenate([data_dict[f'{core_class_names[1]}_{sp_class_names[1]}'][ind_1_maj],
+                            data_dict[f'{core_class_names[1]}_{sp_class_names[0]}'][ind_1_min]])
+    
+    data_np1 = np.concatenate([
+                            data0,
+                            data1,
                             ])
     
+    if apply_mixup:
+        ind_0_maj = np.random.choice(l_maj0, size=n_maj, replace=False).ravel()
+        ind_0_min = np.random.choice(l_min0, size=n_min, replace=False).ravel()
+    
+        ind_1_maj = np.random.choice(l_maj1, size=n_maj, replace=False).ravel()
+        ind_1_min = np.random.choice(l_min1, size=n_min, replace=False).ravel()
+            
+        data0 = np.concatenate([data_dict[f'{core_class_names[0]}_{sp_class_names[0]}'][ind_0_maj],
+                                data_dict[f'{core_class_names[0]}_{sp_class_names[1]}'][ind_0_min]])
+        
+        data1 = np.concatenate([data_dict[f'{core_class_names[1]}_{sp_class_names[1]}'][ind_1_maj],
+                                data_dict[f'{core_class_names[1]}_{sp_class_names[0]}'][ind_1_min]])
+        
+        data_np2 = np.concatenate([
+                                data0,
+                                data1,
+                                ])
+        
+        alpha_vals = np.random.rand(2 * n_data)[:, None]
+        inds_ = np.random.choice(n_data, n_data//4, replace=False).ravel()
+        
+        alpha_vals[inds_] = 0
+        
+        data_np = alpha_vals * data_np1 + (1 - alpha_vals) * data_np2
+    
+    else:
+        data_np = data_np1
+        
+    
+    lbl0 = -lbl_scale * np.ones((len(data0), output_size))
+    lbl1 = lbl_scale * np.ones((len(data1), output_size))
+    
     lbl_np = np.concatenate([
-                            np.zeros(len(ind_0_maj)),
-                            np.ones(len(ind_1_min)),
-                            np.ones(len(ind_1_maj)),
-                            np.zeros(len(ind_0_min)),
+                            lbl0,
+                            lbl1,
                             ])
     
     return data_np, lbl_np
+
+
+def sample_ood_data(n_data, sp_rate):
     
+    n_maj = int(sp_rate * n_data)
+    n_min = n_data - n_maj
+    
+    ind_0_maj = np.random.choice(l_maj0, size=n_maj, replace=False).ravel()
+    ind_0_min = np.random.choice(l_min0, size=n_min, replace=False).ravel()
+
+    ind_1_maj = np.random.choice(l_maj1, size=n_maj, replace=False).ravel()
+    ind_1_min = np.random.choice(l_min1, size=n_min, replace=False).ravel()
+        
+    data0 = np.concatenate([pseudo_ood_dict[f'{core_class_names[0]}_{sp_class_names[0]}'][ind_0_maj],
+                            pseudo_ood_dict[f'{core_class_names[0]}_{sp_class_names[1]}'][ind_0_min]])
+    
+    data1 = np.concatenate([pseudo_ood_dict[f'{core_class_names[1]}_{sp_class_names[1]}'][ind_1_maj],
+                            pseudo_ood_dict[f'{core_class_names[1]}_{sp_class_names[0]}'][ind_1_min]])
+    
+    data_np = np.concatenate([
+                            data0[None],
+                            data1[None],
+                            ])
+    
+    
+    
+    
+    return data_np
+
 
 def visualize_correlations(embeddings, ood_embeddings, core_ax, sp_ax,
                            value_dict=None, print_logs=False):
@@ -74,8 +213,8 @@ def visualize_correlations(embeddings, ood_embeddings, core_ax, sp_ax,
     s_vals = []
     
     for key in embeddings.keys():
-        c_vals_ = np.abs(np.dot(embeddings[key], core_ax))
-        s_vals_ = np.abs(np.dot(embeddings[key], sp_ax))
+        c_vals_ = np.abs(np.dot(normalize(embeddings[key]), core_ax))
+        s_vals_ = np.abs(np.dot(normalize(embeddings[key]), sp_ax))
         
         c_vals.append(c_vals_)
         s_vals.append(s_vals_)
@@ -84,8 +223,8 @@ def visualize_correlations(embeddings, ood_embeddings, core_ax, sp_ax,
     s_vals_ood = []
 
     for key in ood_embeddings.keys():
-        c_vals_ = np.abs(np.dot(ood_embeddings[key], core_ax))
-        s_vals_ = np.abs(np.dot(ood_embeddings[key], sp_ax))
+        c_vals_ = np.abs(np.dot(normalize(ood_embeddings[key]), core_ax))
+        s_vals_ = np.abs(np.dot(normalize(ood_embeddings[key]), sp_ax))
         
         c_vals_ood.append(c_vals_)
         s_vals_ood.append(s_vals_)
@@ -137,16 +276,16 @@ def visualize_correlations(embeddings, ood_embeddings, core_ax, sp_ax,
 
 def get_axis(embeddings):
     
-    core_ax1 = embeddings[f'1_{names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'0_{names[1]}'].mean(0, keepdims=False)
-    core_ax2 = embeddings[f'1_{names[0]}'].mean(0, keepdims=False) - \
-                         embeddings[f'0_{names[0]}'].mean(0, keepdims=False)
+    core_ax1 = embeddings[f'{core_class_names[1]}_{sp_class_names[0]}'].mean(0, keepdims=False) - \
+                         embeddings[f'{core_class_names[0]}_{sp_class_names[0]}'].mean(0, keepdims=False)
+    core_ax2 = embeddings[f'{core_class_names[1]}_{sp_class_names[1]}'].mean(0, keepdims=False) - \
+                         embeddings[f'{core_class_names[0]}_{sp_class_names[1]}'].mean(0, keepdims=False)
     core_ax = 0.5 * core_ax1 + 0.5 * core_ax2
     
-    sp_ax1 = embeddings[f'1_{names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'1_{names[0]}'].mean(0, keepdims=False)
-    sp_ax2 = embeddings[f'0_{names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'0_{names[0]}'].mean(0, keepdims=False)
+    sp_ax1 = embeddings[f'{core_class_names[0]}_{sp_class_names[1]}'].mean(0, keepdims=False) - \
+                         embeddings[f'{core_class_names[0]}_{sp_class_names[0]}'].mean(0, keepdims=False)
+    sp_ax2 = embeddings[f'{core_class_names[1]}_{sp_class_names[1]}'].mean(0, keepdims=False) - \
+                         embeddings[f'{core_class_names[1]}_{sp_class_names[0]}'].mean(0, keepdims=False)
     sp_ax = 0.5 * sp_ax1 + 0.5 * sp_ax2
     
     print('axis ratio:', np.linalg.norm(core_ax) / np.linalg.norm(sp_ax))
@@ -157,40 +296,7 @@ def get_axis(embeddings):
     return core_ax, sp_ax, core_ax_norm, sp_ax_norm
 
 
-def alignment_score_v2(embs, core_ax, sp_ax, target, ood_embs=None,
-                       alpha_l2=0.9, alpha_sp=1.9, alpha_ood=1.):
     
-    alignment_func = torch.nn.CosineSimilarity(dim=-1)
-    labels = torch.argmax(target, dim=-1)
-    
-    core_alignment = alignment_func(embs, core_ax) * (2 * labels - 1)
-    avg_core_alignment = torch.abs(core_alignment).mean().detach().item()
-    #core_alignment_clipped = torch.clip(core_alignment, -avg_core_alignment, avg_core_alignment)
-    core_alignment_clipped = core_alignment
-    
-    sp_alignment = torch.abs(alignment_func(embs, sp_ax))
-    avg_sp_alignment = torch.abs(sp_alignment).mean().detach().item()
-    #sp_alignment_clipped = torch.clip(sp_alignment, avg_sp_alignment, 1.)
-    sp_alignment_clipped = sp_alignment
-    
-    alignment = core_alignment_clipped.mean() - alpha_sp * sp_alignment_clipped.mean()
-    
-    
-    if ood_embs is not None:
-        ood_core_alignment = torch.abs(alignment_func(ood_embs, core_ax))
-        avg_core_alignment = torch.abs(ood_core_alignment).mean().detach().item()
-        ood_core_alignment_clipped = torch.clip(ood_core_alignment, avg_core_alignment, 1.)
-    
-        alignment -= ood_core_alignment_clipped.mean()
-        
-        print(ood_core_alignment_clipped.mean().item())
-        
-    l2_reg = torch.square(embs).mean()
-    alignment -= alpha_l2 * l2_reg
-    
-    print(core_alignment_clipped.mean().item(), sp_alignment.mean().item(), l2_reg.item())
-    
-    return alignment
 
 def get_embeddings(model, group_data, max_l=32):
     
@@ -205,55 +311,93 @@ def get_embeddings(model, group_data, max_l=32):
                 features = []
                 for b in range(len(data) // max_l):
                     batch_data = data[b * max_l: (b + 1) * max_l]
-                    feats, _ = model(batch_data.to(device)) 
+                    feats = model(batch_data.to(device))
                     features.append(feats)
                 features = torch.cat(features).cpu().numpy()
             else:
-                features, _ = model(data.to(device)).cpu().numpy()
+                features = model(data.to(device)).cpu().numpy()
         embeddings[key] = features.squeeze()
 
     return embeddings
-    
 
-class MLP(nn.Module):
-    def __init__(self, n_feat=n_feats, n_out=2):
-        super().__init__()
-        self.layer1 = nn.Linear(n_feat, n_feat)
-        self.layer2 = nn.Linear(n_feat, n_feat//1)
-        self.layer3 = nn.Linear(n_feat//1, n_out)
-        #self.dropout = nn.Dropout(p=0.5)
-
-    def forward(self, x):
-        x1 = F.relu(self.layer1(x))
-        x2 = F.relu(self.layer2(x1))
-        x3 = self.layer3(x2)
-        return x2, x3
-    
 def get_class_dicts(input_dict):
     class_dicts = []
-    for core_name in ['0', '1']:
+    for core_name in core_class_names:
         class_dict = {}
-        for sp_name in names:
+        for sp_name in sp_class_names:
             name = f'{core_name}_{sp_name}'
             class_dict[name] = input_dict[name]
         class_dicts.append(class_dict)
 
     return class_dicts
 
+def process_ens_dicts(data_dicts):
+    
+    final_mean = {}
+    final_std = {}
+    
+    for name in data_dicts[0].keys():
+        embs_list = []
+        for j in range(n_ensemble):
+            embs = data_dicts[j][name]
+            embs_list.append(embs)
+            
+        final_mean[name] = np.mean(embs_list, 0)
+        final_std[name] = np.std(embs_list, 0).mean(-1)
+        
+    return final_mean, final_std
 
+def plot_dict_hist(dict_data, fig_name):
+    data = []
+    for name in dict_data:
+        data.append(dict_data[name])
+    
+    data = np.concatenate(data)
+    
+    plt.hist(data, 100, histtype='step', linewidth=1.5, label=fig_name)
+    plt.legend()
+
+    
 core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_dict)
 print('ax correlation: ', np.dot(core_ax, sp_ax))
 _ = visualize_correlations(test_dict, ood_dict, core_ax, sp_ax)
 
+pseudo_ood_dict = {}
+for name in train_dict.keys():
+    embs = train_dict[name]
+    cr_coefs = np.dot(embs, core_ax_norm)
+    refined = embs - alpha_refine * cr_coefs[:, None] * np.repeat(core_ax_norm[None], embs.shape[0], axis=0)
+    pseudo_ood_dict[name] = refined
+
+_ = visualize_correlations(pseudo_ood_dict, ood_dict, core_ax_norm, sp_ax_norm)
+    
+print()
 dist_utils.calc_dists_ratio(train_dict, ood_dict)
 dist_utils.calc_dists_ratio(test_dict, ood_dict)
 
 train_dict_list = get_class_dicts(train_dict)
-ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
-print()
-dist_utils.calc_ROC(train_dict_list[0], ood_embs)
-dist_utils.calc_ROC(train_dict_list[1], ood_embs)
+test_dict_list = get_class_dicts(test_dict)
 
+ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
+pseudo_ood_embs = np.concatenate([pseudo_ood_dict[key] for key in pseudo_ood_dict.keys()])
+
+train_prototypes = [train_dict[key].mean(0) for key in train_dict.keys()]
+
+print('OOD:')
+#dist_utils.calc_ROC(test_dict_list[0], ood_embs, prototypes=train_dict_list[0])
+#dist_utils.calc_ROC(test_dict_list[1], ood_embs, prototypes=train_dict_list[1])
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes)
+
+print('PSEUDO-OOD:')
+#dist_utils.calc_ROC(test_dict_list[0], pseudo_ood_embs, prototypes=train_dict_list[0])
+#dist_utils.calc_ROC(test_dict_list[1], pseudo_ood_embs, prototypes=train_dict_list[1])
+dist_utils.calc_ROC(test_dict, pseudo_ood_embs, prototypes=train_prototypes)
+
+
+# ood_embs = np.concatenate([pseudo_ood_dict[key] for key in pseudo_ood_dict.keys()])
+# print()
+# dist_utils.calc_ROC(train_dict_list[0], ood_embs)
+# dist_utils.calc_ROC(train_dict_list[1], ood_embs)
 
 core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
 sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
