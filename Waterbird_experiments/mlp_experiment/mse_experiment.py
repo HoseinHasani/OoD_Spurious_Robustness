@@ -11,7 +11,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 normalize_embs = True
-apply_mixup = True
+apply_mixup = False
 
 batch_size = 64
 

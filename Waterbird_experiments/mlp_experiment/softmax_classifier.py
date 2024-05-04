@@ -11,7 +11,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 normalize_embs = True
-apply_mixup = True
+apply_mixup = False
 
 batch_size = 64
 
@@ -19,6 +19,9 @@ n_ensemble = 3
 
 n_steps = 100
 n_feats = 1024
+output_size = n_feats // 4
+
+
 sp_rate = 0.95
 alpha_refine = 0.99
 alpha_ood = 0.6
@@ -167,8 +170,8 @@ def sample_data(data_dict, n_data, sp_rate):
         data_np = data_np1
         
     
-    lbl0 = -lbl_scale * np.ones((len(data0), output_size))
-    lbl1 = lbl_scale * np.ones((len(data1), output_size))
+    lbl0 = np.zeros((len(data0)))
+    lbl1 = np.ones((len(data1)))
     
     lbl_np = np.concatenate([
                             lbl0,
@@ -302,6 +305,7 @@ def get_embeddings(model, group_data, max_l=32):
     
     model.eval()
     embeddings = {}
+    logits = {}
     
     for key in group_data.keys():
         with torch.no_grad():
@@ -309,16 +313,23 @@ def get_embeddings(model, group_data, max_l=32):
             data = torch.tensor(data_np, dtype=torch.float32).to(device)
             if len(data) > max_l:
                 features = []
+                logits_list = []
                 for b in range(len(data) // max_l):
                     batch_data = data[b * max_l: (b + 1) * max_l]
-                    feats = model(batch_data.to(device))
+                    feats, logs = model(batch_data.to(device))
+                    
+                    logits_list.append(logs)
                     features.append(feats)
+                    
                 features = torch.cat(features).cpu().numpy()
+                logits_list = torch.cat(logits_list).cpu().numpy()
             else:
-                features = model(data.to(device)).cpu().numpy()
+                features, logits_list = model(data.to(device)).cpu().numpy()
+                
         embeddings[key] = features.squeeze()
-
-    return embeddings
+        logits[key] = logits_list.squeeze()
+        
+    return embeddings, logits
 
 def get_class_dicts(input_dict):
     class_dicts = []
@@ -331,21 +342,6 @@ def get_class_dicts(input_dict):
 
     return class_dicts
 
-def process_ens_dicts(data_dicts):
-    
-    final_mean = {}
-    final_std = {}
-    
-    for name in data_dicts[0].keys():
-        embs_list = []
-        for j in range(n_ensemble):
-            embs = data_dicts[j][name]
-            embs_list.append(embs)
-            
-        final_mean[name] = np.mean(embs_list, 0)
-        final_std[name] = np.std(embs_list, 0).mean(-1)
-        
-    return final_mean, final_std
 
 def plot_dict_hist(dict_data, fig_name):
     data = []
@@ -402,6 +398,22 @@ dist_utils.calc_ROC(test_dict, pseudo_ood_embs, prototypes=train_prototypes)
 core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
 sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
 
+
+class MLP(nn.Module):
+    def __init__(self, n_feat=n_feats, n_out=2):
+        super().__init__()
+        self.layer1 = nn.Linear(n_feat, n_feat)
+        self.layer2 = nn.Linear(n_feat, output_size)
+        self.layer3 = nn.Linear(output_size, n_out)
+        #self.dropout = nn.Dropout(p=0.5)
+
+    def forward(self, x):
+        x1 = F.relu(self.layer1(x))
+        x2 = F.relu(self.layer2(x1))
+        x3 = self.layer3(x2)
+        return x2, x3
+    
+    
 mlp = MLP().to(device)  
 loss_function = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(mlp.parameters(), lr=1e-3)
@@ -411,7 +423,8 @@ for e in range(n_steps):
     
     optimizer.zero_grad()
     
-    data_np, lbl_np = prepare_train_data()
+    data_np, lbl_np = sample_data(train_dict, batch_size, sp_rate=sp_rate)
+            
     
     data = torch.tensor(data_np, dtype=torch.float32).to(device)
     lbl = torch.tensor(lbl_np, dtype=torch.long).to(device) 
@@ -419,17 +432,11 @@ for e in range(n_steps):
     feats, logits = mlp(data)
     ce_loss = loss_function(logits, lbl)
     
-    
-    if e > 3:
-        alignment_val = alignment_score_v2(feats, core_ax_torch, sp_ax_torch, lbl)
-        loss = ce_loss - 0.0 * alignment_val
-    else:
-        loss = ce_loss
         
-    loss.backward()
+    ce_loss.backward()
     optimizer.step()
     
-    if e > 2:
+    if e > 2 and e%4 == 0:
         mlp.eval()
         
         with torch.no_grad():
@@ -437,13 +444,13 @@ for e in range(n_steps):
             g_names = []
             groups_acc = []
             
-            for m in [0, 1]:
-                for j, n in enumerate(names):
+            for m in core_class_names:
+                for n in core_class_names:
                     
                     name = f'{m}_{n}'
                     data_np = test_dict[name]
                     
-                    lbl_np = m * np.ones(len(data_np))
+                    lbl_np = int(m) * np.ones(len(data_np))
                     
                     data_eval = torch.tensor(data_np, dtype=torch.float32).to(device)
                     lbl_eval = torch.tensor(lbl_np, dtype=torch.long).to(device)  
@@ -458,29 +465,40 @@ for e in range(n_steps):
             print(g_names)
             print('test acc:', groups_acc)
 
-        train_emb_dict = get_embeddings(mlp, train_dict)
-        test_emb_dict = get_embeddings(mlp, test_dict)
-        ood_emb_dict = get_embeddings(mlp, ood_dict)
-
+        train_emb_dict, train_log_dict = get_embeddings(mlp, train_dict)
+        test_emb_dict, train_log_dict = get_embeddings(mlp, test_dict)
+        ood_emb_dict, train_log_dict = get_embeddings(mlp, ood_dict)
+        pseudo_ood_emb_dict, train_log_dict = get_embeddings(mlp, pseudo_ood_dict)
+        
+        
+        
+        
         train_dict_list = get_class_dicts(train_emb_dict)
+        test_dict_list = get_class_dicts(test_emb_dict)
+        
         ood_embs = np.concatenate([ood_emb_dict[key] for key in ood_emb_dict.keys()])
         
+        pseudo_ood_embs = np.concatenate([pseudo_ood_emb_dict[key] for key in \
+                                          pseudo_ood_emb_dict.keys()])     
+
+        train_emb_prototypes = [train_emb_dict[key].mean(0) for key in train_emb_dict.keys()]
+        
+        print('OOD:')
+        
+        dist_utils.calc_ROC(test_emb_dict, ood_embs, prototypes=train_emb_prototypes)
+        
+        
+        
+        
         print()
-        dist_utils.calc_ROC(train_dict_list[0], ood_embs)
-        dist_utils.calc_ROC(train_dict_list[1], ood_embs)
-
-
         dist_utils.calc_dists_ratio(train_emb_dict, ood_emb_dict)
         dist_utils.calc_dists_ratio(test_emb_dict, ood_emb_dict)
-        
+
         core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_emb_dict)
-        print('ax correlation: ', np.dot(core_ax, sp_ax))
+        print('ax correlation: ', np.dot(core_ax_norm, sp_ax_norm))
         
         
         core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
         sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
-        
-        if e % 5 == 0:
-            _ = visualize_correlations(test_emb_dict, ood_emb_dict, core_ax, sp_ax)
         
         mlp.train()
