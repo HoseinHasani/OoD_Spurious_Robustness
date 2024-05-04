@@ -4,9 +4,6 @@ import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
 import dist_utils
-import nn_utils
-import os
-import tqdm
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -15,19 +12,17 @@ apply_mixup = False
 
 batch_size = 64
 
-n_ensemble = 3
 
-n_steps = 100
-n_feats = 1024
-output_size = n_feats // 4
+n_steps = 160
+n_feats = 2048
+output_size = n_feats // 2
 
 
-sp_rate = 0.95
+sp_rate = 0.90
 alpha_refine = 0.99
 alpha_ood = 0.6
 
 lbl_scale = 0.1
-output_size = n_feats // 4
 
 
 backbones = ['dino', 'res50', 'res18']
@@ -353,6 +348,7 @@ def plot_dict_hist(dict_data, fig_name):
     plt.hist(data, 100, histtype='step', linewidth=1.5, label=fig_name)
     plt.legend()
 
+
     
 core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_dict)
 print('ax correlation: ', np.dot(core_ax, sp_ax))
@@ -408,8 +404,8 @@ class MLP(nn.Module):
         #self.dropout = nn.Dropout(p=0.5)
 
     def forward(self, x):
-        x1 = F.relu(self.layer1(x))
-        x2 = F.relu(self.layer2(x1))
+#        x = F.relu(self.layer1(x))
+        x2 = F.relu(self.layer2(x))
         x3 = self.layer3(x2)
         return x2, x3
     
@@ -460,23 +456,19 @@ for e in range(n_steps):
                     pred = logits.max(-1)[1]
                     acc = (pred == lbl_eval).float().mean().item()
                     groups_acc.append(np.round(acc,4))
-                    g_names.append(name + '_' + str(int(lbl_np[0])))
+                    g_names.append(name)
                     
             print(g_names)
             print('test acc:', groups_acc)
 
         train_emb_dict, train_log_dict = get_embeddings(mlp, train_dict)
-        test_emb_dict, train_log_dict = get_embeddings(mlp, test_dict)
-        ood_emb_dict, train_log_dict = get_embeddings(mlp, ood_dict)
-        pseudo_ood_emb_dict, train_log_dict = get_embeddings(mlp, pseudo_ood_dict)
+        test_emb_dict, test_log_dict = get_embeddings(mlp, test_dict)
+        ood_emb_dict, ood_log_dict = get_embeddings(mlp, ood_dict)
+        pseudo_ood_emb_dict, pseudo_ood_log_dict = get_embeddings(mlp, pseudo_ood_dict)
         
-        
-        
-        
-        train_dict_list = get_class_dicts(train_emb_dict)
-        test_dict_list = get_class_dicts(test_emb_dict)
         
         ood_embs = np.concatenate([ood_emb_dict[key] for key in ood_emb_dict.keys()])
+        ood_logits = np.concatenate([ood_log_dict[key] for key in ood_log_dict.keys()])
         
         pseudo_ood_embs = np.concatenate([pseudo_ood_emb_dict[key] for key in \
                                           pseudo_ood_emb_dict.keys()])     
@@ -486,7 +478,14 @@ for e in range(n_steps):
         print('OOD:')
         
         dist_utils.calc_ROC(test_emb_dict, ood_embs, prototypes=train_emb_prototypes)
-        
+
+        print('Probs (test):')
+        dist_utils.calc_probs_ROC(test_log_dict, ood_logits)
+
+        print('Probs (train):')
+        dist_utils.calc_probs_ROC(train_log_dict, ood_logits)
+                
+                        
         
         
         

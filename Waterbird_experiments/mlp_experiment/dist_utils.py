@@ -181,3 +181,45 @@ def calc_ROC(embs_dict, ood_embs,
           np.mean(ind_dists) / np.mean(ood_dists))
     
     print('***********************')
+    
+    
+    
+def softmax(x, axis=-1):
+    e_x = np.exp(x - np.max(x))
+    summation = e_x.sum(axis=axis)
+    probs = e_x / np.expand_dims(summation, axis)
+    return probs
+
+def calc_probs_ROC(log_dict, ood_logits, plot=False):
+        
+        
+    ood_dists = 1 - np.max(softmax(ood_logits), -1)
+
+    ind_dists = [np.max(softmax(log_dict[key]), -1) for key in log_dict.keys()]
+    ind_dists = 1 - np.concatenate(ind_dists)
+            
+    thresh = find_thresh_val(ind_dists)
+    err = ood_dists[ood_dists < thresh].shape[0] / ood_dists.shape[0]
+    
+    
+    y = np.concatenate((np.ones(len(ind_dists)), 2*np.ones(len(ood_dists))))
+    pred = np.concatenate((ind_dists, ood_dists))
+    
+    fps, tps, thresholds = metrics.roc_curve(y, pred, pos_label=2)
+    auc_val = np.round(metrics.auc(fps, tps), 4)
+    
+    
+    if plot:
+        plt.figure()
+        plt.plot(fps, tps, label=f'area={auc_val}', linewidth=2)
+        plt.xlabel('FPR')
+        plt.ylabel('TPR')
+        #plt.ylim([0.55, 1.001])
+        plt.legend()
+        plt.title('ROC', fontsize=17)
+    
+    
+    print('auc: ', auc_val, ', err: ', 100 * err,
+          np.mean(ind_dists) / np.mean(ood_dists))
+    
+    print('***********************')
