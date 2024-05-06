@@ -9,8 +9,10 @@ import tqdm
 
 dataset_path = 'OOD_Datasets/placesbg/'
 emb_path = ''
+is_dino = False
+resnet_type = 50
 
-
+model_name = 'DINO' if is_dino else f'res_{resnet_type}'
 
 place_names = ['water', 'land']
 
@@ -33,11 +35,16 @@ def center_pad(img, target_size):
     return padded
 
 
-model_dino = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitl14')
-model_dino.eval()
+if is_dino:
+    model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitl14')
+else:
+    model0 = torch.hub.load('pytorch/vision:v0.10.0', f'resnet{resnet_type}', pretrained=True)
+    model = torch.nn.Sequential(*list(model0.children())[:-1])
+
+model.eval()
 
 device = torch.device("cuda")
-model_dino.to(device)
+model.to(device)
 
 transform = transforms.Compose([
         transforms.ToTensor(),
@@ -65,9 +72,9 @@ for name in place_names:
         with torch.no_grad():
             image = Image.open(image_path)
             image_tensor = transform(image)
-            emb = model_dino(image_tensor.unsqueeze(0).to(device)).squeeze().cpu().numpy()
+            emb = model(image_tensor.unsqueeze(0).to(device)).squeeze().cpu().numpy()
             emb_dict[key_name] = emb
-    np.save(f'OOD_{name}_DINO_eval.npy', emb_dict)
+    np.save(f'OOD_{name}_{model_name}_eval.npy', emb_dict)
     print(len(emb_dict.keys()))
     
     emb_dict = {}
@@ -77,9 +84,9 @@ for name in place_names:
         with torch.no_grad():
             image = Image.open(image_path)
             image_tensor = transform(image)
-            emb = model_dino(image_tensor.unsqueeze(0).to(device)).squeeze().cpu().numpy()
+            emb = model(image_tensor.unsqueeze(0).to(device)).squeeze().cpu().numpy()
             emb_dict[key_name] = emb
-    np.save(f'OOD_{name}_DINO_train.npy', emb_dict)
+    np.save(f'OOD_{name}_{model_name}_train.npy', emb_dict)
     print(len(emb_dict.keys()))
 
     
