@@ -127,7 +127,7 @@ def find_thresh_val(main_vals, th=0.95):
 
 def calc_ROC(embs_dict, ood_embs,
              embs_std_dict=None, ood_embs_std=None, prototypes=None,
-             known_group=False, plot=False):
+             known_group=False, plot=True):
         
         
     ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std, known_group, prototypes=prototypes)
@@ -175,6 +175,14 @@ def calc_ROC(embs_dict, ood_embs,
         #plt.ylim([0.55, 1.001])
         plt.legend()
         plt.title('ROC', fontsize=17)
+        
+        
+        plt.figure(figsize=(8,4))
+        plt.hist(ind_dists, 25, histtype='step', density=False, linewidth=2.5, label='InD distances', color='tab:blue')
+        plt.hist(ood_dists, 25, histtype='step', density=False, linewidth=2.5, label='OoD distances', color='tab:orange')
+        plt.title('dist hist')
+        plt.legend()
+    
     
     
     print('auc: ', auc_val, ', err: ', 100 * err,
@@ -217,6 +225,13 @@ def calc_probs_ROC(log_dict, ood_logits, plot=False):
         #plt.ylim([0.55, 1.001])
         plt.legend()
         plt.title('ROC', fontsize=17)
+        
+        
+        plt.figure(figsize=(8,4))
+        plt.hist(ind_dists, 25, histtype='step', density=False, linewidth=2.5, label='InD distances', color='tab:blue')
+        plt.hist(ood_dists, 25, histtype='step', density=False, linewidth=2.5, label='OoD distances', color='tab:orange')
+        plt.title('dist hist')
+        plt.legend()
     
     
     print('auc: ', auc_val, ', err: ', 100 * err,

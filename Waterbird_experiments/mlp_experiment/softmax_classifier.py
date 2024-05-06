@@ -26,7 +26,7 @@ lbl_scale = 0.1
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[0]
+backbone = backbones[1]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -51,14 +51,14 @@ ood_embs0 = {}
 if backbone == 'dino':
     dict_ = np.load(data_path + 'OOD_land_DINO_eval.npy', allow_pickle=True).item()
 elif backbone == 'res50':
-    dict_ = np.load(data_path + f'land_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
+    dict_ = np.load(data_path + f'OOD_land_res_50_eval.npy', allow_pickle=True).item()
     
 ood_embs0['0'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
 
 if backbone == 'dino':
     dict_ = np.load(data_path + 'OOD_water_DINO_eval.npy', allow_pickle=True).item()
 elif backbone == 'res50':
-    dict_ = np.load(data_path + f'water_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
+    dict_ = np.load(data_path + f'OOD_water_res_50_eval.npy', allow_pickle=True).item()
 ood_embs0['1'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
 
 grouped_embs0 = {}

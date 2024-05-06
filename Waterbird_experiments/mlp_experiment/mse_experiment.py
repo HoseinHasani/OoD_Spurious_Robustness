@@ -15,10 +15,10 @@ apply_mixup = False
 
 batch_size = 64
 
-n_ensemble = 3
+n_ensemble = 5
 
 n_steps = 100
-n_feats = 1024
+n_feats = 2048
 sp_rate = 0.95
 alpha_refine = 0.99
 alpha_ood = 0.6
@@ -28,7 +28,7 @@ output_size = n_feats // 4
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[0]
+backbone = backbones[1]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -53,14 +53,14 @@ ood_embs0 = {}
 if backbone == 'dino':
     dict_ = np.load(data_path + 'OOD_land_DINO_eval.npy', allow_pickle=True).item()
 elif backbone == 'res50':
-    dict_ = np.load(data_path + f'land_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
+    dict_ = np.load(data_path + f'OOD_land_res_50_eval.npy', allow_pickle=True).item()
     
 ood_embs0['0'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
 
 if backbone == 'dino':
     dict_ = np.load(data_path + 'OOD_water_DINO_eval.npy', allow_pickle=True).item()
 elif backbone == 'res50':
-    dict_ = np.load(data_path + f'water_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
+    dict_ = np.load(data_path + f'OOD_water_res_50_eval.npy', allow_pickle=True).item()
 ood_embs0['1'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
 
 grouped_embs0 = {}
