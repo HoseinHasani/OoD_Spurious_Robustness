@@ -127,7 +127,7 @@ def find_thresh_val(main_vals, th=0.95):
 
 def calc_ROC(embs_dict, ood_embs,
              embs_std_dict=None, ood_embs_std=None, prototypes=None,
-             known_group=False, plot=True):
+             known_group=False, plot=False):
         
         
     ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std, known_group, prototypes=prototypes)
@@ -164,6 +164,9 @@ def calc_ROC(embs_dict, ood_embs,
     pred = np.concatenate((ind_dists, ood_dists))
     
     fps, tps, thresholds = metrics.roc_curve(y, pred, pos_label=2)
+    fps = np.concatenate([[0], fps, [1]])
+    tps = np.concatenate([[0], tps, [1]])
+    
     auc_val = np.round(metrics.auc(fps, tps), 4)
     
     
@@ -214,6 +217,8 @@ def calc_probs_ROC(log_dict, ood_logits, plot=False):
     pred = np.concatenate((ind_dists, ood_dists))
     
     fps, tps, thresholds = metrics.roc_curve(y, pred, pos_label=2)
+    fps = np.concatenate([[0], fps, [1]])
+    tps = np.concatenate([[0], tps, [1]])
     auc_val = np.round(metrics.auc(fps, tps), 4)
     
     

@@ -14,7 +14,7 @@ batch_size = 64
 
 
 n_steps = 160
-n_feats = 2048
+n_feats = 1024
 output_size = n_feats // 2
 
 
@@ -26,7 +26,7 @@ lbl_scale = 0.1
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[1]
+backbone = backbones[0]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -43,7 +43,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 if backbone == 'dino':
-    in_data_embs0 = np.load(data_path + 'waterbird_embs.npy', allow_pickle=True).item()
+    in_data_embs0 = np.load(data_path + 'waterbird_embs_DINO.npy', allow_pickle=True).item()
 elif backbone == 'res50':
     in_data_embs0 = np.load(data_path + f'wb_embs_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
 
@@ -51,14 +51,14 @@ ood_embs0 = {}
 if backbone == 'dino':
     dict_ = np.load(data_path + 'OOD_land_DINO_eval.npy', allow_pickle=True).item()
 elif backbone == 'res50':
-    dict_ = np.load(data_path + f'OOD_land_res_50_eval.npy', allow_pickle=True).item()
+    dict_ = np.load(data_path + f'OOD_land_res50_eval.npy', allow_pickle=True).item()
     
 ood_embs0['0'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
 
 if backbone == 'dino':
     dict_ = np.load(data_path + 'OOD_water_DINO_eval.npy', allow_pickle=True).item()
 elif backbone == 'res50':
-    dict_ = np.load(data_path + f'OOD_water_res_50_eval.npy', allow_pickle=True).item()
+    dict_ = np.load(data_path + f'OOD_water_res50_eval.npy', allow_pickle=True).item()
 ood_embs0['1'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
 
 grouped_embs0 = {}
