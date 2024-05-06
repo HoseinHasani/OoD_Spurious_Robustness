@@ -28,7 +28,7 @@ output_size = n_feats // 2
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[1]
+backbone = backbones[0]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 

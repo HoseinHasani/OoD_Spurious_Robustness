@@ -160,8 +160,9 @@ def calc_ROC(embs_dict, ood_embs,
     
     # auc_val = np.round(metrics.auc(fps, tps), 4)
     
-    y = np.concatenate((np.zeros_like(ind_dists), np.ones_like(ood_dists)))
-    pred = np.concatenate((ind_dists, ood_dists))
+    y = np.concatenate((np.zeros_like(ood_dists), np.ones_like(ind_dists)))
+    pred = np.concatenate((ood_dists, ind_dists))
+    pred = pred.max() - pred
     
     fps, tps, thresholds = metrics.roc_curve(y, pred)
     fps = np.concatenate([[0], fps, [1]])
