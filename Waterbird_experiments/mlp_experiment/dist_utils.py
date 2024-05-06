@@ -160,15 +160,26 @@ def calc_ROC(embs_dict, ood_embs,
     
     # auc_val = np.round(metrics.auc(fps, tps), 4)
     
-    y = np.concatenate((np.ones(len(ind_dists)), 2*np.ones(len(ood_dists))))
+    y = np.concatenate((np.zeros_like(ind_dists), np.ones_like(ood_dists)))
     pred = np.concatenate((ind_dists, ood_dists))
     
-    fps, tps, thresholds = metrics.roc_curve(y, pred, pos_label=2)
+    fps, tps, thresholds = metrics.roc_curve(y, pred)
     fps = np.concatenate([[0], fps, [1]])
     tps = np.concatenate([[0], tps, [1]])
     
-    auc_val = np.round(metrics.auc(fps, tps), 4)
+    auc_val = np.round(metrics.auc(fps, tps), 5)
     
+    precs, recs, thresholds = metrics.precision_recall_curve(y, pred)
+    precs = np.concatenate([[0], precs, [1]])
+    recs = np.concatenate([[1], recs, [0]])
+    
+    aupr_val = np.round(metrics.auc(np.sort(precs), recs), 5)
+    
+    print('****** metrics 1 ******')
+    print('auc: ', auc_val, 'aupr:', aupr_val)
+    print('****** metrics 2 ******')
+    print('auc: ', np.round(metrics.roc_auc_score(y, pred), 5),
+          'aupr:', np.round(metrics.average_precision_score(y, pred), 5))
     
     if plot:
         plt.figure()
@@ -188,11 +199,11 @@ def calc_ROC(embs_dict, ood_embs,
     
     
     
-    print('auc: ', auc_val, ', err: ', 100 * err,
+    print('err: ', 100 * err,
           np.mean(ind_dists) / np.mean(ood_dists))
     
     print('***********************')
-    
+    print()
     
     
 def softmax(x, axis=-1):
@@ -213,14 +224,26 @@ def calc_probs_ROC(log_dict, ood_logits, plot=False):
     err = ood_dists[ood_dists < thresh].shape[0] / ood_dists.shape[0]
     
     
-    y = np.concatenate((np.ones(len(ind_dists)), 2*np.ones(len(ood_dists))))
+    y = np.concatenate((np.zeros_like(ind_dists), np.ones_like(ood_dists)))
     pred = np.concatenate((ind_dists, ood_dists))
     
-    fps, tps, thresholds = metrics.roc_curve(y, pred, pos_label=2)
+    fps, tps, thresholds = metrics.roc_curve(y, pred)
     fps = np.concatenate([[0], fps, [1]])
     tps = np.concatenate([[0], tps, [1]])
-    auc_val = np.round(metrics.auc(fps, tps), 4)
     
+    auc_val = np.round(metrics.auc(fps, tps), 5)
+    
+    precs, recs, thresholds = metrics.precision_recall_curve(y, pred)
+    precs = np.concatenate([[0], precs, [1]])
+    recs = np.concatenate([[1], recs, [0]])
+    
+    aupr_val = np.round(metrics.auc(np.sort(precs), recs), 5)
+    
+    print('****** metrics 1 ******')
+    print('auc: ', auc_val, 'aupr:', aupr_val)
+    print('****** metrics 2 ******')
+    print('auc: ', np.round(metrics.roc_auc_score(y, pred), 5),
+          'aupr:', np.round(metrics.average_precision_score(y, pred), 5))
     
     if plot:
         plt.figure()
@@ -239,7 +262,9 @@ def calc_probs_ROC(log_dict, ood_logits, plot=False):
         plt.legend()
     
     
-    print('auc: ', auc_val, ', err: ', 100 * err,
+    
+    print('err: ', 100 * err,
           np.mean(ind_dists) / np.mean(ood_dists))
     
     print('***********************')
+    print()

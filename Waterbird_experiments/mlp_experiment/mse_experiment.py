@@ -18,7 +18,7 @@ batch_size = 64
 n_ensemble = 5
 
 n_steps = 100
-n_feats = 1024
+n_feats = 2048
 sp_rate = 0.95
 alpha_refine = 0.99
 alpha_ood = 0.6
@@ -28,7 +28,7 @@ output_size = n_feats // 2
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[0]
+backbone = backbones[1]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -381,7 +381,18 @@ test_dict_list = get_class_dicts(test_dict)
 ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
 pseudo_ood_embs = np.concatenate([pseudo_ood_dict[key] for key in pseudo_ood_dict.keys()])
 
-train_prototypes = [train_dict[key].mean(0) for key in train_dict.keys()]
+train_prototypes = []
+for data in train_dict_list:
+    all_data = []
+    for key in data.keys():
+        all_data.append(data[key])
+        
+    all_data = np.concatenate(all_data)
+    
+    train_prototypes.append(all_data.mean(0))
+
+
+#train_prototypes = [train_dict[key].mean(0) for key in train_dict.keys()]
 
 print('OOD:')
 #dist_utils.calc_ROC(test_dict_list[0], ood_embs, prototypes=train_dict_list[0])

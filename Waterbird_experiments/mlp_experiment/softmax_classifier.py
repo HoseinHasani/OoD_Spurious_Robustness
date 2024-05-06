@@ -14,7 +14,7 @@ batch_size = 64
 
 
 n_steps = 160
-n_feats = 1024
+n_feats = 2048
 output_size = n_feats // 2
 
 
@@ -26,7 +26,7 @@ lbl_scale = 0.1
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[0]
+backbone = backbones[1]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
