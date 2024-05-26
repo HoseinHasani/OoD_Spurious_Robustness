@@ -7,6 +7,7 @@ import dist_utils
 import nn_utils
 import os
 import tqdm
+import pickle
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -23,15 +24,10 @@ n_query = 10
 n_query_test = 100
 
 
-backbones = ['dino', 'res50', 'res18']
-backbone = backbones[0]
-resnet_types = ['pretrained', 'finetuned', 'scratch']
-resnet_type = resnet_types[0]
 
 core_class_names = ['0', '1']
 ood_class_names = ['0', '1']
 sp_class_names = ['0', '1']
-place_names = ['land', 'water']
 
 data_path = '../embeddings/'
 
@@ -40,49 +36,23 @@ data_path = '../embeddings/'
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
-if backbone == 'dino':
-    in_data_embs0 = np.load(data_path + 'waterbird_embs.npy', allow_pickle=True).item()
-elif backbone == 'res50':
-    in_data_embs0 = np.load(data_path + f'wb_embs_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
-
-ood_embs0 = {}
-if backbone == 'dino':
-    dict_ = np.load(data_path + 'land.npy', allow_pickle=True).item()
-elif backbone == 'res50':
-    dict_ = np.load(data_path + f'land_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
+with open('../grouped_embs.pkl', 'rb') as f:
+    grouped_embs0 = pickle.load(f)
     
-ood_embs0['0'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
+names = ['woman_black', 'woman_blond', 'man_black', 'man_blond', 'man_bald', 'woman_bald']
 
-if backbone == 'dino':
-    dict_ = np.load(data_path + 'water.npy', allow_pickle=True).item()
-elif backbone == 'res50':
-    dict_ = np.load(data_path + f'water_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
-ood_embs0['1'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
+grouped_embs1 = {name: np.array(grouped_embs0[name]) for name in grouped_embs0.keys()}
 
-grouped_embs0 = {}
-grouped_embs_train0 = {}
+map_dict = {
+            'man_black': '0_0',
+            'woman_black': '0_1',
+            'man_blond': '1_0',     
+            'woman_blond': '1_1',     
+            }
 
-for key in in_data_embs0.keys():
-    emb = in_data_embs0[key].squeeze()
-    label = key[0]
-    place = key[2]
-    split = key[4]
-    name = f'{label}_{place}'
-    
-    if split != '0':
-        if name not in grouped_embs0.keys():
-            grouped_embs0[name] = []
-        
-        grouped_embs0[name].append(emb)
-    else:
-        if name not in grouped_embs_train0.keys():
-            grouped_embs_train0[name] = []
-        
-        grouped_embs_train0[name].append(emb)
+grouped_embs0 = {map_dict[name]: grouped_embs1[name] for name in names[:-2]}
 
-grouped_embs0 = {name: np.array(grouped_embs0[name]) for name in grouped_embs0.keys()}
-grouped_embs_train0 = {name: np.array(grouped_embs_train0[name]) for name in grouped_embs_train0.keys()}
-
+ood_embs0 = {name: grouped_embs1[name] for name in names[-2:]}
 
 
 def normalize(x):
@@ -90,7 +60,7 @@ def normalize(x):
 
 
 grouped_embs = {name: grouped_embs0[name] for name in grouped_embs0.keys()}
-grouped_embs_train = {name: grouped_embs_train0[name] for name in grouped_embs_train0.keys()}
+grouped_embs_train0 = grouped_embs.copy()
 ood_embs = {name: ood_embs0[name] for name in ood_embs0.keys()}
 
 
