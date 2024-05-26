@@ -7,22 +7,26 @@ import dist_utils
 import nn_utils
 import os
 import tqdm
-import pickle
 import warnings
+import pickle
+
 warnings.filterwarnings("ignore")
 
 normalize_embs = True
+apply_mixup = False
+
+batch_size = 64
+
+n_ensemble = 5
 
 n_steps = 100
 n_feats = 1024
 sp_rate = 0.95
-alpha_refine = 0.6
+alpha_refine = 0.99
+alpha_ood = 0.6
 
-n_way = 2
-n_support = 10
-n_query = 10
-n_query_test = 100
-
+lbl_scale = 0.1
+output_size = n_feats // 2
 
 
 core_class_names = ['0', '1']
@@ -82,7 +86,7 @@ l_maj1 = len(train_dict[f'{core_class_names[1]}_{sp_class_names[1]}'])
 l_min1 = len(train_dict[f'{core_class_names[1]}_{sp_class_names[0]}'])
 
 
-def sample_data(n_data, sp_rate):
+def sample_data(data_dict, n_data, sp_rate):
     
     n_maj = int(sp_rate * n_data)
     n_min = n_data - n_maj
@@ -93,18 +97,55 @@ def sample_data(n_data, sp_rate):
     ind_1_maj = np.random.choice(l_maj1, size=n_maj, replace=False).ravel()
     ind_1_min = np.random.choice(l_min1, size=n_min, replace=False).ravel()
         
-    data0 = np.concatenate([train_dict[f'{core_class_names[0]}_{sp_class_names[0]}'][ind_0_maj],
-                            train_dict[f'{core_class_names[0]}_{sp_class_names[1]}'][ind_0_min]])
+    data0 = np.concatenate([data_dict[f'{core_class_names[0]}_{sp_class_names[0]}'][ind_0_maj],
+                            data_dict[f'{core_class_names[0]}_{sp_class_names[1]}'][ind_0_min]])
     
-    data1 = np.concatenate([train_dict[f'{core_class_names[1]}_{sp_class_names[1]}'][ind_1_maj],
-                            train_dict[f'{core_class_names[1]}_{sp_class_names[0]}'][ind_1_min]])
+    data1 = np.concatenate([data_dict[f'{core_class_names[1]}_{sp_class_names[1]}'][ind_1_maj],
+                            data_dict[f'{core_class_names[1]}_{sp_class_names[0]}'][ind_1_min]])
     
-    data_np = np.concatenate([
-                            data0[None],
-                            data1[None],
+    data_np1 = np.concatenate([
+                            data0,
+                            data1,
                             ])
     
-    return data_np
+    if apply_mixup:
+        ind_0_maj = np.random.choice(l_maj0, size=n_maj, replace=False).ravel()
+        ind_0_min = np.random.choice(l_min0, size=n_min, replace=False).ravel()
+    
+        ind_1_maj = np.random.choice(l_maj1, size=n_maj, replace=False).ravel()
+        ind_1_min = np.random.choice(l_min1, size=n_min, replace=False).ravel()
+            
+        data0 = np.concatenate([data_dict[f'{core_class_names[0]}_{sp_class_names[0]}'][ind_0_maj],
+                                data_dict[f'{core_class_names[0]}_{sp_class_names[1]}'][ind_0_min]])
+        
+        data1 = np.concatenate([data_dict[f'{core_class_names[1]}_{sp_class_names[1]}'][ind_1_maj],
+                                data_dict[f'{core_class_names[1]}_{sp_class_names[0]}'][ind_1_min]])
+        
+        data_np2 = np.concatenate([
+                                data0,
+                                data1,
+                                ])
+        
+        alpha_vals = np.random.rand(2 * n_data)[:, None]
+        inds_ = np.random.choice(n_data, n_data//4, replace=False).ravel()
+        
+        alpha_vals[inds_] = 0
+        
+        data_np = alpha_vals * data_np1 + (1 - alpha_vals) * data_np2
+    
+    else:
+        data_np = data_np1
+        
+    
+    lbl0 = -lbl_scale * np.ones((len(data0), output_size))
+    lbl1 = lbl_scale * np.ones((len(data1), output_size))
+    
+    lbl_np = np.concatenate([
+                            lbl0,
+                            lbl1,
+                            ])
+    
+    return data_np, lbl_np
 
 
 def sample_ood_data(n_data, sp_rate):
@@ -129,6 +170,9 @@ def sample_ood_data(n_data, sp_rate):
                             data1[None],
                             ])
     
+    
+    
+    
     return data_np
 
 
@@ -139,8 +183,8 @@ def visualize_correlations(embeddings, ood_embeddings, core_ax, sp_ax,
     s_vals = []
     
     for key in embeddings.keys():
-        c_vals_ = np.abs(np.dot(embeddings[key], core_ax))
-        s_vals_ = np.abs(np.dot(embeddings[key], sp_ax))
+        c_vals_ = np.abs(np.dot(normalize(embeddings[key]), core_ax))
+        s_vals_ = np.abs(np.dot(normalize(embeddings[key]), sp_ax))
         
         c_vals.append(c_vals_)
         s_vals.append(s_vals_)
@@ -149,8 +193,8 @@ def visualize_correlations(embeddings, ood_embeddings, core_ax, sp_ax,
     s_vals_ood = []
 
     for key in ood_embeddings.keys():
-        c_vals_ = np.abs(np.dot(ood_embeddings[key], core_ax))
-        s_vals_ = np.abs(np.dot(ood_embeddings[key], sp_ax))
+        c_vals_ = np.abs(np.dot(normalize(ood_embeddings[key]), core_ax))
+        s_vals_ = np.abs(np.dot(normalize(ood_embeddings[key]), sp_ax))
         
         c_vals_ood.append(c_vals_)
         s_vals_ood.append(s_vals_)
@@ -257,6 +301,32 @@ def get_class_dicts(input_dict):
 
     return class_dicts
 
+def process_ens_dicts(data_dicts):
+    
+    final_mean = {}
+    final_std = {}
+    
+    for name in data_dicts[0].keys():
+        embs_list = []
+        for j in range(n_ensemble):
+            embs = data_dicts[j][name]
+            embs_list.append(embs)
+            
+        final_mean[name] = np.mean(embs_list, 0)
+        final_std[name] = np.std(embs_list, 0).mean(-1)
+        
+    return final_mean, final_std
+
+def plot_dict_hist(dict_data, fig_name):
+    data = []
+    for name in dict_data:
+        data.append(dict_data[name])
+    
+    data = np.concatenate(data)
+    
+    plt.hist(data, 100, histtype='step', linewidth=1.5, label=fig_name)
+    plt.legend()
+
     
 core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_dict)
 print('ax correlation: ', np.dot(core_ax, sp_ax))
@@ -276,11 +346,34 @@ dist_utils.calc_dists_ratio(train_dict, ood_dict)
 dist_utils.calc_dists_ratio(test_dict, ood_dict)
 
 train_dict_list = get_class_dicts(train_dict)
-ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
+test_dict_list = get_class_dicts(test_dict)
 
-print()
-dist_utils.calc_ROC(train_dict_list[0], ood_embs)
-dist_utils.calc_ROC(train_dict_list[1], ood_embs)
+ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
+pseudo_ood_embs = np.concatenate([pseudo_ood_dict[key] for key in pseudo_ood_dict.keys()])
+
+train_prototypes = []
+for data in train_dict_list:
+    all_data = []
+    for key in data.keys():
+        all_data.append(data[key])
+        
+    all_data = np.concatenate(all_data)
+    
+    train_prototypes.append(all_data.mean(0))
+
+
+#train_prototypes = [train_dict[key].mean(0) for key in train_dict.keys()]
+
+print('OOD:')
+#dist_utils.calc_ROC(test_dict_list[0], ood_embs, prototypes=train_dict_list[0])
+#dist_utils.calc_ROC(test_dict_list[1], ood_embs, prototypes=train_dict_list[1])
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes)
+
+print('PSEUDO-OOD:')
+#dist_utils.calc_ROC(test_dict_list[0], pseudo_ood_embs, prototypes=train_dict_list[0])
+#dist_utils.calc_ROC(test_dict_list[1], pseudo_ood_embs, prototypes=train_dict_list[1])
+dist_utils.calc_ROC(test_dict, pseudo_ood_embs, prototypes=train_prototypes)
+
 
 # ood_embs = np.concatenate([pseudo_ood_dict[key] for key in pseudo_ood_dict.keys()])
 # print()
@@ -290,136 +383,175 @@ dist_utils.calc_ROC(train_dict_list[1], ood_embs)
 core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
 sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
 
-mlp = nn_utils.MLP(n_feats).to(device)  
-model = nn_utils.ProtoNet(mlp, device)
+loss_function = nn.MSELoss()
+mlps = []
+optimizers = []
 
-loss_function = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
+for ens in range(n_ensemble):
+    mlp = nn_utils.MLP(n_feats,
+                       n_outputs=output_size,
+                       input_scale=np.sqrt(n_feats),
+                       sigmoid_output=True).to(device) 
+     
+    optimizer = torch.optim.Adam(mlp.parameters(), lr=2e-4)
+    
+    mlps.append(mlp)
+    optimizers.append(optimizer)
     
 for e in range(n_steps):
     
-    optimizer.zero_grad()
+    for ens in range(n_ensemble):
     
-    support_np = sample_data(n_support, sp_rate=0.5)
-    query_np = sample_data(n_query, sp_rate=sp_rate)
+        optimizers[ens].zero_grad()
+        
+        data_np, lbl_np = sample_data(train_dict, batch_size, sp_rate=sp_rate)
+        
+        data = torch.from_numpy(data_np).float().to(device)
+        lbl = torch.tensor(lbl_np).float().to(device) 
+            
+        feats = mlps[ens](data)
+        mse_loss = loss_function(feats, lbl)
+        
+        data_np, lbl_np = sample_data(pseudo_ood_dict, batch_size, sp_rate=sp_rate)
+        
+        # data = torch.from_numpy(data_np).float().to(device)
+        # lbl = torch.tensor(lbl_np).float().to(device) 
+        
+        # feats = mlp(data)
+        # mse_ood = loss_function(feats, lbl)
+            
+        loss = mse_loss #- alpha_ood * mse_ood
+        
+        loss.backward()
+        optimizers[ens].step()
     
-    if e % 8 == 1:
-        ood_support_np = sample_ood_data(n_support, sp_rate=0.5)
-        ood_query_np = sample_ood_data(n_query, sp_rate=sp_rate)
-        
-        support_np = np.concatenate([support_np, ood_support_np[:1]])
-        query_np = np.concatenate([query_np, ood_support_np[:1]])
-        
-    elif e % 8 == 2:
-        ood_support_np = sample_ood_data(n_support, sp_rate=0.5)
-        ood_query_np = sample_ood_data(n_query, sp_rate=sp_rate)
-        
-        support_np = np.concatenate([support_np, ood_support_np[1:]])
-        query_np = np.concatenate([query_np, ood_support_np[1:]])
-        
-    elif e % 8 == 3:
-        ood_support_np = sample_ood_data(n_support, sp_rate=0.5)
-        ood_query_np = sample_ood_data(n_query, sp_rate=sp_rate)
-        
-        ood_support_np = np.concatenate(ood_support_np)[None]
-        ood_query_np = np.concatenate(ood_query_np)[None]
-        
-        selected_support = np.random.permutation(2*n_support)[: n_support]
-        selected_query = np.random.permutation(2*n_query)[: n_query]
-
-        support_np = np.concatenate([support_np, ood_support_np[:, selected_support]])
-        query_np = np.concatenate([query_np, ood_support_np[:, selected_query]])
-        
-        
-    
-    elif e % 8 == 5:
-        ood_support_np = sample_ood_data(n_support, sp_rate=0.5)
-        ood_query_np = sample_ood_data(n_query, sp_rate=sp_rate)
-        
-        support_np = np.concatenate([support_np, ood_support_np[:1]])
-        query_np = np.concatenate([query_np, ood_support_np[1:]])
-        
-    elif e % 8 == 6:
-        ood_support_np = sample_ood_data(n_support, sp_rate=0.5)
-        ood_query_np = sample_ood_data(n_query, sp_rate=sp_rate)
-        
-        support_np = np.concatenate([support_np, ood_support_np[1:]])
-        query_np = np.concatenate([query_np, ood_support_np[:1]])
-        
-    elif e % 8 == 7:
-        ood_support_np = sample_ood_data(n_support, sp_rate=0.5)
-        ood_query_np = sample_ood_data(n_query, sp_rate=sp_rate)
-        
-        ood_support_np = np.concatenate(ood_support_np)[None]
-        ood_query_np = np.concatenate(ood_query_np)[None]
-        
-        selected_support = np.random.permutation(2*n_support)[: n_support]
-        selected_query = np.random.permutation(2*n_query)[: n_query]
-
-        support_np = np.concatenate([support_np, ood_support_np[:, selected_support]])
-        query_np = np.concatenate([query_np, ood_support_np[:, selected_query]])
-    
-    data_np = np.concatenate([support_np, query_np], 1)
-    
-    data = torch.from_numpy(data_np).float().to(device)
-    
-    n_way = data.shape[0]
-    
-    sample_dict = {
-        'data': data,
-        'n_way': n_way,
-        'n_support': support_np.shape[1],
-        'n_query': query_np.shape[1]
-        }
-        
-    loss, output = model.set_forward_loss(sample_dict)
-        
-    loss.backward()
-    optimizer.step()
     if e > 2:
         mlp.eval()
         
         with torch.no_grad():
             
-            support_np = sample_data(n_support, sp_rate=0.5)
-            query_np = sample_data(n_query_test, sp_rate=0.5)
-            data_np = np.concatenate([support_np, query_np], 1)
+            data_np, lbl_np = sample_data(train_dict, batch_size, sp_rate=sp_rate)
+            
             
             data = torch.from_numpy(data_np).float().to(device)
+            lbl = torch.tensor(lbl_np).float().to(device) 
             
-            n_way = data.shape[0]
-            
-            sample_dict = {
-                'data': data,
-                'n_way': n_way,
-                'n_support': n_support,
-                'n_query': n_query_test
-                }
                 
-            loss, output = model.set_forward_loss(sample_dict)
-            print('acc: ', output['acc'])
+            feats = mlps[0](data)
+            mse_loss = loss_function(feats, lbl)
+            
+            print('Train MSE loss: ', mse_loss.item())
 
-        train_emb_dict = get_embeddings(mlp, train_dict)
-        test_emb_dict = get_embeddings(mlp, test_dict)
-        ood_emb_dict = get_embeddings(mlp, ood_dict)
+        with torch.no_grad():
+            
+            data_np, lbl_np = sample_data(pseudo_ood_dict, batch_size, sp_rate=sp_rate)
+            
+            
+            data = torch.from_numpy(data_np).float().to(device)
+            lbl = torch.tensor(lbl_np).float().to(device) 
+            
+                
+            feats = mlp(data)
+            mse_loss = loss_function(feats, lbl)
+            
+            print('POOD MSE loss: ', mse_loss.item())
+            
+        with torch.no_grad():
+            
+            mse_err_dict = {}
+            
+            for sp_name in sp_class_names:
+                for lbl_ind, cr_name in enumerate(core_class_names):
+                    
+                    name = f'{cr_name}_{sp_name}'
+                    
+                    data_np = test_dict[name]
+                    lbl_np = lbl_scale * (2*lbl_ind - 1) * np.ones((len(data_np), output_size))
+                    data = torch.from_numpy(data_np).float().to(device)
+                    lbl = torch.tensor(lbl_np).float().to(device) 
+                    
+                        
+                    feats = mlp(data)
+                    mse_loss = loss_function(feats, lbl)
+                    
+                    mse_err_dict[name] = np.round(mse_loss.item(), 5)
+                    
+                    
+            print('Test MSE loss:', mse_err_dict)
+            
+        train_emb_dicts = [get_embeddings(mlp, train_dict) for mlp in mlps]
+        test_emb_dicts = [get_embeddings(mlp, test_dict) for mlp in mlps]
+        ood_emb_dicts = [get_embeddings(mlp, ood_dict) for mlp in mlps]
+        pseudo_ood_emb_dicts = [get_embeddings(mlp, pseudo_ood_dict) for mlp in mlps]
+        
+        train_emb_dict, train_emb_dict_std = process_ens_dicts(train_emb_dicts)
+        test_emb_dict, test_emb_dict_std = process_ens_dicts(test_emb_dicts)
+        ood_emb_dict, ood_emb_dict_std = process_ens_dicts(ood_emb_dicts)
+        pseudo_ood_emb_dict, pseudo_ood_emb_dict_std = process_ens_dicts(pseudo_ood_emb_dicts)
+        
+        ens_train_emb_prototypes = []
+        for jj in range(n_ensemble):
+            ens_train_emb_prototypes.append([train_emb_dicts[jj][key].mean(0) for key in train_emb_dicts[jj].keys()])
+        
+        train_emb_prototypes = np.mean(ens_train_emb_prototypes, 0)
+        
+        # plt.figure()
+        # plot_dict_hist(train_emb_dict_std, 'train')
+        # plot_dict_hist(test_emb_dict_std, 'test')
+        # plot_dict_hist(ood_emb_dict_std, 'ood')
+        # plot_dict_hist(pseudo_ood_emb_dict_std, 'pood')
         
         train_dict_list = get_class_dicts(train_emb_dict)
+        test_dict_list = get_class_dicts(test_emb_dict)
+        test_dict_std_list = get_class_dicts(test_emb_dict_std)
+        
         ood_embs = np.concatenate([ood_emb_dict[key] for key in ood_emb_dict.keys()])
-        dist_utils.calc_ROC(train_dict_list[0], ood_embs)
-        dist_utils.calc_ROC(train_dict_list[1], ood_embs)
+        ood_embs_std = np.concatenate([ood_emb_dict_std[key] for key in ood_emb_dict.keys()])
+        
+        pseudo_ood_embs = np.concatenate([pseudo_ood_emb_dict[key] for key in \
+                                          pseudo_ood_emb_dict.keys()])     
 
+        pseudo_ood_emb_std = np.concatenate([pseudo_ood_emb_dict_std[key] for key in \
+                                          pseudo_ood_emb_dict.keys()])   
+            
+            
+        print('OOD:')
+#        dist_utils.calc_ROC(test_dict_list[0], ood_embs, train_embs_dict=train_dict_list[0])
+#        dist_utils.calc_ROC(test_dict_list[1], ood_embs, train_embs_dict=train_dict_list[1])
+        
+        dist_utils.calc_ROC(test_emb_dict, ood_embs, prototypes=train_emb_prototypes)
+        
+        
+        print('OOD (STD):')
+#        dist_utils.calc_ROC(test_dict_list[0], ood_embs,
+#                            test_dict_std_list[0], ood_embs_std,
+#                            train_dict_list[0])
+#        dist_utils.calc_ROC(test_dict_list[1], ood_embs,
+#                            test_dict_std_list[1], ood_embs_std,
+#                            train_dict_list[1])
+        
+        
+        dist_utils.calc_ROC(test_emb_dict, ood_embs,
+                            test_emb_dict_std, ood_embs_std,
+                            prototypes=train_emb_prototypes)
+        
+        # print('PSEUDO-OOD:')
+        # dist_utils.calc_ROC(test_dict_list[0], pseudo_ood_embs)
+        # dist_utils.calc_ROC(test_dict_list[1], pseudo_ood_embs)
+        
+        
         print()
         dist_utils.calc_dists_ratio(train_emb_dict, ood_emb_dict)
         dist_utils.calc_dists_ratio(test_emb_dict, ood_emb_dict)
-        
+
         core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_emb_dict)
-        print('ax correlation: ', np.dot(core_ax, sp_ax))
+        print('ax correlation: ', np.dot(core_ax_norm, sp_ax_norm))
         
         
         core_ax_torch = torch.tensor(core_ax, dtype=torch.float32).to(device)
         sp_ax_torch = torch.tensor(sp_ax, dtype=torch.float32).to(device)
         
         if e % 5 == 0:
-            _ = visualize_correlations(test_emb_dict, ood_emb_dict, core_ax, sp_ax)
+            _ = visualize_correlations(test_emb_dict, ood_emb_dict, core_ax_norm, sp_ax_norm)
         
         mlp.train()
