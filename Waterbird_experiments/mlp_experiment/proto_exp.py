@@ -172,4 +172,33 @@ print('OOD:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes)
 
 
+x_train = np.concatenate(train_embs)
+y_train = np.concatenate([np.zeros(len(train_embs[0])), np.ones(len(train_embs[1]))])
+
+
+dists = np.linalg.norm(x_train[..., None] - train_prototypes.T[None], axis=1)
+y_hat_train = np.argmin(dists, -1)  
+
+
+total_miss_inds = np.argwhere(y_hat_train != y_train).ravel()
+total_crr_inds = np.argwhere(y_hat_train == y_train).ravel()
+
+aug_prototypes = []
+
+for l in [0, 1]:
+    class_inds = np.argwhere(y_train == l).ravel()
+    class_miss_inds = np.intersect1d(class_inds, total_miss_inds, assume_unique=True)
+    aug_prototypes.append(x_train[class_miss_inds].mean(0))
+    class_crr_inds = np.intersect1d(class_inds, total_crr_inds, assume_unique=True)
+    aug_prototypes.append(x_train[class_crr_inds].mean(0))
+    
+    
+aug_prototypes = np.array(aug_prototypes)
+
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes)
+
+
+
+
+
 
