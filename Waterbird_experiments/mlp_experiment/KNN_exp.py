@@ -1,13 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
 import dist_utils
 import os
 import warnings
 
 warnings.filterwarnings("ignore")
 
-normalize_embs = True
+normalize_embs = False
 
 
 backbones = ['dino', 'res50', 'res18']
@@ -91,29 +92,6 @@ else:
 
 
 
-def get_axis(embeddings):
-    
-    core_ax1 = embeddings[f'{core_class_names[1]}_{sp_class_names[0]}'].mean(0, keepdims=False) - \
-                         embeddings[f'{core_class_names[0]}_{sp_class_names[0]}'].mean(0, keepdims=False)
-    core_ax2 = embeddings[f'{core_class_names[1]}_{sp_class_names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'{core_class_names[0]}_{sp_class_names[1]}'].mean(0, keepdims=False)
-    core_ax = 0.5 * core_ax1 + 0.5 * core_ax2
-    
-    sp_ax1 = embeddings[f'{core_class_names[0]}_{sp_class_names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'{core_class_names[0]}_{sp_class_names[0]}'].mean(0, keepdims=False)
-    sp_ax2 = embeddings[f'{core_class_names[1]}_{sp_class_names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'{core_class_names[1]}_{sp_class_names[0]}'].mean(0, keepdims=False)
-    sp_ax = 0.5 * sp_ax1 + 0.5 * sp_ax2
-    
-    print('axis ratio:', np.linalg.norm(core_ax) / np.linalg.norm(sp_ax))
-    
-    core_ax_norm = 0.5 * normalize(core_ax1) + 0.5 * normalize(core_ax2)
-    sp_ax_norm = 0.5 * normalize(sp_ax1) + 0.5 * normalize(sp_ax2)
-    
-    return core_ax, sp_ax, core_ax_norm, sp_ax_norm
-
-
-
 def get_class_dicts(input_dict):
     class_dicts = []
     for core_name in core_class_names:
@@ -136,18 +114,35 @@ def plot_dict_hist(dict_data, fig_name):
     plt.hist(data, 100, histtype='step', linewidth=1.5, label=fig_name)
     plt.legend()
 
+def get_1nn_distances(targets, sources):
+    dists = []
+    for target in targets:
+        dists_ = [np.linalg.norm(source - target) for source in sources]
+        dists.append(np.min(dists_))
+        
+    return np.array(dists)
     
-core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_dict)
-print('ax correlation: ', np.dot(core_ax, sp_ax))
-
 
     
-print()
-dist_utils.calc_dists_ratio(train_dict, ood_dict)
-dist_utils.calc_dists_ratio(test_dict, ood_dict)
-
 train_dict_list = get_class_dicts(train_dict)
 test_dict_list = get_class_dicts(test_dict)
+
+print('1-NN accuracy:')
+
+for key in test_dict.keys():
+    
+    targets = test_dict[key]
+    labels = float(key[0]) * np.ones(len(test_dict[key]))
+    
+    dists = []
+    for c in range(len(train_dict_list)):
+        sources = np.concatenate([train_dict_list[c][kk] for kk in train_dict_list[c].keys()])
+        dists.append(get_1nn_distances(targets, sources))
+    
+    preds = np.argmin(dists, 0)
+    
+    print(key, accuracy_score(labels, preds))
+
 
 ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
 
@@ -163,14 +158,11 @@ for data in train_dict_list:
     train_prototypes.append(all_data.mean(0))
 
 
-#train_prototypes = [train_dict[key].mean(0) for key in train_dict.keys()]
 train_prototypes = np.array(train_prototypes)
 
 print('OOD:')
 print('before:')
-#dist_utils.calc_ROC(test_dict_list[0], ood_embs, prototypes=train_dict_list[0])
-#dist_utils.calc_ROC(test_dict_list[1], ood_embs, prototypes=train_dict_list[1])
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=True)
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes)
 
 
 x_train = np.concatenate(train_embs)
@@ -196,7 +188,7 @@ for l in [0, 1]:
     
 aug_prototypes = np.array(aug_prototypes)
 print('after:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=True)
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes)
 
 
 
