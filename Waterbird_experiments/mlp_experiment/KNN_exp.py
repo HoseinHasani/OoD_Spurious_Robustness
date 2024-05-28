@@ -12,7 +12,7 @@ normalize_embs = False
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[1]
+backbone = backbones[0]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -114,20 +114,32 @@ def plot_dict_hist(dict_data, fig_name):
     plt.hist(data, 100, histtype='step', linewidth=1.5, label=fig_name)
     plt.legend()
 
-def get_1nn_distances(targets, sources):
+def get_nn_distances(targets, sources):
     dists = []
     for target in targets:
         dists_ = [np.linalg.norm(source - target) for source in sources]
-        dists.append(np.min(dists_))
+        dists.append(np.sort(dists_)[:100])
         
     return np.array(dists)
     
+def knn_classifier(dists, k=5):
+    preds = []
+    th_dists = []
+    for i in range(dists.shape[1]):
+        dists_ = dists[:, i]
+        th_val = np.sort(dists_.ravel())[k]
+        th_dists.append(th_val)
+        n_cl0 = len(np.argwhere(dists_[0] <= th_val).ravel())
+        n_cl1 = len(np.argwhere(dists_[1] <= th_val).ravel())
+        preds.append(int(n_cl1 > n_cl0))
+    
+    return np.array(preds), np.array(th_dists)
 
     
 train_dict_list = get_class_dicts(train_dict)
 test_dict_list = get_class_dicts(test_dict)
 
-print('1-NN accuracy:')
+print('K-NN accuracy:')
 
 for key in test_dict.keys():
     
@@ -137,11 +149,14 @@ for key in test_dict.keys():
     dists = []
     for c in range(len(train_dict_list)):
         sources = np.concatenate([train_dict_list[c][kk] for kk in train_dict_list[c].keys()])
-        dists.append(get_1nn_distances(targets, sources))
+        dists.append(get_nn_distances(targets, sources))
+    dists = np.array(dists)
+    knn_accs = []
+    for k in [0, 3, 7, 20, 50]:
+        preds, knn_dists = knn_classifier(dists, k)
+        knn_accs.append(accuracy_score(labels, preds))
     
-    preds = np.argmin(dists, 0)
-    
-    print(key, accuracy_score(labels, preds))
+    print(key, np.round(knn_accs, 5))
 
 
 ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
