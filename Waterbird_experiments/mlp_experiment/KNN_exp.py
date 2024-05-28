@@ -8,11 +8,12 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-normalize_embs = False
+normalize_embs = True
 
+k_values = [0, 7, 40, 110]
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[0]
+backbone = backbones[2]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -141,6 +142,7 @@ test_dict_list = get_class_dicts(test_dict)
 
 print('K-NN accuracy:')
 
+test_knn_dists = {k: [] for k in k_values}
 for key in test_dict.keys():
     
     targets = test_dict[key]
@@ -152,70 +154,35 @@ for key in test_dict.keys():
         dists.append(get_nn_distances(targets, sources))
     dists = np.array(dists)
     knn_accs = []
-    for k in [0, 3, 7, 20, 50]:
-        preds, knn_dists = knn_classifier(dists, k)
+    for k in k_values:
+        preds, knn_dists_ = knn_classifier(dists, k)
+        test_knn_dists[k].append(knn_dists_)
         knn_accs.append(accuracy_score(labels, preds))
     
     print(key, np.round(knn_accs, 5))
 
+test_knn_dists = {k: np.concatenate(test_knn_dists[k]) for k in k_values}
 
 ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
 
-train_prototypes = []
-train_embs = []
-for data in train_dict_list:
-    all_data = []
-    for key in data.keys():
-        all_data.append(data[key])
-        
-    all_data = np.concatenate(all_data)
-    train_embs.append(all_data)
-    train_prototypes.append(all_data.mean(0))
 
+ood_knn_dists = {k: [] for k in k_values}
 
-train_prototypes = np.array(train_prototypes)
+dists = []
+for c in range(len(train_dict_list)):
+    sources = np.concatenate([train_dict_list[c][kk] for kk in train_dict_list[c].keys()])
+    dists.append(get_nn_distances(ood_embs, sources))
+dists = np.array(dists)
+for k in k_values:
+    preds, knn_dists_ = knn_classifier(dists, k)
+    ood_knn_dists[k].append(knn_dists_)
+
+ood_knn_dists = {k: np.concatenate(ood_knn_dists[k]) for k in k_values}
+
 
 print('OOD:')
-print('before:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes)
-
-
-x_train = np.concatenate(train_embs)
-y_train = np.concatenate([np.zeros(len(train_embs[0])), np.ones(len(train_embs[1]))])
-
-
-dists = np.linalg.norm(x_train[..., None] - train_prototypes.T[None], axis=1)
-y_hat_train = np.argmin(dists, -1)  
-
-
-total_misc_inds = np.argwhere(y_hat_train != y_train).ravel()
-total_crr_inds = np.argwhere(y_hat_train == y_train).ravel()
-
-aug_prototypes = []
-
-for l in [0, 1]:
-    class_inds = np.argwhere(y_train == l).ravel()
-    class_miss_inds = np.intersect1d(class_inds, total_misc_inds, assume_unique=True)
-    aug_prototypes.append(x_train[class_miss_inds].mean(0))
-    class_crr_inds = np.intersect1d(class_inds, total_crr_inds, assume_unique=True)
-    aug_prototypes.append(x_train[class_crr_inds].mean(0))
-    
-    
-aug_prototypes = np.array(aug_prototypes)
-print('after:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes)
-
-
-
-from sklearn.cluster import KMeans
-
-kmeans_protos = []
-kmeans = KMeans(n_clusters=2, random_state=0, init=aug_prototypes[:2], max_iter=5).fit(train_embs[0])
-kmeans_protos.append(kmeans.cluster_centers_)
-kmeans = KMeans(n_clusters=2, random_state=0, init=aug_prototypes[2:], max_iter=5).fit(train_embs[1])
-kmeans_protos.append(kmeans.cluster_centers_)
-
-kmeans_protos = np.concatenate(kmeans_protos)
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=kmeans_protos)
+for k in k_values:
+    print(backbone, normalize_embs, k)
+    dist_utils.calc_ROC_with_dists(test_knn_dists[k], ood_knn_dists[k])
 
 
