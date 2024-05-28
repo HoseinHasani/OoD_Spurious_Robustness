@@ -176,9 +176,9 @@ def calc_ROC(embs_dict, ood_embs,
     
     aupr_val = np.round(metrics.auc(np.sort(precs), recs), 4)
     
-    print('****** metrics 1 ******')
-    print('auc: ', auc_val, 'aupr:', aupr_val)
-    print('****** metrics 2 ******')
+    # print('****** metrics 1 ******')
+    # print('auc: ', auc_val, 'aupr:', aupr_val)
+    # print('****** metrics 2 ******')
     print('auc: ', np.round(metrics.roc_auc_score(y, pred), 4),
           'aupr:', np.round(metrics.average_precision_score(y, pred), 4))
     
@@ -202,7 +202,7 @@ def calc_ROC(embs_dict, ood_embs,
     
     print('95-percent err: ', np.round(100 * err, 3))
     
-    print('***********************')
+    # print('***********************')
     print()
     
     

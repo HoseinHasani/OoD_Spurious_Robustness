@@ -7,11 +7,11 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-normalize_embs = True
+normalize_embs = False
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[1]
+backbone = backbones[0]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -26,21 +26,21 @@ data_path = '../embeddings/'
 
 if backbone == 'dino':
     in_data_embs0 = np.load(data_path + 'waterbird_embs_DINO.npy', allow_pickle=True).item()
-elif backbone == 'res50':
+else:
     in_data_embs0 = np.load(data_path + f'wb_embs_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
 
 ood_embs0 = {}
 if backbone == 'dino':
     dict_ = np.load(data_path + 'OOD_land_DINO_eval.npy', allow_pickle=True).item()
-elif backbone == 'res50':
-    dict_ = np.load(data_path + f'OOD_land_res50_eval.npy', allow_pickle=True).item()
+else:
+    dict_ = np.load(data_path + f'OOD_land_{backbone}_eval.npy', allow_pickle=True).item()
     
 ood_embs0['0'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
 
 if backbone == 'dino':
     dict_ = np.load(data_path + 'OOD_water_DINO_eval.npy', allow_pickle=True).item()
-elif backbone == 'res50':
-    dict_ = np.load(data_path + f'OOD_water_res50_eval.npy', allow_pickle=True).item()
+else:
+    dict_ = np.load(data_path + f'OOD_water_{backbone}_eval.npy', allow_pickle=True).item()
 ood_embs0['1'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
 
 grouped_embs0 = {}
@@ -167,6 +167,7 @@ for data in train_dict_list:
 train_prototypes = np.array(train_prototypes)
 
 print('OOD:')
+print('before:')
 #dist_utils.calc_ROC(test_dict_list[0], ood_embs, prototypes=train_dict_list[0])
 #dist_utils.calc_ROC(test_dict_list[1], ood_embs, prototypes=train_dict_list[1])
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes)
@@ -180,25 +181,34 @@ dists = np.linalg.norm(x_train[..., None] - train_prototypes.T[None], axis=1)
 y_hat_train = np.argmin(dists, -1)  
 
 
-total_miss_inds = np.argwhere(y_hat_train != y_train).ravel()
+total_misc_inds = np.argwhere(y_hat_train != y_train).ravel()
 total_crr_inds = np.argwhere(y_hat_train == y_train).ravel()
 
 aug_prototypes = []
 
 for l in [0, 1]:
     class_inds = np.argwhere(y_train == l).ravel()
-    class_miss_inds = np.intersect1d(class_inds, total_miss_inds, assume_unique=True)
+    class_miss_inds = np.intersect1d(class_inds, total_misc_inds, assume_unique=True)
     aug_prototypes.append(x_train[class_miss_inds].mean(0))
     class_crr_inds = np.intersect1d(class_inds, total_crr_inds, assume_unique=True)
     aug_prototypes.append(x_train[class_crr_inds].mean(0))
     
     
 aug_prototypes = np.array(aug_prototypes)
-
+print('after:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes)
 
 
 
+from sklearn.cluster import KMeans
 
+kmeans_protos = []
+kmeans = KMeans(n_clusters=2, random_state=0, init=aug_prototypes[:2], max_iter=5).fit(train_embs[0])
+kmeans_protos.append(kmeans.cluster_centers_)
+kmeans = KMeans(n_clusters=2, random_state=0, init=aug_prototypes[2:], max_iter=5).fit(train_embs[1])
+kmeans_protos.append(kmeans.cluster_centers_)
+
+kmeans_protos = np.concatenate(kmeans_protos)
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=kmeans_protos)
 
 
