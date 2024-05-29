@@ -131,9 +131,12 @@ def calc_ROC(embs_dict, ood_embs,
         
         
     ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std, known_group, prototypes=prototypes)
-
+    
     ind_dists = get_dist_vals(embs_dict, embs_std_dict, known_group, prototypes=prototypes)
 
+    # ind_embs = np.concatenate([embs_dict[key] for key in embs_dict.keys()])
+    # ood_dists = np.concatenate([np.linalg.norm(ood_embs - prototypes[k][None], axis=-1) for k in range(len(prototypes))])
+    # ind_dists = np.concatenate([np.linalg.norm(ind_embs - prototypes[k][None], axis=-1) for k in range(len(prototypes))])
             
     thresh = find_thresh_val(ind_dists)
     err = ood_dists[ood_dists < thresh].shape[0] / ood_dists.shape[0]

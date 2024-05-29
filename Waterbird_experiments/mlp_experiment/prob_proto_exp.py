@@ -159,6 +159,33 @@ def calculate_probabilities(embs, means, stds):
     
     return pdfs
 
+def calculate_log_probabilities(embs, means, stds):
+    N, feat_dim = embs.shape
+    C, _ = means.shape
+    
+    if np.isscalar(stds) or stds.ndim == 1:
+        stds = np.broadcast_to(stds.T, (feat_dim, C)).T
+    
+    log_probabilities = np.zeros((N, C))
+    
+    for i in range(C):
+        mean = means[i]
+        std = stds[i]
+        if np.isscalar(std):
+            cov_matrix = np.eye(feat_dim) * (std ** 2)
+        else:
+            cov_matrix = np.diag(std ** 2)
+        
+        inv_cov_matrix = np.linalg.inv(cov_matrix)
+        #log_det_cov = np.log(np.linalg.det(cov_matrix))
+        diff = embs - mean
+        exponent = -0.5 * np.sum(diff @ inv_cov_matrix * diff, axis=1)
+        #log_prob = -0.5 * feat_dim * np.log(2 * np.pi) + - 0.5 * log_det_cov + exponent
+        # log_probabilities[:, i] = -np.linalg.norm(embs - mean[None], axis=-1)
+        log_probabilities[:, i] = exponent
+    #print(log_probabilities)
+    return log_probabilities.min(axis=-1)
+
 
     
 print()
@@ -187,16 +214,16 @@ for data in train_dict_list:
     
 
 train_prototypes = np.array(train_prototypes)
-train_stds = 8*np.array(train_stds)
-train_std_vecs = 8*np.array(train_std_vecs)
+train_stds = np.array(train_stds)
+train_std_vecs = np.array(train_std_vecs)
 
 test_embs = np.concatenate([test_dict[key] for key in test_dict.keys()])
 
 print('simple prototypical:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=False)
 
-ind_probs = calculate_probabilities(test_embs, train_prototypes, train_stds).ravel()
-ood_probs = calculate_probabilities(ood_embs, train_prototypes, train_stds).ravel()
+ind_probs = calculate_log_probabilities(test_embs, train_prototypes, train_stds).ravel()
+ood_probs = calculate_log_probabilities(ood_embs, train_prototypes, train_stds).ravel()
 max_val = max(np.max(ind_probs), np.max(ood_probs))
 
 print('prototypical with scalar std:')
@@ -204,11 +231,11 @@ dist_utils.calc_ROC_with_dists(max_val - ind_probs, max_val - ood_probs)
 
 
 
-ind_probs = calculate_probabilities(test_embs, train_prototypes, train_std_vecs).ravel()
-ood_probs = calculate_probabilities(ood_embs, train_prototypes, train_std_vecs).ravel()
+ind_probs = calculate_log_probabilities(test_embs, train_prototypes, train_std_vecs).ravel()
+ood_probs = calculate_log_probabilities(ood_embs, train_prototypes, train_std_vecs).ravel()
 max_val = max(np.max(ind_probs), np.max(ood_probs))
 
-print('prototypical with scalar std:')
+print('prototypical with vector std:')
 dist_utils.calc_ROC_with_dists(max_val - ind_probs, max_val - ood_probs)
 
 
@@ -225,6 +252,8 @@ total_misc_inds = np.argwhere(y_hat_train != y_train).ravel()
 total_crr_inds = np.argwhere(y_hat_train == y_train).ravel()
 
 aug_prototypes = []
+train_stds = []
+train_std_vecs = []
 
 for l in [0, 1]:
     class_inds = np.argwhere(y_train == l).ravel()
@@ -232,15 +261,43 @@ for l in [0, 1]:
     aug_prototypes.append(x_train[class_miss_inds].mean(0))
     class_crr_inds = np.intersect1d(class_inds, total_crr_inds, assume_unique=True)
     aug_prototypes.append(x_train[class_crr_inds].mean(0))
-    
-    
+
+    train_stds.append(x_train[class_miss_inds].std(0).mean())
+    train_stds.append(x_train[class_crr_inds].std(0).mean())
+    train_std_vecs.append(x_train[class_miss_inds].std(0))
+    train_std_vecs.append(x_train[class_crr_inds].std(0))
+        
+train_stds = np.array(train_stds)
+train_std_vecs = np.array(train_std_vecs)
+
 aug_prototypes = np.array(aug_prototypes)
 print('after:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False)
 
+
+ind_probs = calculate_log_probabilities(test_embs, aug_prototypes, train_stds).ravel()
+ood_probs = calculate_log_probabilities(ood_embs, aug_prototypes, train_stds).ravel()
+max_val = max(np.max(ind_probs), np.max(ood_probs))
+
+print('aug prototypical with scalar std:')
+dist_utils.calc_ROC_with_dists(max_val - ind_probs, max_val - ood_probs)
+
+
+
+ind_probs = calculate_log_probabilities(test_embs, aug_prototypes, train_std_vecs).ravel()
+ood_probs = calculate_log_probabilities(ood_embs, aug_prototypes, train_std_vecs).ravel()
+max_val = max(np.max(ind_probs), np.max(ood_probs))
+
+print('aug prototypical with vector std:')
+dist_utils.calc_ROC_with_dists(max_val - ind_probs, max_val - ood_probs)
+
+
+
 aug_prototypes = np.concatenate([aug_prototypes, train_prototypes])
 print('after after:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False)
+
+
 
 
 
