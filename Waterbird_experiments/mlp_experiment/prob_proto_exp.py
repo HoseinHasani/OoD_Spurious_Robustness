@@ -12,7 +12,7 @@ normalize_embs = True
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[2]
+backbone = backbones[0]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -148,26 +148,16 @@ def calculate_probabilities(embs, means, stds):
     N, feat_dim = embs.shape
     C, _ = means.shape
     
-    probabilities = np.zeros(N)
+    if np.isscalar(stds) or stds.ndim == 1:
+        # If stds is scalar or 1D, broadcast it to match means shape
+        stds = np.broadcast_to(stds.T, (feat_dim, C)).T
+
+    mvns = [multivariate_normal(mean=means[i], cov=np.diag(stds[i] ** 2)) for i in range(C)]
     
-    for i in range(N):
-        emb = embs[i]
-        prob_sum = 0
-        for j in range(C):
-            mean = means[j]
-            std = stds[j]
-            
-            if np.isscalar(std):  # If std is scalar, create a diagonal covariance matrix
-                cov = np.eye(feat_dim) * (std ** 2)
-            else:
-                cov = np.diag(std ** 2)
-            
-            mvn = multivariate_normal(mean=mean, cov=cov)
-            prob_sum += mvn.pdf(emb)
-        
-        probabilities[i] = prob_sum
+    pdfs = np.array([mvn.pdf(embs) for mvn in mvns])
+    #probabilities = pdfs.sum(axis=0)
     
-    return np.array(probabilities)
+    return pdfs
 
 
     
@@ -192,21 +182,21 @@ for data in train_dict_list:
     all_data = np.concatenate(all_data)
     train_embs.append(all_data)
     train_prototypes.append(all_data.mean(0))
-    train_stds.append(all_data.std())
+    train_stds.append(all_data.std(0).mean())
     train_std_vecs.append(all_data.std(0))
     
 
 train_prototypes = np.array(train_prototypes)
-train_stds = np.array(train_stds)
-train_std_vecs = np.array(train_std_vecs)
+train_stds = 8*np.array(train_stds)
+train_std_vecs = 8*np.array(train_std_vecs)
 
 test_embs = np.concatenate([test_dict[key] for key in test_dict.keys()])
 
 print('simple prototypical:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=False)
 
-ind_probs = calculate_probabilities(test_embs, train_prototypes, train_stds)
-ood_probs = calculate_probabilities(ood_embs, train_prototypes, train_stds)
+ind_probs = calculate_probabilities(test_embs, train_prototypes, train_stds).ravel()
+ood_probs = calculate_probabilities(ood_embs, train_prototypes, train_stds).ravel()
 max_val = max(np.max(ind_probs), np.max(ood_probs))
 
 print('prototypical with scalar std:')
@@ -214,8 +204,8 @@ dist_utils.calc_ROC_with_dists(max_val - ind_probs, max_val - ood_probs)
 
 
 
-ind_probs = calculate_probabilities(test_embs, train_prototypes, train_std_vecs)
-ood_probs = calculate_probabilities(ood_embs, train_prototypes, train_std_vecs)
+ind_probs = calculate_probabilities(test_embs, train_prototypes, train_std_vecs).ravel()
+ood_probs = calculate_probabilities(ood_embs, train_prototypes, train_std_vecs).ravel()
 max_val = max(np.max(ind_probs), np.max(ood_probs))
 
 print('prototypical with scalar std:')
