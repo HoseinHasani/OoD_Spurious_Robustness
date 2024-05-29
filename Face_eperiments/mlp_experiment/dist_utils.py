@@ -206,6 +206,61 @@ def calc_ROC(embs_dict, ood_embs,
     print()
     
     
+def calc_ROC_with_dists(ind_dists, ood_dists, plot=False):
+        
+        
+
+            
+    thresh = find_thresh_val(ind_dists)
+    err = ood_dists[ood_dists < thresh].shape[0] / ood_dists.shape[0]
+    
+    
+    
+    y = np.concatenate((np.zeros_like(ood_dists), np.ones_like(ind_dists)))
+    pred = np.concatenate((ood_dists, ind_dists))
+    pred = pred.max() - pred
+    
+    fps, tps, thresholds = metrics.roc_curve(y, pred)
+    fps = np.concatenate([[0], fps, [1]])
+    tps = np.concatenate([[0], tps, [1]])
+    
+    auc_val = np.round(metrics.auc(fps, tps), 4)
+    
+    precs, recs, thresholds = metrics.precision_recall_curve(y, pred)
+    precs = np.concatenate([[0], precs, [1]])
+    recs = np.concatenate([[1], recs, [0]])
+    
+    aupr_val = np.round(metrics.auc(np.sort(precs), recs), 4)
+    
+    # print('****** metrics 1 ******')
+    # print('auc: ', auc_val, 'aupr:', aupr_val)
+    # print('****** metrics 2 ******')
+    print('auc: ', np.round(metrics.roc_auc_score(y, pred), 4),
+          'aupr:', np.round(metrics.average_precision_score(y, pred), 4))
+    
+    if plot:
+        plt.figure()
+        plt.plot(fps, tps, label=f'area={auc_val}', linewidth=2)
+        plt.xlabel('FPR')
+        plt.ylabel('TPR')
+        #plt.ylim([0.55, 1.001])
+        plt.legend()
+        plt.title('ROC', fontsize=17)
+        
+        
+        plt.figure(figsize=(8,4))
+        plt.hist(ind_dists, 25, histtype='step', density=False, linewidth=2.5, label='InD distances', color='tab:blue')
+        plt.hist(ood_dists, 25, histtype='step', density=False, linewidth=2.5, label='OoD distances', color='tab:orange')
+        plt.title('dist hist')
+        plt.legend()
+    
+    
+    
+    print('95-percent err: ', np.round(100 * err, 3))
+    
+    # print('***********************')
+    print()
+    
 def softmax(x, axis=-1):
     e_x = np.exp(x - np.max(x))
     summation = e_x.sum(axis=axis)

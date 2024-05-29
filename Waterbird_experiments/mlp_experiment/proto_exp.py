@@ -11,7 +11,7 @@ normalize_embs = True
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[1]
+backbone = backbones[2]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -170,7 +170,7 @@ print('OOD:')
 print('before:')
 #dist_utils.calc_ROC(test_dict_list[0], ood_embs, prototypes=train_dict_list[0])
 #dist_utils.calc_ROC(test_dict_list[1], ood_embs, prototypes=train_dict_list[1])
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=True)
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=False)
 
 
 x_train = np.concatenate(train_embs)
@@ -196,19 +196,25 @@ for l in [0, 1]:
     
 aug_prototypes = np.array(aug_prototypes)
 print('after:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=True)
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False)
+
+aug_prototypes = np.concatenate([aug_prototypes, train_prototypes])
+print('after after:')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False)
 
 
 
-from sklearn.cluster import KMeans
 
-kmeans_protos = []
-kmeans = KMeans(n_clusters=2, random_state=0, init=aug_prototypes[:2], max_iter=5).fit(train_embs[0])
-kmeans_protos.append(kmeans.cluster_centers_)
-kmeans = KMeans(n_clusters=2, random_state=0, init=aug_prototypes[2:], max_iter=5).fit(train_embs[1])
-kmeans_protos.append(kmeans.cluster_centers_)
+# from sklearn.cluster import KMeans
 
-kmeans_protos = np.concatenate(kmeans_protos)
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=kmeans_protos)
+# kmeans_protos = []
+# kmeans = KMeans(n_clusters=3, random_state=0, init=aug_prototypes[:2], max_iter=5).fit(train_embs[0])
+# kmeans_protos.append(kmeans.cluster_centers_)
+# kmeans = KMeans(n_clusters=3, random_state=0, init=aug_prototypes[2:], max_iter=5).fit(train_embs[1])
+# kmeans_protos.append(kmeans.cluster_centers_)
+
+# kmeans_protos = np.concatenate(kmeans_protos)
+# print('kmeans:')
+# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=kmeans_protos)
 
 
