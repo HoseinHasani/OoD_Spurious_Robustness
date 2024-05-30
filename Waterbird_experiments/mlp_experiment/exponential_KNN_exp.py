@@ -10,12 +10,12 @@ warnings.filterwarnings("ignore")
 
 normalize_embs = True
 
-k_values = [0, 7, 40, 110]
+alpha_values = [0.003, 0.01, 0.06, 0.12]
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[1]
+backbone = backbones[2]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
-resnet_type = resnet_types[1]
+resnet_type = resnet_types[0]
 
 core_class_names = ['0', '1']
 ood_class_names = ['0', '1']
@@ -122,6 +122,11 @@ def get_nn_distances(targets, sources):
         dists.append(np.sort(dists_)[:100])
         
     return np.array(dists)
+
+def get_nn_probs(dists, alpha=1.):
+    probs = np.exp(-1 * alpha * dists)
+    return probs
+
     
 def knn_classifier(dists, k=5):
     preds = []
@@ -142,7 +147,7 @@ test_dict_list = get_class_dicts(test_dict)
 
 print('K-NN accuracy:')
 
-test_knn_dists = {k: [] for k in k_values}
+test_probs = {alpha: [] for alpha in alpha_values}
 for key in test_dict.keys():
     
     targets = test_dict[key]
@@ -154,35 +159,41 @@ for key in test_dict.keys():
         dists.append(get_nn_distances(targets, sources))
     dists = np.array(dists)
     knn_accs = []
-    for k in k_values:
-        preds, knn_dists_ = knn_classifier(dists, k)
-        test_knn_dists[k].append(knn_dists_)
+    for alpha in alpha_values:
+        probs = get_nn_probs(dists, alpha).sum(-1)
+        preds = np.argmax(probs, axis=0)
+        probs = np.min(probs, axis=0)
+        test_probs[alpha].append(probs)
         knn_accs.append(accuracy_score(labels, preds))
     
     print(key, np.round(knn_accs, 5))
 
-test_knn_dists = {k: np.concatenate(test_knn_dists[k]) for k in k_values}
+test_probs = {k: np.concatenate(test_probs[alpha]) for k in alpha_values}
 
 ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
 
 
-ood_knn_dists = {k: [] for k in k_values}
+ood_probs = {alpha: [] for alpha in alpha_values}
 
 dists = []
 for c in range(len(train_dict_list)):
     sources = np.concatenate([train_dict_list[c][kk] for kk in train_dict_list[c].keys()])
     dists.append(get_nn_distances(ood_embs, sources))
 dists = np.array(dists)
-for k in k_values:
-    preds, knn_dists_ = knn_classifier(dists, k)
-    ood_knn_dists[k].append(knn_dists_)
 
-ood_knn_dists = {k: np.concatenate(ood_knn_dists[k]) for k in k_values}
+for alpha in alpha_values:
+    probs = get_nn_probs(dists, alpha).sum(-1)
+    preds = np.argmax(probs, axis=0)
+    probs = np.min(probs, axis=0)
+    test_probs[alpha].append(probs)
+
+ood_probs = {alpha: np.concatenate(ood_probs[alpha]) for alpha in alpha_values}
 
 
 print('OOD:')
-for k in k_values:
-    print(backbone, normalize_embs, k)
-    dist_utils.calc_ROC_with_dists(test_knn_dists[k], ood_knn_dists[k])
+for alpha in alpha_values:
+    print(backbone, normalize_embs, alpha)
+    max_val = max(np.max(test_probs[alpha], np.max(ood_probs[alpha])))
+    dist_utils.calc_ROC_with_dists(max_val - test_probs[alpha], max_val - ood_probs[alpha])
 
 
