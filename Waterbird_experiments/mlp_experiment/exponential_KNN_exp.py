@@ -10,7 +10,7 @@ warnings.filterwarnings("ignore")
 
 normalize_embs = True
 
-alpha_values = [0.003, 0.01, 0.06, 0.12]
+alpha_values = [0.004, 0.04, 0.12, 0.9, 3.4, 7.7]
 
 backbones = ['dino', 'res50', 'res18']
 backbone = backbones[2]
@@ -115,11 +115,11 @@ def plot_dict_hist(dict_data, fig_name):
     plt.hist(data, 100, histtype='step', linewidth=1.5, label=fig_name)
     plt.legend()
 
-def get_nn_distances(targets, sources):
+def get_nn_distances(targets, sources, n=400):
     dists = []
     for target in targets:
         dists_ = [np.linalg.norm(source - target) for source in sources]
-        dists.append(np.sort(dists_)[:100])
+        dists.append(np.sort(dists_)[:n])
         
     return np.array(dists)
 
@@ -162,13 +162,13 @@ for key in test_dict.keys():
     for alpha in alpha_values:
         probs = get_nn_probs(dists, alpha).sum(-1)
         preds = np.argmax(probs, axis=0)
-        probs = np.min(probs, axis=0)
+        probs = np.max(probs, axis=0)
         test_probs[alpha].append(probs)
         knn_accs.append(accuracy_score(labels, preds))
     
-    print(key, np.round(knn_accs, 5))
+    print(key, np.round(knn_accs, 4))
 
-test_probs = {k: np.concatenate(test_probs[alpha]) for k in alpha_values}
+test_probs = {alpha: np.concatenate(test_probs[alpha]) for alpha in alpha_values}
 
 ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
 
@@ -184,8 +184,8 @@ dists = np.array(dists)
 for alpha in alpha_values:
     probs = get_nn_probs(dists, alpha).sum(-1)
     preds = np.argmax(probs, axis=0)
-    probs = np.min(probs, axis=0)
-    test_probs[alpha].append(probs)
+    probs = np.max(probs, axis=0)
+    ood_probs[alpha].append(probs)
 
 ood_probs = {alpha: np.concatenate(ood_probs[alpha]) for alpha in alpha_values}
 
@@ -193,7 +193,8 @@ ood_probs = {alpha: np.concatenate(ood_probs[alpha]) for alpha in alpha_values}
 print('OOD:')
 for alpha in alpha_values:
     print(backbone, normalize_embs, alpha)
-    max_val = max(np.max(test_probs[alpha], np.max(ood_probs[alpha])))
-    dist_utils.calc_ROC_with_dists(max_val - test_probs[alpha], max_val - ood_probs[alpha])
+    max_val = max(np.max(test_probs[alpha]), np.max(ood_probs[alpha]))
+    dist_utils.calc_ROC_with_dists(max_val - test_probs[alpha],
+                                   max_val - ood_probs[alpha], plot=True)
 
 
