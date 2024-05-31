@@ -11,7 +11,7 @@ normalize_embs = True
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[0]
+backbone = backbones[2]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -136,6 +136,15 @@ def plot_dict_hist(dict_data, fig_name):
     plt.hist(data, 100, histtype='step', linewidth=1.5, label=fig_name)
     plt.legend()
 
+def extract_prototypes(embs, th=0.8):
+    embs = np.array(embs)
+    prototype = embs.mean(0)
+    dists = np.linalg.norm(embs - prototype, axis=-1)
+    th_val = np.sort(dists)[int(len(dists) * th)]
+    valid_inds = np.argwhere(dists < th_val).ravel()
+    final_prototype = embs[valid_inds].mean(0)
+    return final_prototype
+    
     
 core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_dict)
 print('ax correlation: ', np.dot(core_ax, sp_ax))
@@ -185,14 +194,15 @@ total_misc_inds = np.argwhere(y_hat_train != y_train).ravel()
 total_crr_inds = np.argwhere(y_hat_train == y_train).ravel()
 
 aug_prototypes = []
-
+aug_embs = []
 for l in [0, 1]:
     class_inds = np.argwhere(y_train == l).ravel()
     class_miss_inds = np.intersect1d(class_inds, total_misc_inds, assume_unique=True)
     aug_prototypes.append(x_train[class_miss_inds].mean(0))
+    aug_embs.append(x_train[class_miss_inds])
     class_crr_inds = np.intersect1d(class_inds, total_crr_inds, assume_unique=True)
     aug_prototypes.append(x_train[class_crr_inds].mean(0))
-    
+    aug_embs.append(x_train[class_crr_inds])
     
 aug_prototypes = np.array(aug_prototypes)
 print('after:')
@@ -205,16 +215,34 @@ dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False)
 
 
 
-# from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans
 
-# kmeans_protos = []
-# kmeans = KMeans(n_clusters=3, random_state=0, init=aug_prototypes[:2], max_iter=5).fit(train_embs[0])
-# kmeans_protos.append(kmeans.cluster_centers_)
-# kmeans = KMeans(n_clusters=3, random_state=0, init=aug_prototypes[2:], max_iter=5).fit(train_embs[1])
-# kmeans_protos.append(kmeans.cluster_centers_)
+n_cluster = 4
+kmeans_protos = []
 
-# kmeans_protos = np.concatenate(kmeans_protos)
-# print('kmeans:')
-# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=kmeans_protos)
+def propose_centers(embeddings):
+    centers = []
+    for embs in embeddings:
+        for j in range(n_cluster):
+            mean = embs.mean(0)
+            std = embs.std(0)
+            if j == 0:
+                centers.append(mean)
+            else:
+                centers.append(np.random.normal(mean, std / 0.2))
+    return centers
+
+class1_protos = propose_centers(aug_embs[:2])
+kmeans = KMeans(n_clusters=n_cluster*2, random_state=0, init=class1_protos, max_iter=15).fit(train_embs[0])
+kmeans_protos.append(kmeans.cluster_centers_)
+
+class2_protos = propose_centers(aug_embs[2:])
+kmeans = KMeans(n_clusters=n_cluster*2, random_state=0, init=class2_protos, max_iter=15).fit(train_embs[1])
+kmeans_protos.append(kmeans.cluster_centers_)
+
+kmeans_protos = np.concatenate(kmeans_protos)
+aug_prototypes = np.concatenate([aug_prototypes, kmeans_protos])
+print('kmeans:')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes)
 
 
