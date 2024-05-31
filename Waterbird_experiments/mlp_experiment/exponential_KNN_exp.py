@@ -10,10 +10,10 @@ warnings.filterwarnings("ignore")
 
 normalize_embs = True
 
-alpha_values = [0.004, 0.04, 0.12, 0.9, 3.4, 7.7]
+alpha_values = [0.01, 0.12, 2.4, 7.7, 22]
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[2]
+backbone = backbones[0]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -124,7 +124,7 @@ def get_nn_distances(targets, sources, n=400):
     return np.array(dists)
 
 def get_nn_probs(dists, alpha=1.):
-    probs = np.exp(-1 * alpha * dists)
+    probs = np.exp(-1 * alpha * np.square(dists))
     return probs
 
     

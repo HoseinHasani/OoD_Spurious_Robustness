@@ -112,6 +112,56 @@ def get_axis(embeddings):
     
     return core_ax, sp_ax, core_ax_norm, sp_ax_norm
 
+def calculate_covariance_matrix(data):
+    mean_vector = np.mean(data, axis=0)
+    covariance_matrix = np.cov(data - mean_vector, rowvar=False)
+    return covariance_matrix
+
+def balance_groups_oversample(group1, group2):
+    size = max(len(group1), len(group2))
+    if len(group1) < size:
+        group1 = group1[np.random.choice(len(group1), size, replace=True)]
+    if len(group2) < size:
+        group2 = group2[np.random.choice(len(group2), size, replace=True)]
+    return group1, group2
+
+def balance_groups_undersample(group1, group2):
+    size = min(len(group1), len(group2))
+    if len(group1) > size:
+        group1 = group1[np.random.choice(len(group1), size, replace=False)]
+    if len(group2) > size:
+        group2 = group2[np.random.choice(len(group2), size, replace=False)]
+    return group1, group2
+
+def combine_covariances(core_cov1, core_cov2, spurious_cov1, spurious_cov2):
+    core_cov = (core_cov1 + core_cov2) / 2
+    spurious_cov = (spurious_cov1 + spurious_cov2) / 2
+
+    spurious_cov_inv = np.linalg.inv(spurious_cov + np.eye(spurious_cov.shape[0]) * 1e-5)  # Add small value to diagonal for numerical stability
+    final_cov_matrix = core_cov @ spurious_cov_inv
+    
+    return final_cov_matrix
+
+def calculate_final_cov_matrix(maj1, min1, maj2, min2):
+
+    maj1_balanced, min2_balanced = balance_groups_oversample(maj1, min2)
+    core_cov1 = calculate_covariance_matrix(np.concatenate((maj1_balanced, min2_balanced), axis=0))
+
+    maj2_balanced, min1_balanced = balance_groups_oversample(maj2, min1)
+    core_cov2 = calculate_covariance_matrix(np.concatenate((maj2_balanced, min1_balanced), axis=0))
+
+
+    maj1_balanced, min1_balanced = balance_groups_oversample(maj1, min1)
+    spurious_cov1 = calculate_covariance_matrix(np.concatenate((maj1_balanced, min1_balanced), axis=0))
+
+    maj2_balanced, min2_balanced = balance_groups_oversample(maj2, min2)
+    spurious_cov2 = calculate_covariance_matrix(np.concatenate((maj2_balanced, min2_balanced), axis=0))
+
+
+    final_cov_matrix = combine_covariances(core_cov1, core_cov2, spurious_cov1, spurious_cov2)
+    return final_cov_matrix
+
+
 
 
 def get_class_dicts(input_dict):
@@ -185,15 +235,22 @@ total_misc_inds = np.argwhere(y_hat_train != y_train).ravel()
 total_crr_inds = np.argwhere(y_hat_train == y_train).ravel()
 
 aug_prototypes = []
+group_embs = []
 
 for l in [0, 1]:
     class_inds = np.argwhere(y_train == l).ravel()
     class_miss_inds = np.intersect1d(class_inds, total_misc_inds, assume_unique=True)
     aug_prototypes.append(x_train[class_miss_inds].mean(0))
+    group_embs.append(x_train[class_miss_inds])
     class_crr_inds = np.intersect1d(class_inds, total_crr_inds, assume_unique=True)
     aug_prototypes.append(x_train[class_crr_inds].mean(0))
+    group_embs.append(x_train[class_crr_inds])
     
-    
+min1, maj1, min2, maj2 = group_embs
+
+cov_matrix = calculate_final_cov_matrix(maj1, min1, maj2, min2)
+
+
 aug_prototypes = np.array(aug_prototypes)
 print('after:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False)
