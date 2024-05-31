@@ -82,7 +82,16 @@ def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False, prototypes=N
             for key in embs_dict.keys():
                 p_dist_vals = []
                 for p in range(len(prototypes)):
-                    dist_vals = calc_euc_dist(embs_dict[key], prototypes[p], cov)
+                    
+                    if cov is None:
+                        cov_ = cov
+                    else:
+                        if cov.ndim == 2:
+                            cov_ = cov.copy()
+                        else:
+                            cov_ = cov[p].copy()
+                        
+                    dist_vals = calc_euc_dist(embs_dict[key], prototypes[p], cov_)
                     
                     if embs_std_dict is not None:
                         dist_vals = dist_vals * (0.001 + embs_std_dict[key])
@@ -125,7 +134,16 @@ def get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std=None,
             
             p_dist_vals = []
             for p in range(len(prototypes)):
-                dist_vals_ = calc_euc_dist(ood_embs, prototypes[p], cov)
+                
+                if cov is None:
+                    cov_ = cov
+                else:
+                    if cov.ndim == 2:
+                        cov_ = cov.copy()
+                    else:
+                        cov_ = cov[p].copy()
+                        
+                dist_vals_ = calc_euc_dist(ood_embs, prototypes[p], cov_)
                 
                 if ood_embs_std is not None:
                     

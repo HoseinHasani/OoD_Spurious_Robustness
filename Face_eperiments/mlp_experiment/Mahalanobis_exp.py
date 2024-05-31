@@ -8,7 +8,7 @@ import pickle
 
 warnings.filterwarnings("ignore")
 
-normalize_embs = False
+normalize_embs = True
 
 
 backbones = ['dino', 'res50', 'res18']
@@ -82,7 +82,21 @@ def get_axis(embeddings):
 def calculate_covariance_matrix(data):
     mean_vector = np.mean(data, axis=0)
     covariance_matrix = np.cov(data - mean_vector, rowvar=False)
+    alpha = 0.002 * np.mean(np.diag(covariance_matrix))
+    covariance_matrix = covariance_matrix + alpha * np.eye(data.shape[1])
     return covariance_matrix
+
+def balance_4groups_oversample(group1, group2, group3, group4):
+    size = max(len(group1), len(group2), len(group3), len(group4))
+    if len(group1) < size:
+        group1 = group1[np.random.choice(len(group1), size, replace=True)]
+    if len(group2) < size:
+        group2 = group2[np.random.choice(len(group2), size, replace=True)]
+    if len(group3) < size:
+        group3 = group3[np.random.choice(len(group3), size, replace=True)]
+    if len(group4) < size:
+        group4 = group4[np.random.choice(len(group4), size, replace=True)]
+    return group1, group2, group3, group4
 
 def balance_groups_oversample(group1, group2):
     size = max(len(group1), len(group2))
@@ -225,6 +239,33 @@ print('mahalanobis(spurious cov), before:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, cov=sp_cov)
 
 
+g1, g2, g3, g4 = balance_4groups_oversample(maj1, min1, maj2, min2)
+total_cov = calculate_covariance_matrix(np.concatenate([g1, g2, g3, g4]))
+print('mahalanobis(total cov), before:')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, cov=total_cov)
+
+total_cov = calculate_covariance_matrix(np.concatenate([train_embs[0], train_embs[1]]))
+print('mahalanobis(total cov 2), before:')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, cov=total_cov)
+
+
+class_cov1 = calculate_covariance_matrix(train_embs[0])
+class_cov2 = calculate_covariance_matrix(train_embs[1])
+class_cov = 0.5 * class_cov1 + 0.5 * class_cov2
+
+print('mahalanobis(class cov), before:')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, cov=class_cov)
+
+print('mahalanobis(class cov 2), before:')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes,
+                    cov=np.array([class_cov1, class_cov2]))
+
+groups = [min1, maj1, min2, maj2]
+g_covs = [calculate_covariance_matrix(g) for g in groups]
+
+print('mahalanobis(group cov), after:')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes,
+                    cov=np.array(g_covs))
 
 aug_prototypes = np.array(aug_prototypes)
 print('after:')
