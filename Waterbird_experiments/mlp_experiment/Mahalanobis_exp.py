@@ -133,18 +133,18 @@ def balance_groups_undersample(group1, group2):
         group2 = group2[np.random.choice(len(group2), size, replace=False)]
     return group1, group2
 
-def combine_covariances(core_cov1, core_cov2, spurious_cov1, spurious_cov2):
+def combine_covariances(core_cov1, core_cov2, sp_cov1, sp_cov2):
     core_cov = (core_cov1 + core_cov2) / 2
-    spurious_cov = (spurious_cov1 + spurious_cov2) / 2
+    sp_cov = (sp_cov1 + sp_cov2) / 2
 
-    spurious_cov_inv = np.linalg.inv(spurious_cov + np.eye(spurious_cov.shape[0]) * 1e-5)  # Add small value to diagonal for numerical stability
-    final_cov_matrix = core_cov @ spurious_cov_inv
+    sp_cov_inv = np.linalg.inv(sp_cov + np.eye(sp_cov.shape[0]) * 1e-3)  # Add small value to diagonal for numerical stability
+    final_cov_matrix = core_cov @ sp_cov_inv
     
-    return final_cov_matrix
+    return core_cov, sp_cov, final_cov_matrix
 
 def calculate_final_cov_matrix(maj1, min1, maj2, min2):
 
-    maj1_balanced, min2_balanced = balance_groups_oversample(maj1, min2)
+    maj1_balanced, min2_balanced = balance_groups_undersample(maj1, min2)
     core_cov1 = calculate_covariance_matrix(np.concatenate((maj1_balanced, min2_balanced), axis=0))
 
     maj2_balanced, min1_balanced = balance_groups_oversample(maj2, min1)
@@ -152,14 +152,14 @@ def calculate_final_cov_matrix(maj1, min1, maj2, min2):
 
 
     maj1_balanced, min1_balanced = balance_groups_oversample(maj1, min1)
-    spurious_cov1 = calculate_covariance_matrix(np.concatenate((maj1_balanced, min1_balanced), axis=0))
+    sp_cov1 = calculate_covariance_matrix(np.concatenate((maj1_balanced, min1_balanced), axis=0))
 
     maj2_balanced, min2_balanced = balance_groups_oversample(maj2, min2)
-    spurious_cov2 = calculate_covariance_matrix(np.concatenate((maj2_balanced, min2_balanced), axis=0))
+    sp_cov2 = calculate_covariance_matrix(np.concatenate((maj2_balanced, min2_balanced), axis=0))
 
 
-    final_cov_matrix = combine_covariances(core_cov1, core_cov2, spurious_cov1, spurious_cov2)
-    return final_cov_matrix
+    core_cov, sp_cov, final_cov_matrix = combine_covariances(core_cov1, core_cov2, sp_cov1, sp_cov2)
+    return core_cov, sp_cov, final_cov_matrix
 
 
 
@@ -220,7 +220,7 @@ print('OOD:')
 print('before:')
 #dist_utils.calc_ROC(test_dict_list[0], ood_embs, prototypes=train_dict_list[0])
 #dist_utils.calc_ROC(test_dict_list[1], ood_embs, prototypes=train_dict_list[1])
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=False)
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, cov=None)
 
 
 x_train = np.concatenate(train_embs)
@@ -248,16 +248,24 @@ for l in [0, 1]:
     
 min1, maj1, min2, maj2 = group_embs
 
-cov_matrix = calculate_final_cov_matrix(maj1, min1, maj2, min2)
+core_cov, sp_cov, cov_matrix = calculate_final_cov_matrix(maj1, min1, maj2, min2)
+
+print('mahalanobis(final cov), before:')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, cov=cov_matrix)
+print('mahalanobis(core cov), before:')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, cov=core_cov)
+print('mahalanobis(spurious cov), before:')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, cov=sp_cov)
+
 
 
 aug_prototypes = np.array(aug_prototypes)
 print('after:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False)
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, cov=None)
 
 aug_prototypes = np.concatenate([aug_prototypes, train_prototypes])
 print('after after:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False)
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, cov=None)
 
 
 
