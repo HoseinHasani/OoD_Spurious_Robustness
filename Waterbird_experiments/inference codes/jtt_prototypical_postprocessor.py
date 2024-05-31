@@ -10,9 +10,9 @@ from .base_postprocessor import BasePostprocessor
 
 
 
-class PrototypicalPostprocessor(BasePostprocessor):
+class JTTPrototypicalPostprocessor(BasePostprocessor):
     def __init__(self, config):
-        super(PrototypicalPostprocessor, self).__init__(config)
+        super(JTTPrototypicalPostprocessor, self).__init__(config)
         self.args = self.config.postprocessor.postprocessor_args
         self.activation_log = None
         self.args_dict = self.config.postprocessor.postprocessor_sweep
@@ -23,6 +23,30 @@ class PrototypicalPostprocessor(BasePostprocessor):
         self.train_labels = None
         self.train_feats = None
 
+    def perform_classification(self):
+        
+        train_prototypes = np.array(self.train_prototypes.copy())
+        x_train = np.array(self.train_feats.copy())
+        y_train = np.array(self.train_labels)
+        dists = np.linalg.norm(x_train[..., None] - train_prototypes.T[None], axis=1)
+        y_hat_train = np.argmin(dists, -1)  
+        
+        
+        total_misc_inds = np.argwhere(y_hat_train != y_train).ravel()
+        total_crr_inds = np.argwhere(y_hat_train == y_train).ravel()
+        
+        aug_prototypes = []
+        aug_embs = []
+        for l in np.unique(y_train):
+            class_inds = np.argwhere(y_train == l).ravel()
+            class_miss_inds = np.intersect1d(class_inds, total_misc_inds, assume_unique=True)
+            aug_prototypes.append(x_train[class_miss_inds].mean(0))
+            aug_embs.append(x_train[class_miss_inds])
+            class_crr_inds = np.intersect1d(class_inds, total_crr_inds, assume_unique=True)
+            aug_prototypes.append(x_train[class_crr_inds].mean(0))
+            aug_embs.append(x_train[class_crr_inds])
+            
+        self.train_prototypes.extend(aug_prototypes)
         
         
     def setup(self, net: nn.Module, id_loader_dict, ood_loader_dict):
@@ -57,6 +81,7 @@ class PrototypicalPostprocessor(BasePostprocessor):
             self.train_embs.append(train_emb)
             self.train_prototypes.append(train_emb.mean(0))
             
+        self.perform_classification()
         self.setup_flag = True
 
     @torch.no_grad()
