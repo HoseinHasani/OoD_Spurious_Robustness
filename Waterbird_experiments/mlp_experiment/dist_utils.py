@@ -205,14 +205,14 @@ def calc_ROC(embs_dict, ood_embs,
     pred = pred.max() - pred
     
     fps, tps, thresholds = metrics.roc_curve(y, pred)
-    fps = np.concatenate([[0], fps, [1]])
-    tps = np.concatenate([[0], tps, [1]])
+    # fps = np.concatenate([[0], fps, [1]])
+    # tps = np.concatenate([[0], tps, [1]])
     
     auc_val = np.round(metrics.auc(fps, tps), 4)
     
     precs, recs, thresholds = metrics.precision_recall_curve(y, pred)
-    precs = np.concatenate([[0], precs, [1]])
-    recs = np.concatenate([[1], recs, [0]])
+    # precs = np.concatenate([[0], precs, [1]])
+    # recs = np.concatenate([[1], recs, [0]])
     
     aupr_val = np.round(metrics.auc(np.sort(precs), recs), 4)
     
