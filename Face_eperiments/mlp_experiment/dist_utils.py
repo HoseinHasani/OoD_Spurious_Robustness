@@ -1,11 +1,28 @@
 import numpy as np
 from sklearn import metrics
 import matplotlib.pyplot as plt
+from scipy.spatial.distance import mahalanobis
 
 
-def calc_euc_dist(embs, prototypes):
-    euc_dist = np.linalg.norm(embs - prototypes, axis=-1)
-    return euc_dist
+def calculate_mahalanobis_distance(sample, prototype, inv_cov_matrix):
+    distance = mahalanobis(sample, prototype, inv_cov_matrix)
+    return distance
+
+
+def calc_euc_dist(embs, prototypes, cov=None):
+    if cov is None:
+        dist = np.linalg.norm(embs - prototypes, axis=-1)
+    else:
+        inv_cov_matrix = np.linalg.inv(cov)
+        dist = np.zeros(len(embs))
+        for i in range(len(embs)):
+            dist[i] = calculate_mahalanobis_distance(embs[i], prototypes, inv_cov_matrix)
+        
+        nan_inds = np.argwhere(np.isnan(dist)).ravel()
+        max_val = dist[np.argwhere(~np.isnan(dist)).ravel()].max()
+        dist[nan_inds] = max_val
+        
+    return dist
 
 def calc_dists_ratio(ind_dict, ood_dict):
     
@@ -28,13 +45,14 @@ def calc_dists_ratio(ind_dict, ood_dict):
     
     
     
-def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False, prototypes=None):
+def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False, prototypes=None, cov=None):
         
     all_dist_vals = []
     if known_group:
         for key in embs_dict.keys():
             dist_vals = [calc_euc_dist(embs_dict[key],
-                                      embs_dict[k].mean(0)) for k in embs_dict.keys()]
+                                      embs_dict[k].mean(0),
+                                      cov) for k in embs_dict.keys()]
             
             if embs_std_dict is not None:
                 new_dist_vals = []
@@ -53,7 +71,7 @@ def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False, prototypes=N
             prototype = embs_dict_all.mean(0)
             
             for key in embs_dict.keys():
-                dist_vals = calc_euc_dist(embs_dict[key], prototype)
+                dist_vals = calc_euc_dist(embs_dict[key], prototype, cov)
                 
                 if embs_std_dict is not None:
                     dist_vals = dist_vals * (0.001 + embs_std_dict[key])
@@ -64,7 +82,7 @@ def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False, prototypes=N
             for key in embs_dict.keys():
                 p_dist_vals = []
                 for p in range(len(prototypes)):
-                    dist_vals = calc_euc_dist(embs_dict[key], prototypes[p])
+                    dist_vals = calc_euc_dist(embs_dict[key], prototypes[p], cov)
                     
                     if embs_std_dict is not None:
                         dist_vals = dist_vals * (0.001 + embs_std_dict[key])
@@ -76,10 +94,11 @@ def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False, prototypes=N
     return np.concatenate(all_dist_vals)
     
 
-def get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std=None, known_group=False, prototypes=None):
+def get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std=None,
+                      known_group=False, prototypes=None, cov=None):
     
     if known_group:
-        dist_vals = [calc_euc_dist(ood_embs, embs_dict[k].mean(0)) for k in embs_dict.keys()]
+        dist_vals = [calc_euc_dist(ood_embs, embs_dict[k].mean(0), cov) for k in embs_dict.keys()]
         
         if ood_embs_std is not None:
             new_dist_vals = []
@@ -96,7 +115,7 @@ def get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std=None, known_group=False,
             embs_dict_all = np.concatenate([embs_dict[k] for k in embs_dict.keys()])
             prototype = embs_dict_all.mean(0)
             
-            dist_vals = calc_euc_dist(ood_embs, prototype)
+            dist_vals = calc_euc_dist(ood_embs, prototype, cov)
             
             if ood_embs_std is not None:
                 
@@ -106,7 +125,7 @@ def get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std=None, known_group=False,
             
             p_dist_vals = []
             for p in range(len(prototypes)):
-                dist_vals_ = calc_euc_dist(ood_embs, prototypes[p])
+                dist_vals_ = calc_euc_dist(ood_embs, prototypes[p], cov)
                 
                 if ood_embs_std is not None:
                     
@@ -127,13 +146,16 @@ def find_thresh_val(main_vals, th=0.95):
 
 def calc_ROC(embs_dict, ood_embs,
              embs_std_dict=None, ood_embs_std=None, prototypes=None,
-             known_group=False, plot=False):
+             known_group=False, plot=False, cov=None):
         
         
-    ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std, known_group, prototypes=prototypes)
+    ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std, known_group, prototypes=prototypes, cov=cov)
+    
+    ind_dists = get_dist_vals(embs_dict, embs_std_dict, known_group, prototypes=prototypes, cov=cov)
 
-    ind_dists = get_dist_vals(embs_dict, embs_std_dict, known_group, prototypes=prototypes)
-
+    # ind_embs = np.concatenate([embs_dict[key] for key in embs_dict.keys()])
+    # ood_dists = np.concatenate([np.linalg.norm(ood_embs - prototypes[k][None], axis=-1) for k in range(len(prototypes))])
+    # ind_dists = np.concatenate([np.linalg.norm(ind_embs - prototypes[k][None], axis=-1) for k in range(len(prototypes))])
             
     thresh = find_thresh_val(ind_dists)
     err = ood_dists[ood_dists < thresh].shape[0] / ood_dists.shape[0]
@@ -176,9 +198,9 @@ def calc_ROC(embs_dict, ood_embs,
     
     aupr_val = np.round(metrics.auc(np.sort(precs), recs), 4)
     
-    print('****** metrics 1 ******')
-    print('auc: ', auc_val, 'aupr:', aupr_val)
-    print('****** metrics 2 ******')
+    # print('****** metrics 1 ******')
+    # print('auc: ', auc_val, 'aupr:', aupr_val)
+    # print('****** metrics 2 ******')
     print('auc: ', np.round(metrics.roc_auc_score(y, pred), 4),
           'aupr:', np.round(metrics.average_precision_score(y, pred), 4))
     
@@ -202,7 +224,7 @@ def calc_ROC(embs_dict, ood_embs,
     
     print('95-percent err: ', np.round(100 * err, 3))
     
-    print('***********************')
+    # print('***********************')
     print()
     
     
