@@ -228,13 +228,12 @@ aug_prototypes = np.concatenate([aug_prototypes, train_prototypes])
 print('after after:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False)
 
-inds1 = [0, 1, 4]
-inds2 = [2, 3, 5]
-
-aug_prototypes2 = [aug_prototypes[inds1].mean(0), aug_prototypes[inds2].mean(0)]
-print('after after2:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False)
-
+group_covs = []
+for embs in aug_embs:
+    cov = calculate_covariance_matrix(embs)
+    group_covs.append(cov)
+    
+    
 
 
 
