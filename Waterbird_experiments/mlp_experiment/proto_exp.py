@@ -11,7 +11,7 @@ normalize_embs = True
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[1]
+backbone = backbones[2]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -144,6 +144,27 @@ def extract_prototypes(embs, th=0.8):
     valid_inds = np.argwhere(dists < th_val).ravel()
     final_prototype = embs[valid_inds].mean(0)
     return final_prototype
+
+def refine_group_prototypes(group_embs):
+    all_embs = np.concatenate(group_embs)
+    print(group_embs[0].shape, group_embs[1].shape)
+    first_prototypes = [embs.mean(0) for embs in group_embs]
+    first_prototypes = np.array(first_prototypes)
+    
+    dists = np.linalg.norm(all_embs[..., None] - first_prototypes.T[None], axis=1)
+    labels = np.argmin(dists, axis=1)
+    new_embs = []
+    for l in np.unique(labels):
+        inds = np.argwhere(labels == l).ravel()
+        new_embs.append(all_embs[inds])
+
+    print(new_embs[0].shape, new_embs[1].shape)   
+    print()
+    
+    new_prototypes = [embs.mean(0) for embs in new_embs]
+    
+    return new_prototypes
+    
     
     
 core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_dict)
@@ -204,9 +225,17 @@ for l in [0, 1]:
     aug_prototypes.append(x_train[class_crr_inds].mean(0))
     aug_embs.append(x_train[class_crr_inds])
     
+refined_prototypes = []
+
+refined_prototypes.extend(refine_group_prototypes(aug_embs[:2]))
+refined_prototypes.extend(refine_group_prototypes(aug_embs[2:]))
+
 aug_prototypes = np.array(aug_prototypes)
 print('after:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False)
+
+print('after (refined):')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes, plot=False)
 
 aug_prototypes = np.array(aug_prototypes)
 aug_prototypes2 = [aug_prototypes[:2].mean(0), aug_prototypes[2:].mean(0)]
