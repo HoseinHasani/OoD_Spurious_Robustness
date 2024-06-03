@@ -11,7 +11,7 @@ normalize_embs = True
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[1]
+backbone = backbones[2]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -158,6 +158,13 @@ def calculate_covariance_matrix(data):
     covariance_matrix = covariance_matrix + alpha * np.eye(data.shape[1])
     return covariance_matrix
 
+def compute_scatter_matrix(prototype1, prototype2):
+    mean_prototype = (prototype1 + prototype2) / 2
+    scatter_matrix1 = np.outer(prototype1 - mean_prototype, prototype1 - mean_prototype)
+    scatter_matrix2 = np.outer(prototype2 - mean_prototype, prototype2 - mean_prototype)
+    scatter_matrix = scatter_matrix1 + scatter_matrix2
+    return scatter_matrix
+
     
 print()
 dist_utils.calc_dists_ratio(train_dict, ood_dict)
@@ -224,16 +231,176 @@ print('after2:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False)
 
 
-aug_prototypes = np.concatenate([aug_prototypes, train_prototypes])
-print('after after:')
+
+
+sp_scatter1 = compute_scatter_matrix(aug_prototypes[0], aug_prototypes[1])
+sp_scatter2 = compute_scatter_matrix(aug_prototypes[2], aug_prototypes[3])
+core_scatter1 = compute_scatter_matrix(aug_prototypes[0], aug_prototypes[3])
+core_scatter2 = compute_scatter_matrix(aug_prototypes[1], aug_prototypes[2])
+
+sp_scatter = sp_scatter1 + sp_scatter2
+core_scatter = core_scatter1 + core_scatter2
+
+
+def LDA_projection(within_class_scatter,
+                   between_class_scatter,
+                   k=500, regularization=1e-6):
+    within_class_scatter += np.eye(within_class_scatter.shape[0]) * regularization
+    
+    inv_within_class_scatter = np.linalg.inv(within_class_scatter)
+    
+    sw_inv_sb = np.dot(inv_within_class_scatter, between_class_scatter)
+    eigenvalues, eigenvectors = np.linalg.eig(sw_inv_sb)
+
+    eigenvalues = np.real(eigenvalues)
+    eigenvectors = np.real(eigenvectors)
+    
+    sorted_indices = np.argsort(eigenvalues)[::-1]
+    #sorted_eigenvalues = eigenvalues[sorted_indices]
+    sorted_eigenvectors = eigenvectors[:, sorted_indices]
+    
+    projection_matrix = sorted_eigenvectors[:, :k]
+    
+    return projection_matrix
+
+
+proj_mat = LDA_projection(sp_scatter, core_scatter)
+
+
+def project_data(projection_matrix, data):
+    transformed_data = np.dot(data, projection_matrix)
+    return transformed_data
+
+
+if backbone == 'dino':
+    in_data_embs0 = np.load(data_path + 'waterbird_embs_DINO.npy', allow_pickle=True).item()
+else:
+    in_data_embs0 = np.load(data_path + f'wb_embs_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
+
+ood_embs0 = {}
+if backbone == 'dino':
+    dict_ = np.load(data_path + 'OOD_land_DINO_eval.npy', allow_pickle=True).item()
+else:
+    dict_ = np.load(data_path + f'OOD_land_{backbone}_eval.npy', allow_pickle=True).item()
+    
+ood_embs0['0'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
+
+if backbone == 'dino':
+    dict_ = np.load(data_path + 'OOD_water_DINO_eval.npy', allow_pickle=True).item()
+else:
+    dict_ = np.load(data_path + f'OOD_water_{backbone}_eval.npy', allow_pickle=True).item()
+ood_embs0['1'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
+
+grouped_embs0 = {}
+grouped_embs_train0 = {}
+
+for key in in_data_embs0.keys():
+    emb = in_data_embs0[key].squeeze()
+    label = key[0]
+    place = key[2]
+    split = key[4]
+    name = f'{label}_{place}'
+    
+    if split != '0':
+        if name not in grouped_embs0.keys():
+            grouped_embs0[name] = []
+        
+        grouped_embs0[name].append(emb)
+    else:
+        if name not in grouped_embs_train0.keys():
+            grouped_embs_train0[name] = []
+        
+        grouped_embs_train0[name].append(emb)
+
+grouped_embs0 = {name: np.array(grouped_embs0[name]) for name in grouped_embs0.keys()}
+grouped_embs_train0 = {name: np.array(grouped_embs_train0[name]) for name in grouped_embs_train0.keys()}
+
+
+
+def normalize(x):
+    return x / np.linalg.norm(x, axis=-1, keepdims=True)
+
+
+grouped_embs = {name: grouped_embs0[name] for name in grouped_embs0.keys()}
+grouped_embs_train = {name: grouped_embs_train0[name] for name in grouped_embs_train0.keys()}
+ood_embs = {name: ood_embs0[name] for name in ood_embs0.keys()}
+
+
+if normalize_embs:
+    train_dict = {key: normalize(grouped_embs_train0[key]) for key in grouped_embs_train0.keys()}
+    test_dict = {key: normalize(grouped_embs0[key]) for key in grouped_embs0.keys()}
+    ood_dict = {key: normalize(ood_embs0[key]) for key in ood_embs0.keys()}
+else:
+    train_dict = grouped_embs_train0
+    test_dict = grouped_embs
+    ood_dict = ood_embs0
+
+
+train_dict = {key: project_data(proj_mat, grouped_embs_train0[key]) for key in grouped_embs_train0.keys()}
+test_dict = {key: project_data(proj_mat, grouped_embs0[key]) for key in grouped_embs0.keys()}
+ood_dict = {key: project_data(proj_mat, ood_embs0[key]) for key in ood_embs0.keys()}
+
+    
+print()
+dist_utils.calc_dists_ratio(train_dict, ood_dict)
+dist_utils.calc_dists_ratio(test_dict, ood_dict)
+
+train_dict_list = get_class_dicts(train_dict)
+test_dict_list = get_class_dicts(test_dict)
+
+ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
+
+train_prototypes = []
+train_embs = []
+for data in train_dict_list:
+    all_data = []
+    for key in data.keys():
+        all_data.append(data[key])
+        
+    all_data = np.concatenate(all_data)
+    train_embs.append(all_data)
+    train_prototypes.append(all_data.mean(0))
+
+
+
+#train_prototypes = [train_dict[key].mean(0) for key in train_dict.keys()]
+train_prototypes = np.array(train_prototypes)
+
+print('OOD:')
+print('before:')
+#dist_utils.calc_ROC(test_dict_list[0], ood_embs, prototypes=train_dict_list[0])
+#dist_utils.calc_ROC(test_dict_list[1], ood_embs, prototypes=train_dict_list[1])
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=False)
+
+
+x_train = np.concatenate(train_embs)
+y_train = np.concatenate([np.zeros(len(train_embs[0])), np.ones(len(train_embs[1]))])
+
+
+dists = np.linalg.norm(x_train[..., None] - train_prototypes.T[None], axis=1)
+y_hat_train = np.argmin(dists, -1)  
+
+
+total_misc_inds = np.argwhere(y_hat_train != y_train).ravel()
+total_crr_inds = np.argwhere(y_hat_train == y_train).ravel()
+
+aug_prototypes = []
+aug_embs = []
+for l in [0, 1]:
+    class_inds = np.argwhere(y_train == l).ravel()
+    class_miss_inds = np.intersect1d(class_inds, total_misc_inds, assume_unique=True)
+    aug_prototypes.append(x_train[class_miss_inds].mean(0))
+    aug_embs.append(x_train[class_miss_inds])
+    class_crr_inds = np.intersect1d(class_inds, total_crr_inds, assume_unique=True)
+    aug_prototypes.append(x_train[class_crr_inds].mean(0))
+    aug_embs.append(x_train[class_crr_inds])
+    
+aug_prototypes = np.array(aug_prototypes)
+print('after:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False)
 
-group_covs = []
-for embs in aug_embs:
-    cov = calculate_covariance_matrix(embs)
-    group_covs.append(cov)
-    
-    
-
-
+aug_prototypes = np.array(aug_prototypes)
+aug_prototypes2 = [aug_prototypes[:2].mean(0), aug_prototypes[2:].mean(0)]
+print('after2:')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False)
 
