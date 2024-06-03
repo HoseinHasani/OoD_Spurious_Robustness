@@ -150,6 +150,14 @@ core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_dict)
 print('ax correlation: ', np.dot(core_ax, sp_ax))
 
 
+
+def calculate_covariance_matrix(data):
+    mean_vector = np.mean(data, axis=0)
+    covariance_matrix = np.cov(data - mean_vector, rowvar=False)
+    alpha = 0.01 * np.mean(np.diag(covariance_matrix))
+    covariance_matrix = covariance_matrix + alpha * np.eye(data.shape[1])
+    return covariance_matrix
+
     
 print()
 dist_utils.calc_dists_ratio(train_dict, ood_dict)
@@ -171,6 +179,8 @@ for data in train_dict_list:
     train_embs.append(all_data)
     train_prototypes.append(all_data.mean(0))
 
+
+class_covs = [calculate_covariance_matrix(train_embs[i]) for i in range(2)]
 
 #train_prototypes = [train_dict[key].mean(0) for key in train_dict.keys()]
 train_prototypes = np.array(train_prototypes)
@@ -226,34 +236,5 @@ print('after after2:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False)
 
 
-from sklearn.cluster import KMeans
-
-n_cluster = 4
-kmeans_protos = []
-
-def propose_centers(embeddings):
-    centers = []
-    for embs in embeddings:
-        for j in range(n_cluster):
-            mean = embs.mean(0)
-            std = embs.std(0)
-            if j == 0:
-                centers.append(mean)
-            else:
-                centers.append(np.random.normal(mean, std / 0.2))
-    return centers
-
-class1_protos = propose_centers(aug_embs[:2])
-kmeans = KMeans(n_clusters=n_cluster*2, random_state=0, init=class1_protos, max_iter=15).fit(train_embs[0])
-kmeans_protos.append(kmeans.cluster_centers_)
-
-class2_protos = propose_centers(aug_embs[2:])
-kmeans = KMeans(n_clusters=n_cluster*2, random_state=0, init=class2_protos, max_iter=15).fit(train_embs[1])
-kmeans_protos.append(kmeans.cluster_centers_)
-
-kmeans_protos = np.concatenate(kmeans_protos)
-aug_prototypes = np.concatenate([aug_prototypes, kmeans_protos])
-print('kmeans:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes)
 
 
