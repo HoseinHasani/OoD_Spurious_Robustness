@@ -4,6 +4,7 @@ from sklearn.linear_model import LogisticRegression
 import dist_utils
 import os
 import warnings
+from sklearn.metrics import accuracy_score
 
 warnings.filterwarnings("ignore")
 
@@ -146,12 +147,28 @@ for data in train_dict_list:
     train_embs.append(all_data)
     train_prototypes.append(all_data.mean(0))
 
-
-class_covs = [calculate_covariance_matrix(train_embs[i]) for i in range(2)]
-
 train_prototypes = np.array(train_prototypes)
 
+for key in test_dict.keys():
+    data = test_dict[key]
+    label = float(key[:1]) * np.ones(len(data))
+    
+    dists = np.linalg.norm(data[..., None] - train_prototypes.T[None], axis=1)
+    preds = np.argmin(dists, -1)    
+    
+    acc = np.round(accuracy_score(label, preds), 5)
+    print(f'group: {key}, acc: {acc}')
+    
+    
+class_covs = [calculate_covariance_matrix(train_embs[i]) for i in range(2)]
 
+
+
+x_test = [test_dict[key] for key in test_dict]
+x_test = np.concatenate(x_test)
+
+y_test = [float(key[0]) * np.ones(len(test_dict[key])) for key in test_dict]
+y_test = np.concatenate(y_test)
 
 x_train = np.concatenate(train_embs)
 y_train = np.concatenate([np.zeros(len(train_embs[0])), np.ones(len(train_embs[1]))])
@@ -182,7 +199,7 @@ sp_scatter1 = compute_scatter_matrix(aug_prototypes[0], aug_prototypes[1])
 sp_scatter2 = compute_scatter_matrix(aug_prototypes[2], aug_prototypes[3])
 core_scatter1 = compute_scatter_matrix(aug_prototypes[0], aug_prototypes[3])
 core_scatter2 = compute_scatter_matrix(aug_prototypes[1], aug_prototypes[2])
-
+sdfsdfdsf
 sp_scatter = sp_scatter1 + sp_scatter2
 core_scatter = core_scatter1 + core_scatter2
 
@@ -216,3 +233,63 @@ def project_data(projection_matrix, data):
     transformed_data = np.dot(data, projection_matrix)
     return transformed_data
 
+
+
+train_dict = {key: project_data(proj_mat, grouped_embs_train0[key]) for key in grouped_embs_train0.keys()}
+test_dict = {key: project_data(proj_mat, grouped_embs0[key]) for key in grouped_embs0.keys()}
+
+
+train_dict_list = get_class_dicts(train_dict)
+test_dict_list = get_class_dicts(test_dict)
+
+
+train_prototypes = []
+train_embs = []
+for data in train_dict_list:
+    all_data = []
+    for key in data.keys():
+        all_data.append(data[key])
+        
+    all_data = np.concatenate(all_data)
+    train_embs.append(all_data)
+    train_prototypes.append(all_data.mean(0))
+
+
+
+train_prototypes = np.array(train_prototypes)
+
+for key in test_dict.keys():
+    data = test_dict[key]
+    label = float(key[:1]) * np.ones(len(data))
+    
+    dists = np.linalg.norm(data[..., None] - train_prototypes.T[None], axis=1)
+    preds = np.argmin(dists, -1)    
+    
+    acc = np.round(accuracy_score(label, preds), 5)
+    print(f'group: {key}, acc: {acc}')
+    
+    
+    
+x_train = np.concatenate(train_embs)
+y_train = np.concatenate([np.zeros(len(train_embs[0])), np.ones(len(train_embs[1]))])
+
+
+dists = np.linalg.norm(x_train[..., None] - train_prototypes.T[None], axis=1)
+y_hat_train = np.argmin(dists, -1)  
+
+
+total_misc_inds = np.argwhere(y_hat_train != y_train).ravel()
+total_crr_inds = np.argwhere(y_hat_train == y_train).ravel()
+
+aug_prototypes = []
+aug_embs = []
+for l in [0, 1]:
+    class_inds = np.argwhere(y_train == l).ravel()
+    class_miss_inds = np.intersect1d(class_inds, total_misc_inds, assume_unique=True)
+    aug_prototypes.append(x_train[class_miss_inds].mean(0))
+    aug_embs.append(x_train[class_miss_inds])
+    class_crr_inds = np.intersect1d(class_inds, total_crr_inds, assume_unique=True)
+    aug_prototypes.append(x_train[class_crr_inds].mean(0))
+    aug_embs.append(x_train[class_crr_inds])
+    
+aug_prototypes = np.array(aug_prototypes)
