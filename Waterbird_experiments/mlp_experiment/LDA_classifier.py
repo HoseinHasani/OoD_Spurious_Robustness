@@ -12,7 +12,7 @@ normalize_embs = True
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[2]
+backbone = backbones[0]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -195,11 +195,23 @@ for l in [0, 1]:
 aug_prototypes = np.array(aug_prototypes)
 
 
-sp_scatter1 = compute_scatter_matrix(aug_prototypes[0], aug_prototypes[1])
-sp_scatter2 = compute_scatter_matrix(aug_prototypes[2], aug_prototypes[3])
-core_scatter1 = compute_scatter_matrix(aug_prototypes[0], aug_prototypes[3])
-core_scatter2 = compute_scatter_matrix(aug_prototypes[1], aug_prototypes[2])
-sdfsdfdsf
+# sp_scatter1 = compute_scatter_matrix(aug_prototypes[0], aug_prototypes[1])
+# sp_scatter2 = compute_scatter_matrix(aug_prototypes[2], aug_prototypes[3])
+# core_scatter1 = compute_scatter_matrix(aug_prototypes[0], aug_prototypes[3])
+# core_scatter2 = compute_scatter_matrix(aug_prototypes[1], aug_prototypes[2])
+
+
+sp_scatter1 = compute_scatter_matrix(train_dict['0_0'].mean(0),
+                                     train_dict['0_1'].mean(0))
+sp_scatter2 = compute_scatter_matrix(train_dict['1_0'].mean(0),
+                                     train_dict['1_1'].mean(0))
+
+core_scatter1 = compute_scatter_matrix(train_dict['0_0'].mean(0),
+                                     train_dict['1_0'].mean(0))
+core_scatter2 = compute_scatter_matrix(train_dict['0_1'].mean(0),
+                                     train_dict['1_1'].mean(0))
+
+
 sp_scatter = sp_scatter1 + sp_scatter2
 core_scatter = core_scatter1 + core_scatter2
 
