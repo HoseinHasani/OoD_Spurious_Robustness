@@ -1,17 +1,18 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression
+from sklearn.neural_network import MLPClassifier
 import dist_utils
 import os
 import warnings
 
 warnings.filterwarnings("ignore")
 
-normalize_embs = False
+normalize_embs = True
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[2]
+backbone = backbones[0]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -72,6 +73,7 @@ for key in in_data_embs0.keys():
 
 grouped_embs0 = {name: np.array(grouped_embs0[name]) for name in grouped_embs0.keys()}
 grouped_embs_train0 = {name: np.array(grouped_embs_train0[name]) for name in grouped_embs_train0.keys()}
+grouped_embs_val0 = {name: np.array(grouped_embs_val0[name]) for name in grouped_embs_val0.keys()}
 
 
 
@@ -88,10 +90,12 @@ if normalize_embs:
     train_dict = {key: normalize(grouped_embs_train0[key]) for key in grouped_embs_train0.keys()}
     test_dict = {key: normalize(grouped_embs0[key]) for key in grouped_embs0.keys()}
     ood_dict = {key: normalize(ood_embs0[key]) for key in ood_embs0.keys()}
+    val_dict = {key: normalize(grouped_embs_val0[key]) for key in grouped_embs_val0.keys()}
 else:
     train_dict = grouped_embs_train0
     test_dict = grouped_embs
     ood_dict = ood_embs0
+    val_dict = grouped_embs_val0
 
 
 
@@ -126,6 +130,7 @@ print()
 
 train_dict_list = get_class_dicts(train_dict)
 test_dict_list = get_class_dicts(test_dict)
+val_dict_list = get_class_dicts(val_dict)
 
 ood_embs = np.concatenate([ood_dict[key] for key in ood_dict.keys()])
 
@@ -148,14 +153,26 @@ for data in test_dict_list:
     test_embs.append(all_data)
 
 
+val_embs = []
+for data in val_dict_list:
+    all_data = []
+    for key in data.keys():
+        all_data.append(data[key])
+        
+    all_data = np.concatenate(all_data)
+    val_embs.append(all_data)
+
 x_train = np.concatenate(train_embs)
 y_train = np.concatenate([np.zeros(len(train_embs[0])), np.ones(len(train_embs[1]))])
 
 x_test = np.concatenate(test_embs)
 y_test = np.concatenate([np.zeros(len(test_embs[0])), np.ones(len(test_embs[1]))])
 
+x_val = np.concatenate(val_embs)
+y_val = np.concatenate([np.zeros(len(val_embs[0])), np.ones(len(val_embs[1]))])
 
 clf = LogisticRegression()
+# clf = MLPClassifier(hidden_layer_sizes=(32,))
 
 clf.fit(x_train, y_train)
 test_probs = clf.predict_proba(x_test).max(-1)
@@ -165,3 +182,14 @@ print('OOD:')
 print('train:')
 dist_utils.calc_ROC_with_dists(1 - test_probs, 1 - ood_probs)
 
+
+clf = LogisticRegression()
+# clf = MLPClassifier(hidden_layer_sizes=(32,))
+
+clf.fit(x_val, y_val)
+test_probs = clf.predict_proba(x_test).max(-1)
+ood_probs = clf.predict_proba(ood_embs).max(-1)
+
+print('OOD:')
+print('val:')
+dist_utils.calc_ROC_with_dists(1 - test_probs, 1 - ood_probs)
