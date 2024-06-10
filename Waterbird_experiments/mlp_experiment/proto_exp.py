@@ -11,7 +11,7 @@ normalize_embs = True
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[2]
+backbone = backbones[0]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -45,6 +45,7 @@ ood_embs0['1'] = np.array([dict_[key].squeeze() for key in dict_.keys()])
 
 grouped_embs0 = {}
 grouped_embs_train0 = {}
+grouped_embs_val0 = {}
 
 for key in in_data_embs0.keys():
     emb = in_data_embs0[key].squeeze()
@@ -53,16 +54,26 @@ for key in in_data_embs0.keys():
     split = key[4]
     name = f'{label}_{place}'
     
-    if split != '0':
+    if split == '2':
         if name not in grouped_embs0.keys():
             grouped_embs0[name] = []
         
         grouped_embs0[name].append(emb)
+    elif split == '1':
+        if name not in grouped_embs_val0.keys():
+            grouped_embs_val0[name] = []
+        
+        grouped_embs_val0[name].append(emb)
     else:
         if name not in grouped_embs_train0.keys():
             grouped_embs_train0[name] = []
         
         grouped_embs_train0[name].append(emb)
+
+grouped_embs0 = {name: np.array(grouped_embs0[name]) for name in grouped_embs0.keys()}
+grouped_embs_train0 = {name: np.array(grouped_embs_train0[name]) for name in grouped_embs_train0.keys()}
+grouped_embs_val0 = {name: np.array(grouped_embs_val0[name]) for name in grouped_embs_val0.keys()}
+
 
 grouped_embs0 = {name: np.array(grouped_embs0[name]) for name in grouped_embs0.keys()}
 grouped_embs_train0 = {name: np.array(grouped_embs_train0[name]) for name in grouped_embs_train0.keys()}
