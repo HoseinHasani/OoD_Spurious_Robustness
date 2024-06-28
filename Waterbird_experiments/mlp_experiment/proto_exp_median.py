@@ -201,7 +201,7 @@ for data in train_dict_list:
         
     all_data = np.concatenate(all_data)
     train_embs.append(all_data)
-    train_prototypes.append(all_data.mean(0))
+    train_prototypes.append(np.median(all_data, axis=0))
 
 
 #train_prototypes = [train_dict[key].mean(0) for key in train_dict.keys()]
