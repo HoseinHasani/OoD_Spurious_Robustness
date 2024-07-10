@@ -45,9 +45,12 @@ def calc_dists_ratio(ind_dict, ood_dict):
     
     
     
-def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False, prototypes=None, cov=None):
+def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False,
+                  prototypes=None, cov=None):
         
     all_dist_vals = []
+    all_group_dists = []
+    
     if known_group:
         for key in embs_dict.keys():
             dist_vals = [calc_euc_dist(embs_dict[key],
@@ -99,8 +102,9 @@ def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False, prototypes=N
                     p_dist_vals.append(dist_vals)
                     
                 all_dist_vals.append(np.min(p_dist_vals, axis=0))
+                all_group_dists.append(np.array(p_dist_vals).T)
                 
-    return np.concatenate(all_dist_vals)
+    return np.concatenate(all_dist_vals), np.concatenate(all_group_dists)
     
 
 def get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std=None,
@@ -153,7 +157,7 @@ def get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std=None,
             
             dist_vals = np.min(p_dist_vals, axis=0)
             
-    return dist_vals
+    return dist_vals, np.array(p_dist_vals).T
 
 
 def find_thresh_val(main_vals, th=0.95):
@@ -164,12 +168,13 @@ def find_thresh_val(main_vals, th=0.95):
 
 def calc_ROC(embs_dict, ood_embs,
              embs_std_dict=None, ood_embs_std=None, prototypes=None,
-             known_group=False, plot=False, cov=None):
+             known_group=False, plot=False, cov=None,
+             exp_name='', network_name=''):
         
         
-    ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std, known_group, prototypes=prototypes, cov=cov)
+    ood_dists, group_ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std, known_group, prototypes=prototypes, cov=cov)
     
-    ind_dists = get_dist_vals(embs_dict, embs_std_dict, known_group, prototypes=prototypes, cov=cov)
+    ind_dists, group_ind_dists = get_dist_vals(embs_dict, embs_std_dict, known_group, prototypes=prototypes, cov=cov)
 
     # ind_embs = np.concatenate([embs_dict[key] for key in embs_dict.keys()])
     # ood_dists = np.concatenate([np.linalg.norm(ood_embs - prototypes[k][None], axis=-1) for k in range(len(prototypes))])
@@ -231,15 +236,15 @@ def calc_ROC(embs_dict, ood_embs,
         plt.legend()
         plt.title('ROC', fontsize=17)
         
-        
-        plt.figure(figsize=(8,4))
-        plt.hist(ind_dists, 25, histtype='step', density=False, linewidth=2.5, label='InD distances', color='tab:blue')
-        plt.hist(ood_dists, 25, histtype='step', density=False, linewidth=2.5, label='OoD distances', color='tab:orange')
-        plt.title('dist hist')
+        name = f'All Distances - {exp_name} - {network_name}'
+        plt.figure(figsize=(6, 3))
+        plt.hist(ind_dists, 25, histtype='step', density=False, linewidth=2., label='InD distances', color='tab:blue')
+        plt.hist(ood_dists, 25, histtype='step', density=False, linewidth=2., label='OoD distances', color='tab:orange')
+        plt.title(name)
         plt.legend()
-    
-    
-    
+        plt.savefig(name + '.png', dpi=130)
+        
+            
     print('95-percent err: ', np.round(100 * err, 3))
     
     # print('***********************')

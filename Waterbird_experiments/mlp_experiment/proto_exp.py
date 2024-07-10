@@ -208,10 +208,14 @@ for data in train_dict_list:
 train_prototypes = np.array(train_prototypes)
 
 print('OOD:')
-print('before:')
+print('Prototypical:')
 #dist_utils.calc_ROC(test_dict_list[0], ood_embs, prototypes=train_dict_list[0])
 #dist_utils.calc_ROC(test_dict_list[1], ood_embs, prototypes=train_dict_list[1])
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=False)
+
+network_name = 'ResNet50 (Normalized)' if backbone == 'res50' else 'DINO-v2'
+
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=True,
+                    exp_name='Prototypical', network_name=network_name)
 
 
 x_train = np.concatenate(train_embs)
@@ -242,28 +246,30 @@ refined_prototypes.extend(refine_group_prototypes(aug_embs[:2]))
 refined_prototypes.extend(refine_group_prototypes(aug_embs[2:]))
 
 aug_prototypes = np.array(aug_prototypes)
-print('after:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False)
+print('Prototypical-GI:')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=True,
+                    exp_name='Prototypical-GI', network_name=network_name)
 
-print('after (refined):')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes, plot=False)
+# print('after (refined):')
+# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes, plot=True)
 
 aug_prototypes = np.array(aug_prototypes)
 aug_prototypes2 = [aug_prototypes[:2].mean(0), aug_prototypes[2:].mean(0)]
-print('after2:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False)
+print('Prototypical-GI-MG:')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=True,
+                    exp_name='Prototypical-GI-MG', network_name=network_name)
 
 
-aug_prototypes = np.concatenate([aug_prototypes, train_prototypes])
-print('after after:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False)
+# aug_prototypes = np.concatenate([aug_prototypes, train_prototypes])
+# print('after after:')
+# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=True)
 
-inds1 = [0, 1, 4]
-inds2 = [2, 3, 5]
+# inds1 = [0, 1, 4]
+# inds2 = [2, 3, 5]
 
-aug_prototypes2 = [aug_prototypes[inds1].mean(0), aug_prototypes[inds2].mean(0)]
-print('after after2:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False)
+# aug_prototypes2 = [aug_prototypes[inds1].mean(0), aug_prototypes[inds2].mean(0)]
+# print('after after2:')
+# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=True)
 
 
 from sklearn.cluster import KMeans
@@ -293,7 +299,7 @@ kmeans_protos.append(kmeans.cluster_centers_)
 
 kmeans_protos = np.concatenate(kmeans_protos)
 aug_prototypes = np.concatenate([aug_prototypes, kmeans_protos])
-print('kmeans:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes)
+# print('kmeans:')
+# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes)
 
 
