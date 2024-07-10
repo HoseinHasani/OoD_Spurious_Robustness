@@ -5,8 +5,9 @@ import dist_utils
 import os
 import warnings
 from sklearn.manifold import TSNE
+from umap import UMAP
 
-tsne_perplexity = 120
+tsne_perplexity = 80
 
 warnings.filterwarnings("ignore")
 
@@ -14,7 +15,7 @@ normalize_embs = True
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[0]
+backbone = backbones[1]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -109,74 +110,81 @@ def plot_tsne(tsne_embs, labels, name, figsize=6):
     #colors = np.random.permutation(K)
     #colors = cmap(colors / np.max(colors) * 1)
     
-    colors = ['tab:blue', 'tab:green', 'tab:pink', 'tab:orange', 'tab:gray', 'tab:green']
+    colors = ['tab:green', 'tab:blue', 'tab:red', 'tab:orange', 'tab:purple', 'tab:pink']
     
     plt.figure(figsize=(figsize, figsize))
     
     inds = np.argwhere(labels == 0).ravel()
     proto_ind = np.argwhere(labels == 6).ravel()[0]
     
-    plt.scatter(tsne_embs[inds][:, 0], tsne_embs[inds][:, 1], marker='.', s=5,
+    plt.scatter(tsne_embs[inds][:, 0], tsne_embs[inds][:, 1], marker='.', s=10,
                 c=colors[0], label='group 0', alpha=0.4)
-    plt.scatter(tsne_embs[proto_ind: proto_ind+1][:, 0],
-                tsne_embs[proto_ind: proto_ind+1][:, 1],
-                marker='*', s=40, c=colors[0], label='group 0 (prototype)')   
+    # plt.scatter(tsne_embs[proto_ind: proto_ind+1][:, 0],
+    #             tsne_embs[proto_ind: proto_ind+1][:, 1],
+    #             marker='*', s=50, c=colors[0], label='group 0 (prototype)')   
     
     inds = np.argwhere(labels == 1).ravel()
     proto_ind = np.argwhere(labels == 7).ravel()[0]
     
-    plt.scatter(tsne_embs[inds][:, 0], tsne_embs[inds][:, 1], marker='.', s=5,
+    plt.scatter(tsne_embs[inds][:, 0], tsne_embs[inds][:, 1], marker='.', s=10,
                 c=colors[1], label='group 1', alpha=0.4)
-    plt.scatter(tsne_embs[proto_ind: proto_ind+1][:, 0],
-                tsne_embs[proto_ind: proto_ind+1][:, 1],
-                marker='*', s=40, c=colors[1], label='group 1 (prototype)')   
+    # plt.scatter(tsne_embs[proto_ind: proto_ind+1][:, 0],
+    #             tsne_embs[proto_ind: proto_ind+1][:, 1],
+    #             marker='*', s=50, c=colors[1], label='group 1 (prototype)')   
     
       
     inds = np.argwhere(labels == 2).ravel()
     proto_ind = np.argwhere(labels == 8).ravel()[0]
     
-    plt.scatter(tsne_embs[inds][:, 0], tsne_embs[inds][:, 1], marker='.', s=5,
+    plt.scatter(tsne_embs[inds][:, 0], tsne_embs[inds][:, 1], marker='.', s=10,
                 c=colors[2], label='group 2', alpha=0.4)
-    plt.scatter(tsne_embs[proto_ind: proto_ind+1][:, 0],
-                tsne_embs[proto_ind: proto_ind+1][:, 1],
-                marker='*', s=40, c=colors[2], label='group 2 (prototype)')   
+    # plt.scatter(tsne_embs[proto_ind: proto_ind+1][:, 0],
+    #             tsne_embs[proto_ind: proto_ind+1][:, 1],
+    #             marker='*', s=50, c=colors[2], label='group 2 (prototype)')   
     
     
     inds = np.argwhere(labels == 3).ravel()
     proto_ind = np.argwhere(labels == 9).ravel()[0]
     
-    plt.scatter(tsne_embs[inds][:, 0], tsne_embs[inds][:, 1], marker='.', s=5,
+    plt.scatter(tsne_embs[inds][:, 0], tsne_embs[inds][:, 1], marker='.', s=10,
                 c=colors[3], label='group 3', alpha=0.4)
-    plt.scatter(tsne_embs[proto_ind: proto_ind+1][:, 0],
-                tsne_embs[proto_ind: proto_ind+1][:, 1],
-                marker='*', s=40, c=colors[3], label='group 3 (prototype)')   
+    # plt.scatter(tsne_embs[proto_ind: proto_ind+1][:, 0],
+    #             tsne_embs[proto_ind: proto_ind+1][:, 1],
+    #             marker='*', s=50, c=colors[3], label='group 3 (prototype)')   
     
     
     inds = np.concatenate([np.argwhere(labels == 4).ravel(), np.argwhere(labels == 5).ravel()])
-    
-    plt.scatter(tsne_embs[inds][:, 0], tsne_embs[inds][:, 1], marker='.', s=5,
-                c=colors[4], label='OOD', alpha=0.2)
+    inds = np.argwhere(labels == 4).ravel()
+    plt.scatter(tsne_embs[inds][:, 0], tsne_embs[inds][:, 1], marker='.', s=10,
+                c=colors[4], label='OOD 0', alpha=0.4)
+
+    inds = np.argwhere(labels == 5).ravel()
+    plt.scatter(tsne_embs[inds][:, 0], tsne_embs[inds][:, 1], marker='.', s=10,
+                c=colors[5], label='OOD 1', alpha=0.4)
     
     
     
     plt.title(name)
-    plt.legend()
+    plt.legend(markerscale=4.3)
     plt.savefig(name + '.png', dpi=130)
     
 labels = []
 embs = []
 
-embs.append(test_dict['0_0'])
-labels.append(0 * np.ones(len(train_dict['0_0'])))
+selected_dict = train_dict
 
-embs.append(test_dict['0_1'])
-labels.append(1 * np.ones(len(train_dict['0_1'])))
 
-embs.append(test_dict['1_0'])
-labels.append(2 * np.ones(len(train_dict['1_0'])))
+embs.append(selected_dict['0_0'])
+labels.append(0 * np.ones(len(selected_dict['0_0'])))
 
-embs.append(test_dict['1_1'])
-labels.append(3 * np.ones(len(train_dict['1_1'])))
+embs.append(selected_dict['0_1'])
+labels.append(1 * np.ones(len(selected_dict['0_1'])))
+
+embs.append(selected_dict['1_0'])
+labels.append(2 * np.ones(len(selected_dict['1_0'])))
+
+embs.append(selected_dict['1_1'])
+labels.append(3 * np.ones(len(selected_dict['1_1'])))
 
 embs.append(ood_dict['0'])
 labels.append(4 * np.ones(len(ood_dict['0'])))
@@ -184,16 +192,16 @@ labels.append(4 * np.ones(len(ood_dict['0'])))
 embs.append(ood_dict['1'])
 labels.append(5 * np.ones(len(ood_dict['1'])))
 
-embs.append(test_dict['0_0'].mean(0, keepdims=True))
+embs.append(selected_dict['0_0'].mean(0, keepdims=True))
 labels.append(6 * np.ones(1))
 
-embs.append(test_dict['0_1'].mean(0, keepdims=True))
+embs.append(selected_dict['0_1'].mean(0, keepdims=True))
 labels.append(7 * np.ones(1))
 
-embs.append(test_dict['1_0'].mean(0, keepdims=True))
+embs.append(selected_dict['1_0'].mean(0, keepdims=True))
 labels.append(8 * np.ones(1))
 
-embs.append(test_dict['1_1'].mean(0, keepdims=True))
+embs.append(selected_dict['1_1'].mean(0, keepdims=True))
 labels.append(9 * np.ones(1))
 
 
@@ -202,9 +210,12 @@ labels.append(9 * np.ones(1))
 all_embs = np.concatenate(embs)
 all_labels = np.concatenate(labels)
 
-tsne = TSNE(n_components=2, learning_rate='auto', init='pca', perplexity=tsne_perplexity)
-tsne_embs = tsne.fit_transform(all_embs)
+# tsne = TSNE(n_components=2, learning_rate='auto', init='pca', perplexity=tsne_perplexity)
+# tsne_embs = tsne.fit_transform(all_embs)
 
-plot_tsne(tsne_embs, all_labels, 'DINO t-SNE Embeddings')
+umap_2d = UMAP(n_components=2, init='random', random_state=0)
+umap_embs = umap_2d.fit_transform(all_embs)
+
+plot_tsne(umap_embs, all_labels, 'ResNet50 UMAP Embeddings')
 
 
