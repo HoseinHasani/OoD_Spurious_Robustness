@@ -244,6 +244,52 @@ def calc_ROC(embs_dict, ood_embs,
         plt.legend()
         plt.savefig(name + '.png', dpi=130)
         
+        if len(prototypes) == 2:
+            plt.figure(figsize=(9, 3))
+            name = f'Class Distances - {exp_name} - {network_name}'
+            plt.suptitle(name)   
+            
+            plt.subplot(121)
+            plt.hist(group_ind_dists[:, 0], 25, histtype='step', density=False, linewidth=2., label='InD distances', color='tab:blue')
+            plt.hist(group_ood_dists[:, 0], 25, histtype='step', density=False, linewidth=2., label='OoD distances', color='tab:orange')
+            plt.title('class 0', y=-0.1)
+            
+            plt.subplot(122)
+            plt.hist(group_ind_dists[:, 1], 25, histtype='step', density=False, linewidth=2., label='InD distances', color='tab:blue')
+            plt.hist(group_ood_dists[:, 1], 25, histtype='step', density=False, linewidth=2., label='OoD distances', color='tab:orange')
+            plt.title('class 1', y=-0.1)
+            
+            plt.legend()
+            plt.savefig(name + '.png', dpi=130)
+    
+    
+        if len(prototypes) == 4:
+            plt.figure(figsize=(9, 6))
+            name = f'Class Distances - {exp_name} - {network_name}'
+            plt.suptitle(name)   
+            
+            plt.subplot(221)
+            plt.hist(group_ind_dists[:, 0], 25, histtype='step', density=False, linewidth=2., label='InD distances', color='tab:blue')
+            plt.hist(group_ood_dists[:, 0], 25, histtype='step', density=False, linewidth=2., label='OoD distances', color='tab:orange')
+            plt.title('group 0', y=-0.1)
+
+            plt.subplot(222)
+            plt.hist(group_ind_dists[:, 1], 25, histtype='step', density=False, linewidth=2., label='InD distances', color='tab:blue')
+            plt.hist(group_ood_dists[:, 1], 25, histtype='step', density=False, linewidth=2., label='OoD distances', color='tab:orange')
+            plt.title('group 1', y=-0.1)
+            
+            plt.subplot(223)
+            plt.hist(group_ind_dists[:, 2], 25, histtype='step', density=False, linewidth=2., label='InD distances', color='tab:blue')
+            plt.hist(group_ood_dists[:, 2], 25, histtype='step', density=False, linewidth=2., label='OoD distances', color='tab:orange')
+            plt.title('group 2', y=-0.1)
+
+            plt.subplot(224)
+            plt.hist(group_ind_dists[:, 3], 25, histtype='step', density=False, linewidth=2., label='InD distances', color='tab:blue')
+            plt.hist(group_ood_dists[:, 3], 25, histtype='step', density=False, linewidth=2., label='OoD distances', color='tab:orange')
+            plt.title('group 3', y=-0.1)
+            
+            plt.legend()
+            plt.savefig(name + '.png', dpi=130)
             
     print('95-percent err: ', np.round(100 * err, 3))
     

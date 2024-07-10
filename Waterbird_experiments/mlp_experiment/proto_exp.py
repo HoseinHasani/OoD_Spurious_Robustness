@@ -11,7 +11,7 @@ normalize_embs = True
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[1]
+backbone = backbones[0]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -212,7 +212,7 @@ print('Prototypical:')
 #dist_utils.calc_ROC(test_dict_list[0], ood_embs, prototypes=train_dict_list[0])
 #dist_utils.calc_ROC(test_dict_list[1], ood_embs, prototypes=train_dict_list[1])
 
-network_name = 'ResNet50 (Normalized)' if backbone == 'res50' else 'DINO-v2'
+network_name = 'ResNet50' if backbone == 'res50' else 'DINO-v2 (Normalized)'
 
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=True,
                     exp_name='Prototypical', network_name=network_name)
