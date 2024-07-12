@@ -104,7 +104,7 @@ def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False,
                 all_dist_vals.append(np.min(p_dist_vals, axis=0))
                 all_group_dists.append(np.array(p_dist_vals).T)
                 
-    return np.concatenate(all_dist_vals), np.concatenate(all_group_dists)
+    return np.concatenate(all_dist_vals)#, np.concatenate(all_group_dists)
     
 
 def get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std=None,
@@ -157,7 +157,7 @@ def get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std=None,
             
             dist_vals = np.min(p_dist_vals, axis=0)
             
-    return dist_vals, np.array(p_dist_vals).T
+    return dist_vals#, np.array(p_dist_vals).T
 
 
 def find_thresh_val(main_vals, th=0.95):
@@ -172,9 +172,9 @@ def calc_ROC(embs_dict, ood_embs,
              exp_name='', network_name=''):
         
         
-    ood_dists, group_ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std, known_group, prototypes=prototypes, cov=cov)
+    ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std, known_group, prototypes=prototypes, cov=cov)
     
-    ind_dists, group_ind_dists = get_dist_vals(embs_dict, embs_std_dict, known_group, prototypes=prototypes, cov=cov)
+    ind_dists = get_dist_vals(embs_dict, embs_std_dict, known_group, prototypes=prototypes, cov=cov)
 
     # ind_embs = np.concatenate([embs_dict[key] for key in embs_dict.keys()])
     # ood_dists = np.concatenate([np.linalg.norm(ood_embs - prototypes[k][None], axis=-1) for k in range(len(prototypes))])
@@ -224,6 +224,63 @@ def calc_ROC(embs_dict, ood_embs,
     # print('****** metrics 1 ******')
     # print('auc: ', auc_val, 'aupr:', aupr_val)
     # print('****** metrics 2 ******')
+    print('auc: ', np.round(metrics.roc_auc_score(y, pred), 4),
+          'aupr:', np.round(metrics.average_precision_score(y, pred), 4))
+    
+    if plot:
+        plt.figure()
+        plt.plot(fps, tps, label=f'area={auc_val}', linewidth=2)
+        plt.xlabel('FPR')
+        plt.ylabel('TPR')
+        #plt.ylim([0.55, 1.001])
+        plt.legend()
+        plt.title('ROC', fontsize=17)
+        
+        name = f'All Distances - {exp_name} - {network_name}'
+        plt.figure(figsize=(6, 3))
+        plt.hist(ind_dists, 25, histtype='step', density=False, linewidth=2., label='InD distances', color='tab:blue')
+        plt.hist(ood_dists, 25, histtype='step', density=False, linewidth=2., label='OoD distances', color='tab:orange')
+        plt.title(name)
+        plt.legend()
+        plt.savefig(name + '.png', dpi=130)
+        
+    
+            
+    print('95-percent err: ', np.round(100 * err, 3))
+    
+    # print('***********************')
+    print()
+    
+    
+    
+def calc_ROC_classwise(embs_dict, ood_embs,
+             embs_std_dict=None, ood_embs_std=None, prototypes=None,
+             known_group=False, plot=False, cov=None,
+             exp_name='', network_name=''):
+        
+        
+    ood_dists, group_ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std, known_group, prototypes=prototypes, cov=cov)
+    
+    ind_dists, group_ind_dists = get_dist_vals(embs_dict, embs_std_dict, known_group, prototypes=prototypes, cov=cov)
+
+            
+    thresh = find_thresh_val(ind_dists)
+    err = ood_dists[ood_dists < thresh].shape[0] / ood_dists.shape[0]
+    
+    
+    
+    y = np.concatenate((np.zeros_like(ood_dists), np.ones_like(ind_dists)))
+    pred = np.concatenate((ood_dists, ind_dists))
+    pred = pred.max() - pred
+    
+    fps, tps, thresholds = metrics.roc_curve(y, pred)
+    
+    auc_val = np.round(metrics.auc(fps, tps), 4)
+    
+    precs, recs, thresholds = metrics.precision_recall_curve(y, pred)
+    
+    aupr_val = np.round(metrics.auc(np.sort(precs), recs), 4)
+    
     print('auc: ', np.round(metrics.roc_auc_score(y, pred), 4),
           'aupr:', np.round(metrics.average_precision_score(y, pred), 4))
     
@@ -295,7 +352,6 @@ def calc_ROC(embs_dict, ood_embs,
     
     # print('***********************')
     print()
-    
     
 def calc_ROC_with_dists(ind_dists, ood_dists, plot=False):
         

@@ -11,7 +11,7 @@ normalize_embs = True
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[0]
+backbone = backbones[1]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -214,7 +214,7 @@ print('Prototypical:')
 
 network_name = 'ResNet50' if backbone == 'res50' else 'DINO-v2 (Normalized)'
 
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=True,
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=False,
                     exp_name='Prototypical', network_name=network_name)
 
 
@@ -247,7 +247,7 @@ refined_prototypes.extend(refine_group_prototypes(aug_embs[2:]))
 
 aug_prototypes = np.array(aug_prototypes)
 print('Prototypical-GI:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=True,
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False,
                     exp_name='Prototypical-GI', network_name=network_name)
 
 # print('after (refined):')
@@ -256,7 +256,7 @@ dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=True,
 aug_prototypes = np.array(aug_prototypes)
 aug_prototypes2 = [aug_prototypes[:2].mean(0), aug_prototypes[2:].mean(0)]
 print('Prototypical-GI-MG:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=True,
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False,
                     exp_name='Prototypical-GI-MG', network_name=network_name)
 
 
