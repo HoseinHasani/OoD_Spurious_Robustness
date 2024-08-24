@@ -1,8 +1,8 @@
 from gradio_client import Client
 
-client = Client("black-forest-labs/FLUX.1-schnell")
+client = Client("black-forest-labs/FLUX.1-schnell", download_files="pics")
 result = client.predict(
-		prompt="A big camel walking on a beach",
+		prompt="A Cow walking in grass field",
 		seed=0,
 		randomize_seed=True,
 		width=1024,
