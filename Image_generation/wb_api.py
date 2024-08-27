@@ -2,7 +2,7 @@ from gradio_client import Client
 import numpy as np
 import time
 
-t_sleep = 6
+t_sleep = 61
 n_images = 100
 
 prompt_list = [
@@ -33,7 +33,7 @@ for i in range(n_images):
     		api_name="/infer"
     )
     #print(result)
-    time.sleep(t_sleep + 2 * np.random.rand())
+    time.sleep(t_sleep + 4 * np.random.rand())
     
     print(i, int(time.time() - t0), seed, steps, prompt)
     
