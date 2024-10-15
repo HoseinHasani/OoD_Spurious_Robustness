@@ -7,9 +7,9 @@ t_sleep = 90
 n_images = 100
 
 prompt_list = [
-              "A dog beside a man",
-              "A man hugging a dog",
-              "A man is playing with a dog",
+              "A cat beside a man",
+              "A man hugging a cat",
+              "A man is playing with a cat",
               ]
 
 
@@ -23,7 +23,7 @@ for i in range(n_images):
     prompt_ind = np.random.choice(len(prompt_list), 1).item()
     prompt = prompt_list[prompt_ind]
     
-    client = Client("stabilityai/stable-diffusion-3-medium", download_files="pics2")
+    client = Client("stabilityai/stable-diffusion-3-medium", download_files="pics4")
     result = client.predict(
     		prompt=prompt,
             negative_prompt='low quality image',

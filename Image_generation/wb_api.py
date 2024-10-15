@@ -6,9 +6,9 @@ t_sleep = 90
 n_images = 100
 
 prompt_list = [
-              "A dog beside a woman",
-              "A woman hugging a dog",
-              "A woman is playing with a dog",
+              "A cat beside a woman",
+              "A woman hugging a cat",
+              "A woman is playing with a cat",
               ]
 
 
@@ -22,7 +22,7 @@ for i in range(n_images):
     prompt_ind = np.random.choice(len(prompt_list), 1).item()
     prompt = prompt_list[prompt_ind]
     
-    client = Client("black-forest-labs/FLUX.1-schnell", download_files="pics")
+    client = Client("black-forest-labs/FLUX.1-schnell", download_files="pics3")
     result = client.predict(
     		prompt=prompt,
     		seed=seed,
