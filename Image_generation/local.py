@@ -4,7 +4,7 @@ import os
 import numpy as np
 import time
 nn = 100
-nnn = 1
+nnn = 9
 
 min_step = 4
 max_step = 8
@@ -15,7 +15,7 @@ pipe = FluxPipeline.from_pretrained("black-forest-labs/FLUX.1-schnell", torch_dt
 pipe = pipe.to("cuda")
     
     
-for j in range(40, nn):
+for j in range(100, 100 + nn):
 
     prompt = "Picture of a desert"
     pic_path = f"data/{prompt}"
@@ -23,14 +23,14 @@ for j in range(40, nn):
     os.makedirs(pic_path, exist_ok=True)
     
 
-    for i in range(nnn):
+    for i in range(2*nnn):
         
         t0 = time.time()
         seed = int(t0) % 1000000
         np.random.seed(seed)
     
         num_inference_steps = np.random.randint(min_step, max_step)
-        guidance_scale = 3 + 5 * np.random.rand()
+        guidance_scale = 2.5 + 6 * np.random.rand()
     
         image = pipe(prompt,
                     height=224,
@@ -50,14 +50,14 @@ for j in range(40, nn):
     
     os.makedirs(pic_path, exist_ok=True)
     
-    for i in range(nnn):
+    for i in range(2*nnn):
         
         t0 = time.time()
         seed = int(t0) % 1000000
         np.random.seed(seed)
     
         num_inference_steps = np.random.randint(min_step, max_step)
-        guidance_scale = 3 + 5 * np.random.rand()
+        guidance_scale = 2.5 + 6 * np.random.rand()
     
         image = pipe(prompt,
                     height=224,
@@ -78,14 +78,14 @@ for j in range(40, nn):
     
     os.makedirs(pic_path, exist_ok=True)
     
-    for i in range(4*nnn):
+    for i in range(3*nnn):
         
         t0 = time.time()
         seed = int(t0) % 1000000
         np.random.seed(seed)
     
         num_inference_steps = np.random.randint(min_step, max_step)
-        guidance_scale = 3 + 5 * np.random.rand()
+        guidance_scale = 2.5 + 6 * np.random.rand()
     
         image = pipe(prompt,
                     height=224,
@@ -113,7 +113,7 @@ for j in range(40, nn):
         np.random.seed(seed)
     
         num_inference_steps = np.random.randint(min_step, max_step)
-        guidance_scale = 3 + 5 * np.random.rand()
+        guidance_scale = 2.5 + 6 * np.random.rand()
     
         image = pipe(prompt,
                     height=224,
@@ -140,7 +140,7 @@ for j in range(40, nn):
         np.random.seed(seed)
     
         num_inference_steps = np.random.randint(min_step, max_step)
-        guidance_scale = 3 + 5 * np.random.rand()
+        guidance_scale = 2.5 + 6 * np.random.rand()
     
         image = pipe(prompt,
                     height=224,
@@ -156,7 +156,7 @@ for j in range(40, nn):
         print(i, int(time.time() - t0), seed, num_inference_steps)
         
         
-    prompt = "A cow in a desert"
+    prompt = "A regular cow in a desert"
     pic_path = f"data/{prompt}"
     
     os.makedirs(pic_path, exist_ok=True)
@@ -168,7 +168,7 @@ for j in range(40, nn):
         np.random.seed(seed)
     
         num_inference_steps = np.random.randint(min_step, max_step)
-        guidance_scale = 3 + 5 * np.random.rand()
+        guidance_scale = 2.5 + 6 * np.random.rand()
     
         image = pipe(prompt,
                     height=224,
@@ -196,7 +196,7 @@ for j in range(40, nn):
         np.random.seed(seed)
     
         num_inference_steps = np.random.randint(min_step, max_step)
-        guidance_scale = 3 + 5 * np.random.rand()
+        guidance_scale = 2.5 + 6 * np.random.rand()
     
         image = pipe(prompt,
                     height=224,
@@ -216,14 +216,14 @@ for j in range(40, nn):
     
     os.makedirs(pic_path, exist_ok=True)
     
-    for i in range(4*nnn):
+    for i in range(3*nnn):
         
         t0 = time.time()
         seed = int(t0) % 1000000
         np.random.seed(seed)
     
         num_inference_steps = np.random.randint(min_step, max_step)
-        guidance_scale = 3 + 5 * np.random.rand()
+        guidance_scale = 2.5 + 6 * np.random.rand()
     
         image = pipe(prompt,
                     height=224,
