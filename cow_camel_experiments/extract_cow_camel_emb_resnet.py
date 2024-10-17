@@ -5,9 +5,10 @@ import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
 
 dataset_dir = "cow-camel dataset"
-resnet_type = 18  
+resnet_type = 50  
 
 if resnet_type == 18:
     model = models.resnet18(pretrained=True)
@@ -45,9 +46,9 @@ def extract_embeddings_batch(dataloader, model):
     embeddings = {}
     model.eval()
     with torch.no_grad():
-        for images, image_paths in dataloader:
+        for images, image_paths in tqdm(dataloader, desc="Extracting embeddings", unit="batch"):
             images = images.to(device)
-            outputs = model(images).squeeze(-1).squeeze(-1)  
+            outputs = model(images).squeeze(-1).squeeze(-1) 
             outputs = outputs.cpu().numpy()  
             for output, image_path in zip(outputs, image_paths):
                 folder_name = os.path.basename(os.path.dirname(image_path))
