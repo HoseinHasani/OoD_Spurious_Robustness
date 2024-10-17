@@ -10,11 +10,11 @@ np.random.seed(0)
 
 warnings.filterwarnings("ignore")
 
-normalize_embs = False
+normalize_embs = True
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[2]
+backbone = backbones[1]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -32,8 +32,8 @@ else:
     embeddings_dict = np.load(data_path + f'cc_embs_{backbone}_{resnet_type}.npy', allow_pickle=True).item()
 
 ood_embs0 = {}
-ood_embs0['0'] = embeddings_dict['grass']
-ood_embs0['1'] = embeddings_dict['desert']
+ood_embs0['0'] = embeddings_dict['horse-grass']
+ood_embs0['1'] = embeddings_dict['horse-desert']
 
 
 
@@ -252,48 +252,4 @@ aug_prototypes2 = [aug_prototypes[:2].mean(0), aug_prototypes[2:].mean(0)]
 print('Prototypical-GI-MG:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False,
                     exp_name='Prototypical-GI-MG', network_name=network_name)
-
-
-# aug_prototypes = np.concatenate([aug_prototypes, train_prototypes])
-# print('after after:')
-# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=True)
-
-# inds1 = [0, 1, 4]
-# inds2 = [2, 3, 5]
-
-# aug_prototypes2 = [aug_prototypes[inds1].mean(0), aug_prototypes[inds2].mean(0)]
-# print('after after2:')
-# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=True)
-
-
-from sklearn.cluster import KMeans
-
-n_cluster = 4
-kmeans_protos = []
-
-def propose_centers(embeddings):
-    centers = []
-    for embs in embeddings:
-        for j in range(n_cluster):
-            mean = embs.mean(0)
-            std = embs.std(0)
-            if j == 0:
-                centers.append(mean)
-            else:
-                centers.append(np.random.normal(mean, std / 0.2))
-    return centers
-
-class1_protos = propose_centers(aug_embs[:2])
-kmeans = KMeans(n_clusters=n_cluster*2, random_state=0, init=class1_protos, max_iter=15).fit(train_embs[0])
-kmeans_protos.append(kmeans.cluster_centers_)
-
-class2_protos = propose_centers(aug_embs[2:])
-kmeans = KMeans(n_clusters=n_cluster*2, random_state=0, init=class2_protos, max_iter=15).fit(train_embs[1])
-kmeans_protos.append(kmeans.cluster_centers_)
-
-kmeans_protos = np.concatenate(kmeans_protos)
-aug_prototypes = np.concatenate([aug_prototypes, kmeans_protos])
-# print('kmeans:')
-# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes)
-
 
