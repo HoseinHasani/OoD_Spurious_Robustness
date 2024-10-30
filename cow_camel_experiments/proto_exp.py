@@ -35,15 +35,15 @@ ood_embs0 = {}
 ood_embs0['0'] = embeddings_dict['horse-grass']
 ood_embs0['1'] = embeddings_dict['horse-desert']
 
-# 50% correlation:
-majority_groups = {
-    'camel-desert': 300,  
-    'cow-grass': 300      
-}
-minority_groups = {
-    'camel-grass': 300,    
-    'cow-desert': 300      
-}
+# # 50% correlation:
+# majority_groups = {
+#     'camel-desert': 300,  
+#     'cow-grass': 300      
+# }
+# minority_groups = {
+#     'camel-grass': 300,    
+#     'cow-desert': 300      
+# }
 
 # 90% correlation:
 # majority_groups = {
@@ -54,6 +54,16 @@ minority_groups = {
 #     'camel-grass': 60,    
 #     'cow-desert': 60      
 # }
+
+# 95% correlation:
+majority_groups = {
+    'camel-desert': 800,  
+    'cow-grass': 800      
+}
+minority_groups = {
+    'camel-grass': 40,    
+    'cow-desert': 40      
+}
 
 train_dict = {'camel-desert': [], 'camel-grass': [], 'cow-desert': [], 'cow-grass': []}
 test_dict = {'camel-desert': [], 'camel-grass': [], 'cow-desert': [], 'cow-grass': []}
