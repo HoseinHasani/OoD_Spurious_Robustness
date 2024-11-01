@@ -3,3 +3,7 @@
 *.pkl
 pics/
 datasets/
+*.txt
+*.json
+*.yaml
+*.md

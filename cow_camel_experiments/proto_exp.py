@@ -6,7 +6,8 @@ import os
 import warnings
 from sklearn.model_selection import train_test_split
 
-np.random.seed(0)
+seed = 6
+np.random.seed(seed+1)
 
 warnings.filterwarnings("ignore")
 
@@ -46,30 +47,30 @@ ood_embs0['1'] = embeddings_dict['horse-desert']
 # }
 
 # 90% correlation:
-# majority_groups = {
-#     'camel-desert': 600,  
-#     'cow-grass': 600      
-# }
-# minority_groups = {
-#     'camel-grass': 60,    
-#     'cow-desert': 60      
-# }
-
-# 95% correlation:
 majority_groups = {
-    'camel-desert': 800,  
-    'cow-grass': 800      
+    'camel-desert': 600,  
+    'cow-grass': 600      
 }
 minority_groups = {
-    'camel-grass': 40,    
-    'cow-desert': 40      
+    'camel-grass': 60,    
+    'cow-desert': 60      
 }
+
+# 95% correlation:
+# majority_groups = {
+#     'camel-desert': 800,  
+#     'cow-grass': 800      
+# }
+# minority_groups = {
+#     'camel-grass': 40,    
+#     'cow-desert': 40      
+# }
 
 train_dict = {'camel-desert': [], 'camel-grass': [], 'cow-desert': [], 'cow-grass': []}
 test_dict = {'camel-desert': [], 'camel-grass': [], 'cow-desert': [], 'cow-grass': []}
 
 def stratified_sampling(group_name, num_train, embeddings):
-    train_embs, test_embs = train_test_split(embeddings, train_size=num_train, random_state=42)
+    train_embs, test_embs = train_test_split(embeddings, train_size=num_train, random_state=seed)
     return train_embs, test_embs
 
 for group_name, num_train in majority_groups.items():
@@ -252,7 +253,8 @@ for l in [0, 1]:
     class_crr_inds = np.intersect1d(class_inds, total_crr_inds, assume_unique=True)
     aug_prototypes.append(x_train[class_crr_inds].mean(0))
     aug_embs.append(x_train[class_crr_inds])
-    
+
+
 refined_prototypes = []
 
 refined_prototypes.extend(refine_group_prototypes(aug_embs[:2]))
