@@ -25,7 +25,11 @@ def gen_bg_only(data_root):
             desc=cue_combination_folder,
         ):
             fpath_wo_ext = os.path.splitext(img_fpath)[0]
+<<<<<<< HEAD
             bg_only_fpath = fpath_wo_ext + "_bg_co_occur_obj.png"
+=======
+            bg_only_fpath = fpath_wo_ext + "_bg_only.png"
+>>>>>>> 2c4057af49039db48e3d2924dbfbe0acc2fef06e
             if os.path.exists(bg_only_fpath):
                 continue
 
