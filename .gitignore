@@ -7,3 +7,5 @@ datasets/
 *.json
 *.yaml
 *.md
+*.png
+*.jpg
