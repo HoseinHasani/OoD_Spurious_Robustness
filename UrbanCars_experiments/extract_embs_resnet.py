@@ -7,7 +7,12 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-dataset_dir = "data/bg-0.5_co_occur_obj-0.5"
+split = "train"
+sp_corr = 0.5 # 0.5 or 0.95
+
+sp_type = "bg_co_occur" # bg_co_occur or bg_only
+
+dataset_dir = f"data/urbancars/bg-{sp_corr}_co_occur_obj-{sp_corr}"
 resnet_type = 50  
 
 if resnet_type == 18:
@@ -59,10 +64,10 @@ def extract_embeddings_batch(dataloader, model):
 
 
 image_paths_dict = {}
-for subfolder in os.listdir(dataset_dir):
-    subfolder_path = os.path.join(dataset_dir, subfolder)
+for group_name in os.listdir(dataset_dir):
+    subfolder_path = os.path.join(dataset_dir, group_name)
     if os.path.isdir(subfolder_path):
-        image_paths_dict[subfolder] = [os.path.join(subfolder_path, image_name) for image_name in os.listdir(subfolder_path) if image_name.endswith(".png")]
+        image_paths_dict[group_name] = [os.path.join(subfolder_path, image_name) for image_name in os.listdir(subfolder_path) if image_name.endswith(f"{sp_type}.png")]
 
 all_image_paths = []
 for subfolder, image_paths in image_paths_dict.items():
@@ -77,6 +82,8 @@ embeddings_dict = extract_embeddings_batch(dataloader, model)
 for folder_name in embeddings_dict:
     embeddings_dict[folder_name] = np.array(embeddings_dict[folder_name])
 
-np.save(f"cc_embs_res{resnet_type}_pretrained.npy", embeddings_dict)
+for key in embeddings_dict.keys():
+    print(key, print(len(embeddings_dict[key])))
 
-print(f"Embeddings saved as cc_embs_res{resnet_type}_pretrained.npy")
+np.save(f"urbancars_{split}_{sp_type}_res{resnet_type}_pretrained.npy", embeddings_dict)
+
