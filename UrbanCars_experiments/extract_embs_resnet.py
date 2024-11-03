@@ -7,14 +7,21 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-split = "val"
-sp_corr = 0.5 # 0.5 or 0.95
-
-sp_type = "bg_co_occur" # bg_co_occur or bg_only
+split = "train"
+sp_corr = 0.95 # 0.5 or 0.95
+is_ood = False
+ood_type = "bg_co_occur" # bg_co_occur or bg_only
 
 # root_path = "/HDD/Datasets/UrbanCars_dataset"
 root_path = "."
 dataset_dir = f"{root_path}/data/urbancars/bg-{sp_corr}_co_occur_obj-{sp_corr}/{split}"
+
+
+file_name_type = f"{ood_type}.png" if is_ood else '.jpg'
+
+assert (sp_corr == 0.95 and split == 'train') or sp_corr == 0.95
+assert (sp_corr == 0.5 and (split == 'val' or split == 'test')) or sp_corr == 0.95 
+
 
 resnet_type = 50  
 
@@ -72,7 +79,7 @@ for group_name in os.listdir(dataset_dir):
     if os.path.isdir(subfolder_path):
         image_paths_dict[group_name] = [os.path.join(subfolder_path, image_name)\
                                         for image_name in os.listdir(subfolder_path)\
-                                            if image_name.endswith(f"{sp_type}.png")]
+                                            if image_name.endswith(file_name_type)]
 
 all_image_paths = []
 for subfolder, image_paths in image_paths_dict.items():
@@ -91,7 +98,9 @@ for key in embeddings_dict.keys():
     print('***')
     print(key, embeddings_dict[key].shape)
 
-name = f"urbancars_{split}_{sp_type}_res{resnet_type}_pretrained"
+ood_name = f"OoD_{ood_type}" if is_ood else "InD"
+
+name = f"urbancars_{split}_{ood_name}_res{resnet_type}_pretrained"
 embs_path = "embeddings"
 os.makedirs(embs_path, exist_ok=True)
 np.save(f"{embs_path}/{name}.npy", embeddings_dict)
