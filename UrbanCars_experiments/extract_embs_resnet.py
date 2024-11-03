@@ -7,12 +7,15 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-split = "train"
+split = "val"
 sp_corr = 0.5 # 0.5 or 0.95
 
 sp_type = "bg_co_occur" # bg_co_occur or bg_only
 
-dataset_dir = f"data/urbancars/bg-{sp_corr}_co_occur_obj-{sp_corr}"
+# root_path = "/HDD/Datasets/UrbanCars_dataset"
+root_path = "."
+dataset_dir = f"{root_path}/data/urbancars/bg-{sp_corr}_co_occur_obj-{sp_corr}/{split}"
+
 resnet_type = 50  
 
 if resnet_type == 18:
@@ -67,15 +70,17 @@ image_paths_dict = {}
 for group_name in os.listdir(dataset_dir):
     subfolder_path = os.path.join(dataset_dir, group_name)
     if os.path.isdir(subfolder_path):
-        image_paths_dict[group_name] = [os.path.join(subfolder_path, image_name) for image_name in os.listdir(subfolder_path) if image_name.endswith(f"{sp_type}.png")]
+        image_paths_dict[group_name] = [os.path.join(subfolder_path, image_name)\
+                                        for image_name in os.listdir(subfolder_path)\
+                                            if image_name.endswith(f"{sp_type}.png")]
 
 all_image_paths = []
 for subfolder, image_paths in image_paths_dict.items():
     all_image_paths.extend(image_paths)
 
-batch_size = 64
+batch_size = 32
 dataset = ImageDataset(all_image_paths, transform=transform)
-dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
 embeddings_dict = extract_embeddings_batch(dataloader, model)
 
@@ -83,7 +88,11 @@ for folder_name in embeddings_dict:
     embeddings_dict[folder_name] = np.array(embeddings_dict[folder_name])
 
 for key in embeddings_dict.keys():
-    print(key, print(len(embeddings_dict[key])))
+    print('***')
+    print(key, embeddings_dict[key].shape)
 
-np.save(f"urbancars_{split}_{sp_type}_res{resnet_type}_pretrained.npy", embeddings_dict)
+name = f"urbancars_{split}_{sp_type}_res{resnet_type}_pretrained"
+embs_path = "embeddings"
+os.makedirs(embs_path, exist_ok=True)
+np.save(f"{embs_path}/{name}.npy", embeddings_dict)
 
