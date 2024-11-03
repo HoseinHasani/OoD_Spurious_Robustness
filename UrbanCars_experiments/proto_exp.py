@@ -6,7 +6,7 @@ import os
 import warnings
 from sklearn.model_selection import train_test_split
 
-seed = 6
+seed = 2
 np.random.seed(seed+1)
 
 warnings.filterwarnings("ignore")
@@ -19,6 +19,25 @@ backbone = backbones[1]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
+envs = ['country', 'urban']
+items = ['obj', 'bg', 'co_occur_obj']
+
+maj0_name = 'obj-country_bg-country_co_occur_obj-country'
+maj1_name = 'obj-urban_bg-urban_co_occur_obj-urban'
+
+min0_names = [
+    'obj-country_bg-country_co_occur_obj-urban',
+    'obj-country_bg-urban_co_occur_obj-country',
+    'obj-country_bg-urban_co_occur_obj-urban'    
+    ]
+
+min1_names = [
+    'obj-urban_bg-urban_co_occur_obj-country',
+    'obj-urban_bg-country_co_occur_obj-urban',
+    'obj-urban_bg-country_co_occur_obj-country'    
+    ]
+
+
 core_class_names = ['0', '1']
 ood_class_names = ['0', '1']
 sp_class_names = ['0', '1']
@@ -27,31 +46,46 @@ data_path = 'embeddings/'
 
 
 train_emb_dict = np.load(data_path + 'urbancars_train_InD_res50_pretrained.npy', allow_pickle=True).item()
-test_emb_dict = np.load(data_path + 'urbancars_test_OoD_bg_co_occur_res50_pretrained.npy', allow_pickle=True).item()
-val_emb_dict = np.load(data_path + 'urbancars_val_OoD_bg_co_occur_res50_pretrained.npy', allow_pickle=True).item()
-
-
-ood_embs0 = {}
-ood_embs0['0'] = test_emb_dict['obj-country_bg-country_co_occur_obj-urban']
-ood_embs0['1'] = test_emb_dict['obj-urban_bg-urban_co_occur_obj-country']
-
+test_emb_dict = np.load(data_path + 'urbancars_test_InD_res50_pretrained.npy', allow_pickle=True).item()
+ood_emb_dict = np.load(data_path + 'urbancars_val_OoD_bg_co_occur_res50_pretrained.npy', allow_pickle=True).item()
 
 
 
 train_dict0 = {}
-test_dict0 = {}
-mapping = {'cow-grass': '0_0', 'cow-desert': '0_1',
-           'camel-grass': '1_0', 'camel-desert': '1_1'}
+train_dict0['0_1'] = np.concatenate([train_emb_dict[name] for name in min0_names])
+train_dict0['1_0'] = np.concatenate([train_emb_dict[name] for name in min1_names])
+train_dict0['0_0'] = train_emb_dict[maj0_name]
+train_dict0['1_1'] = train_emb_dict[maj1_name]
 
-for group_name in train_dict:
-    train_dict0[mapping[group_name]] = np.array(train_dict[group_name])
-    test_dict0[mapping[group_name]] = np.array(test_dict[group_name])
-    
+
+test_dict0 = {}
+test_dict0['0_1'] = np.concatenate([test_emb_dict[name] for name in min0_names])
+test_dict0['1_0'] = np.concatenate([test_emb_dict[name] for name in min1_names])
+test_dict0['0_0'] = test_emb_dict[maj0_name]
+test_dict0['1_1'] = test_emb_dict[maj1_name]
+
+
+min0_names = [
+    'obj-country_bg-country_co_occur_obj-urban',
+    'obj-country_bg-urban_co_occur_obj-country',
+    'obj-country_bg-urban_co_occur_obj-urban'    
+    ]
+
+min1_names = [
+    'obj-urban_bg-urban_co_occur_obj-country',
+    'obj-urban_bg-country_co_occur_obj-urban',
+    'obj-urban_bg-country_co_occur_obj-country'    
+    ]
+
+
+ood_embs0 = {}
+ood_embs0['0'] = np.concatenate([ood_emb_dict[name] for name in min0_names])
+ood_embs0['1'] = np.concatenate([ood_emb_dict[name] for name in min1_names])
+
 
 
 def normalize(x):
     return x / np.linalg.norm(x, axis=-1, keepdims=True)
-
 
 
 if normalize_embs:
@@ -62,29 +96,6 @@ else:
     train_dict = train_dict0
     test_dict = test_dict0
     ood_dict = ood_embs0
-
-
-
-def get_axis(embeddings):
-    
-    core_ax1 = embeddings[f'{core_class_names[1]}_{sp_class_names[0]}'].mean(0, keepdims=False) - \
-                         embeddings[f'{core_class_names[0]}_{sp_class_names[0]}'].mean(0, keepdims=False)
-    core_ax2 = embeddings[f'{core_class_names[1]}_{sp_class_names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'{core_class_names[0]}_{sp_class_names[1]}'].mean(0, keepdims=False)
-    core_ax = 0.5 * core_ax1 + 0.5 * core_ax2
-    
-    sp_ax1 = embeddings[f'{core_class_names[0]}_{sp_class_names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'{core_class_names[0]}_{sp_class_names[0]}'].mean(0, keepdims=False)
-    sp_ax2 = embeddings[f'{core_class_names[1]}_{sp_class_names[1]}'].mean(0, keepdims=False) - \
-                         embeddings[f'{core_class_names[1]}_{sp_class_names[0]}'].mean(0, keepdims=False)
-    sp_ax = 0.5 * sp_ax1 + 0.5 * sp_ax2
-    
-    print('axis ratio:', np.linalg.norm(core_ax) / np.linalg.norm(sp_ax))
-    
-    core_ax_norm = 0.5 * normalize(core_ax1) + 0.5 * normalize(core_ax2)
-    sp_ax_norm = 0.5 * normalize(sp_ax1) + 0.5 * normalize(sp_ax2)
-    
-    return core_ax, sp_ax, core_ax_norm, sp_ax_norm
 
 
 
@@ -140,15 +151,7 @@ def refine_group_prototypes(group_embs):
     return new_prototypes
     
     
-    
-core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_dict)
-print('ax correlation: ', np.dot(core_ax, sp_ax))
 
-
-    
-print()
-dist_utils.calc_dists_ratio(train_dict, ood_dict)
-dist_utils.calc_dists_ratio(test_dict, ood_dict)
 
 train_dict_list = get_class_dicts(train_dict)
 test_dict_list = get_class_dicts(test_dict)
