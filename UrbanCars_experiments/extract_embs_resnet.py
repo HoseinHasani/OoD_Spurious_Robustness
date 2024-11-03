@@ -19,7 +19,7 @@ dataset_dir = f"{root_path}/data/urbancars/bg-{sp_corr}_co_occur_obj-{sp_corr}/{
 
 file_name_type = f"{ood_type}.png" if is_ood else '.jpg'
 
-assert (sp_corr == 0.95 and split == 'train') or sp_corr == 0.95
+assert (sp_corr == 0.95 and split == 'train') or sp_corr == 0.5
 assert (sp_corr == 0.5 and (split == 'val' or split == 'test')) or sp_corr == 0.95 
 
 
