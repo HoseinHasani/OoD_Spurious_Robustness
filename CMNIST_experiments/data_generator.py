@@ -153,7 +153,7 @@ if False:
 model = resnet18(pretrained=True)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-if True:
+if False:
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
     model.fc = nn.Linear(model.fc.in_features, 5) 
@@ -222,7 +222,7 @@ def extract_embeddings(dataset, model, device):
     
     return embeddings_dict
 
-emb_path = 'embeddings_90'
+emb_path = 'embeddings'
 os.makedirs(emb_path, exist_ok=True)
 train_embeddings = extract_embeddings(train_dataset, model, device)
 np.save(f"{emb_path}/cmnist_train_res18_pretrained.npy", train_embeddings)

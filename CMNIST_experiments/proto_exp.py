@@ -5,6 +5,7 @@ import dist_utils
 import os
 import warnings
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
 
 seed = 2
 np.random.seed(seed+1)
@@ -22,7 +23,7 @@ resnet_type = resnet_types[0]
 
 n_c = 5
 
-data_path = 'embeddings/'
+data_path = 'embeddings_raw/'
 
 
 train_emb_dict = np.load(data_path + 'cmnist_train_res18_pretrained.npy', allow_pickle=True).item()
@@ -131,7 +132,7 @@ print('Prototypical:')
 
 network_name = 'ResNet50' if backbone == 'res50' else 'DINO-v2 (Normalized)'
 
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=False,
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=True,
                     exp_name='Prototypical', network_name=network_name)
 
 
@@ -142,6 +143,10 @@ y_train = np.concatenate([c * np.ones(len(train_embs[c])) for c in range(n_c)])
 dists = np.linalg.norm(x_train[..., None] - train_prototypes.T[None], axis=1)
 y_hat_train = np.argmin(dists, -1)  
 
+accuracy = accuracy_score(y_hat_train, y_train)
+print('acc:', accuracy)
+
+print()
 
 total_misc_inds = np.argwhere(y_hat_train != y_train).ravel()
 total_crr_inds = np.argwhere(y_hat_train == y_train).ravel()
@@ -150,42 +155,58 @@ aug_prototypes = []
 aug_embs = []
 for l in range(n_c):
     class_inds = np.argwhere(y_train == l).ravel()
-    class_miss_inds = np.intersect1d(class_inds, total_misc_inds, assume_unique=True)
-    aug_prototypes.append(x_train[class_miss_inds].mean(0))
-    aug_embs.append(x_train[class_miss_inds])
+
     class_crr_inds = np.intersect1d(class_inds, total_crr_inds, assume_unique=True)
-    aug_prototypes.append(x_train[class_crr_inds].mean(0))
+    crr_prototype = x_train[class_crr_inds].mean(0)
+    aug_prototypes.append(crr_prototype)
     aug_embs.append(x_train[class_crr_inds])
 
+    for j in range(n_c):
+        if j == l:
+            continue
+        
+        class_miss_inds = np.intersect1d(class_inds, total_misc_inds, assume_unique=True)
+        trg_lbl_inds = np.argwhere(y_hat_train == j).ravel()
+        class_miss_inds_trg = np.intersect1d(class_miss_inds, trg_lbl_inds, assume_unique=True)
+        
+        if len(class_miss_inds_trg) < 1:
+            print('empty')
+            trg_prototype = crr_prototype.copy()
+        else:
+            trg_prototype = x_train[class_miss_inds_trg].mean(0)
+        aug_prototypes.append(trg_prototype)
+        aug_embs.append(x_train[class_miss_inds_trg])
+    
 
-refined_prototypes = []
-
-for c in range(n_c):
-    refined_prototypes.extend(refine_group_prototypes(aug_embs[2*c: 2*(c+1)]))
 
 aug_prototypes = np.array(aug_prototypes)
 print('Prototypical-GI:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False,
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=True,
                     exp_name='Prototypical-GI', network_name=network_name)
 
-print('after (refined):')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes, plot=False)
+# refined_prototypes = []
+
+# for c in range(n_c):
+#     refined_prototypes.extend(refine_group_prototypes(aug_embs[n_c*c: n_c*(c+1)]))
+
+# print('after (refined):')
+# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes, plot=False)
 
 aug_prototypes = np.array(aug_prototypes)
 aug_prototypes2 = []
 for c in range(n_c):
-    aug_prototypes2.append(aug_prototypes[2*c: 2*(c+1)].mean())
+    aug_prototypes2.append(aug_prototypes[n_c*c: n_c*(c+1)].mean())
 
 print('Prototypical-GI-MG:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False,
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=True,
                     exp_name='Prototypical-GI-MG', network_name=network_name)
 
 
-refined_prototypes = np.array(refined_prototypes)
-aug_prototypes2 = []
-for c in range(n_c):
-    aug_prototypes2.append(refined_prototypes[2*c: 2*(c+1)].mean())
+# refined_prototypes = np.array(refined_prototypes)
+# aug_prototypes2 = []
+# for c in range(n_c):
+#     aug_prototypes2.append(refined_prototypes[n_c*c: n_c*(c+1)].mean())
 
-print('Prototypical-GI-MG (refined):')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False,
-                    exp_name='Prototypical-GI-MG (refined)', network_name=network_name)
+# print('Prototypical-GI-MG (refined):')
+# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False,
+#                     exp_name='Prototypical-GI-MG (refined)', network_name=network_name)
