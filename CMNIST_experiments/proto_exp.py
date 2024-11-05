@@ -15,73 +15,35 @@ normalize_embs = True
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[1]
+backbone = backbones[2]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
-envs = ['country', 'urban']
-items = ['obj', 'bg', 'co_occur_obj']
 
-maj0_name = 'obj-country_bg-country_co_occur_obj-country'
-maj1_name = 'obj-urban_bg-urban_co_occur_obj-urban'
-
-min0_names = [
-    'obj-country_bg-country_co_occur_obj-urban',
-    'obj-country_bg-urban_co_occur_obj-country',
-    'obj-country_bg-urban_co_occur_obj-urban'    
-    ]
-
-min1_names = [
-    'obj-urban_bg-urban_co_occur_obj-country',
-    'obj-urban_bg-country_co_occur_obj-urban',
-    'obj-urban_bg-country_co_occur_obj-country'    
-    ]
-
-
-core_class_names = ['0', '1']
-ood_class_names = ['0', '1']
-sp_class_names = ['0', '1']
+n_c = 5
 
 data_path = 'embeddings/'
 
 
-train_emb_dict = np.load(data_path + 'urbancars_train_InD_res50_pretrained.npy', allow_pickle=True).item()
-test_emb_dict = np.load(data_path + 'urbancars_test_InD_res50_pretrained.npy', allow_pickle=True).item()
-ood_emb_dict = np.load(data_path + 'urbancars_val_OoD_bg_co_occur_res50_pretrained.npy', allow_pickle=True).item()
-
-
+train_emb_dict = np.load(data_path + 'cmnist_train_res18_pretrained.npy', allow_pickle=True).item()
+val_emb_dict = np.load(data_path + 'cmnist_val_res18_pretrained.npy', allow_pickle=True).item()
 
 train_dict0 = {}
-train_dict0['0_1'] = np.concatenate([train_emb_dict[name] for name in min0_names])
-train_dict0['1_0'] = np.concatenate([train_emb_dict[name] for name in min1_names])
-train_dict0['0_0'] = train_emb_dict[maj0_name]
-train_dict0['1_1'] = train_emb_dict[maj1_name]
-
-
+for i in range(n_c):
+    for j in range(n_c):
+        key = f'{i}_{j}'
+        train_dict0[key] = train_emb_dict[key]
+        
 test_dict0 = {}
-test_dict0['0_1'] = np.concatenate([test_emb_dict[name] for name in min0_names])
-test_dict0['1_0'] = np.concatenate([test_emb_dict[name] for name in min1_names])
-test_dict0['0_0'] = test_emb_dict[maj0_name]
-test_dict0['1_1'] = test_emb_dict[maj1_name]
-
-
-min0_names = [
-    'obj-country_bg-country_co_occur_obj-urban',
-    'obj-country_bg-urban_co_occur_obj-country',
-    'obj-country_bg-urban_co_occur_obj-urban'    
-    ]
-
-min1_names = [
-    'obj-urban_bg-urban_co_occur_obj-country',
-    'obj-urban_bg-country_co_occur_obj-urban',
-    'obj-urban_bg-country_co_occur_obj-country'    
-    ]
-
-
-ood_embs0 = {}
-ood_embs0['0'] = np.concatenate([ood_emb_dict[name] for name in min0_names])
-ood_embs0['1'] = np.concatenate([ood_emb_dict[name] for name in min1_names])
-
+for i in range(n_c):
+    for j in range(n_c):
+        key = f'{i}_{j}'
+        test_dict0[key] = val_emb_dict[key]
+        
+ood_dict0 = {}
+for i in range(n_c):
+    ood_dict0[f'{i}'] = val_emb_dict[f'{i+5}_{i}']
+        
 
 
 def normalize(x):
@@ -91,35 +53,24 @@ def normalize(x):
 if normalize_embs:
     train_dict = {key: normalize(train_dict0[key]) for key in train_dict0.keys()}
     test_dict = {key: normalize(test_dict0[key]) for key in test_dict0.keys()}
-    ood_dict = {key: normalize(ood_embs0[key]) for key in ood_embs0.keys()}
+    ood_dict = {key: normalize(ood_dict0[key]) for key in ood_dict0.keys()}
 else:
     train_dict = train_dict0
     test_dict = test_dict0
-    ood_dict = ood_embs0
-
+    ood_dict = ood_dict0
 
 
 def get_class_dicts(input_dict):
     class_dicts = []
-    for core_name in core_class_names:
+    for core_name in range(n_c):
         class_dict = {}
-        for sp_name in sp_class_names:
+        for sp_name in range(n_c):
             name = f'{core_name}_{sp_name}'
             class_dict[name] = input_dict[name]
         class_dicts.append(class_dict)
 
     return class_dicts
 
-
-def plot_dict_hist(dict_data, fig_name):
-    data = []
-    for name in dict_data:
-        data.append(dict_data[name])
-    
-    data = np.concatenate(data)
-    
-    plt.hist(data, 100, histtype='step', linewidth=1.5, label=fig_name)
-    plt.legend()
 
 def extract_prototypes(embs, th=0.8):
     embs = np.array(embs)
@@ -185,7 +136,7 @@ dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=False
 
 
 x_train = np.concatenate(train_embs)
-y_train = np.concatenate([np.zeros(len(train_embs[0])), np.ones(len(train_embs[1]))])
+y_train = np.concatenate([c * np.ones(len(train_embs[c])) for c in range(n_c)])
 
 
 dists = np.linalg.norm(x_train[..., None] - train_prototypes.T[None], axis=1)
@@ -197,7 +148,7 @@ total_crr_inds = np.argwhere(y_hat_train == y_train).ravel()
 
 aug_prototypes = []
 aug_embs = []
-for l in [0, 1]:
+for l in range(n_c):
     class_inds = np.argwhere(y_train == l).ravel()
     class_miss_inds = np.intersect1d(class_inds, total_misc_inds, assume_unique=True)
     aug_prototypes.append(x_train[class_miss_inds].mean(0))
@@ -209,20 +160,32 @@ for l in [0, 1]:
 
 refined_prototypes = []
 
-refined_prototypes.extend(refine_group_prototypes(aug_embs[:2]))
-refined_prototypes.extend(refine_group_prototypes(aug_embs[2:]))
+for c in range(n_c):
+    refined_prototypes.extend(refine_group_prototypes(aug_embs[2*c: 2*(c+1)]))
 
 aug_prototypes = np.array(aug_prototypes)
 print('Prototypical-GI:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False,
                     exp_name='Prototypical-GI', network_name=network_name)
 
-# print('after (refined):')
-# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes, plot=True)
+print('after (refined):')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes, plot=False)
 
 aug_prototypes = np.array(aug_prototypes)
-aug_prototypes2 = [aug_prototypes[:2].mean(0), aug_prototypes[2:].mean(0)]
+aug_prototypes2 = []
+for c in range(n_c):
+    aug_prototypes2.append(aug_prototypes[2*c: 2*(c+1)].mean())
+
 print('Prototypical-GI-MG:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False,
                     exp_name='Prototypical-GI-MG', network_name=network_name)
 
+
+refined_prototypes = np.array(refined_prototypes)
+aug_prototypes2 = []
+for c in range(n_c):
+    aug_prototypes2.append(refined_prototypes[2*c: 2*(c+1)].mean())
+
+print('Prototypical-GI-MG (refined):')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False,
+                    exp_name='Prototypical-GI-MG (refined)', network_name=network_name)

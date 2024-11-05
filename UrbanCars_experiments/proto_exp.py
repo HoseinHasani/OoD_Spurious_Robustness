@@ -217,8 +217,8 @@ print('Prototypical-GI:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False,
                     exp_name='Prototypical-GI', network_name=network_name)
 
-# print('after (refined):')
-# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes, plot=True)
+print('after (refined):')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes, plot=False)
 
 aug_prototypes = np.array(aug_prototypes)
 aug_prototypes2 = [aug_prototypes[:2].mean(0), aug_prototypes[2:].mean(0)]
@@ -226,3 +226,8 @@ print('Prototypical-GI-MG:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False,
                     exp_name='Prototypical-GI-MG', network_name=network_name)
 
+refined_prototypes = np.array(refined_prototypes)
+aug_prototypes2 = [refined_prototypes[:2].mean(0), refined_prototypes[2:].mean(0)]
+print('Prototypical-GI-MG (refined):')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False,
+                    exp_name='Prototypical-GI-MG (refined)', network_name=network_name)

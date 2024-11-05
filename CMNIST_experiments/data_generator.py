@@ -32,12 +32,13 @@ def generate_distinct_colors(num_colors=5, min_distance=120, automatic=False):
 
 
 class ColoredMNIST(Dataset):
-    def __init__(self, colors, train=True, transform=None, sp_ratio=0.50):
+    def __init__(self, colors, train=True, transform=None, sp_ratio=0.80):
         self.mnist = datasets.MNIST(root='./data', train=train, download=True)
         self.transform = transform
         self.colors = colors
         self.train = train
         self.sp_ratio = sp_ratio
+        self.to_pil = ToPILImage()
 
     def __len__(self):
         return len(self.mnist)
@@ -71,16 +72,17 @@ class ColoredMNIST(Dataset):
         img_colored = torch.where(img_rgb > 0.24, img_rgb, img_colored)
 
 
-        # if self.transform:
-        #     img_colored = self.transform(img_colored)
+        if self.transform:
+            img_colored = self.to_pil(img_colored)
+            img_colored = self.transform(img_colored)
             
         return img_colored, label, in_distribution, color_index
 
 
 colors = generate_distinct_colors(num_colors=5)
 
-train_dataset = ColoredMNIST(colors=colors, train=True, transform=transforms.ToTensor(), sp_ratio=0.90)
-validation_dataset = ColoredMNIST(colors=colors, train=False, transform=transforms.ToTensor())
+train_dataset = ColoredMNIST(colors=colors, train=True, transform=None, sp_ratio=0.90)
+validation_dataset = ColoredMNIST(colors=colors, train=False, transform=None)
 
 
 
@@ -137,10 +139,16 @@ def visualize_colored_mnist(dataset, ood_dataset, num_samples=1):
     plt.tight_layout(rect=[0, 0, 1, 0.96])  
     plt.show()
 
-visualize_colored_mnist(train_dataset, validation_dataset)
+# visualize_colored_mnist(train_dataset, validation_dataset)
 
-
-
+if False:
+    resize_transform = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+    ])
+    
+    train_dataset.transform = resize_transform
+    validation_dataset.transform = resize_transform
 
 model = resnet18(pretrained=True)
 model.fc = nn.Identity()  
@@ -156,7 +164,8 @@ def extract_embeddings(dataset, model, device):
     with torch.no_grad():
         for img_colored, label, _, color_index in tqdm(dataloader):
             img_colored = img_colored.to(device)
-            embeddings = model(img_colored).cpu().numpy()
+            padded = nn.functional.pad(img_colored, (98, 98, 98, 98), "constant", 0)
+            embeddings = model(padded).cpu().numpy()
             for i in range(embeddings.shape[0]):
                 key = f"{label[i].item()}_{color_index[i].item()}"
                 if key not in embeddings_dict:
