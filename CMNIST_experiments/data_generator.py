@@ -8,6 +8,7 @@ from torchvision.transforms import ToPILImage
 from torchvision.models import resnet18
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import os
 
 def generate_distinct_colors(num_colors=5, min_distance=120, automatic=False):
     colors = []
@@ -167,9 +168,11 @@ def extract_embeddings(dataset, model, device):
     
     return embeddings_dict
 
+emb_path = 'embeddings'
+os.makedirs(emb_path, exist_ok=True)
 train_embeddings = extract_embeddings(train_dataset, model, device)
-np.save("cmnist_train_res18_pretrained.npy", train_embeddings)
+np.save(f"{emb_path}/cmnist_train_res18_pretrained.npy", train_embeddings)
 
 val_embeddings = extract_embeddings(validation_dataset, model, device)
-np.save("cmnist_val_res18_pretrained.npy", val_embeddings)
+np.save(f"{emb_path}/cmnist_val_res18_pretrained.npy", val_embeddings)
 

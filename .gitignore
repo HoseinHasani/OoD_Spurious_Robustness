@@ -9,3 +9,5 @@ datasets/
 *.md
 *.png
 *.jpg
+data/
+embeddings/
