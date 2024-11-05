@@ -2,6 +2,8 @@ import torch
 from torchvision import datasets, transforms
 from torch.utils.data import Dataset
 import numpy as np
+import matplotlib.pyplot as plt
+from torchvision.transforms import ToPILImage
 
 def generate_distinct_colors(num_colors=5, min_distance=100):
     colors = []
@@ -14,6 +16,8 @@ def generate_distinct_colors(num_colors=5, min_distance=100):
             colors.append(candidate)
     
     return torch.stack(colors)  
+
+
 class ColoredMNIST(Dataset):
     def __init__(self, colors, train=True, transform=None, sp_ratio=0.90):
         self.mnist = datasets.MNIST(root='./data', train=train, download=True)
@@ -54,8 +58,8 @@ class ColoredMNIST(Dataset):
         img_colored = background_color[:, None, None] * torch.ones_like(img_rgb)
         img_colored = torch.where(img_rgb > 0, img_rgb, img_colored)
 
-        if self.transform:
-            img_colored = self.transform(img_colored)
+        # if self.transform:
+        #     img_colored = self.transform(img_colored)
         
         return img_colored, label, in_distribution
 
@@ -63,3 +67,47 @@ colors = generate_distinct_colors(num_colors=5, min_distance=100)
 
 train_dataset = ColoredMNIST(colors=colors, train=True, transform=transforms.ToTensor(), sp_ratio=0.90)
 validation_dataset = ColoredMNIST(colors=colors, train=False, transform=transforms.ToTensor())
+
+
+
+
+def visualize_colored_mnist(dataset, ood_dataset, num_samples=1):
+    fig, axes = plt.subplots(6, 5, figsize=(12, 15))
+    fig.suptitle("Colored MNIST Visualization", fontsize=16)
+    
+    to_pil = ToPILImage()
+    
+    for label in range(5):  
+        color_indices = [0, 1, 2, 3, 4]  
+        for i, color_idx in enumerate(color_indices):
+            found = 0
+            for img, lbl, in_dist in dataset:
+                if lbl == label and in_dist:
+                    color_label = torch.all(img == dataset.colors[color_idx][:, None, None], dim=0).nonzero(as_tuple=True)[0]
+                    print(color_label.shape)
+                    if color_label == color_idx:
+                        axes[label, i].imshow(to_pil(img))
+                        axes[label, i].axis("off")
+                        found += 1
+                        if found >= num_samples:
+                            break
+            else:
+                axes[label, i].axis("off")
+    
+    for ax, col in zip(axes[0], color_indices):
+        ax.set_title(f"Color {col}")
+    for ax, row in zip(axes[:, 0], range(5)):
+        ax.set_ylabel(f"Label {row}", rotation=0, labelpad=30, fontsize=12)
+
+    for i, label in enumerate(range(5, 10)):
+        for img, lbl, in_dist in ood_dataset:
+            if lbl == label and not in_dist:
+                axes[5, i].imshow(to_pil(img))
+                axes[5, i].set_title(f"OOD {label}")
+                axes[5, i].axis("off")
+                break
+
+    plt.tight_layout(rect=[0, 0, 1, 0.96])  
+    plt.show()
+    
+visualize_colored_mnist(train_dataset, validation_dataset)
