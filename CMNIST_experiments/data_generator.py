@@ -32,7 +32,7 @@ def generate_distinct_colors(num_colors=5, min_distance=120, automatic=False):
 
 
 class ColoredMNIST(Dataset):
-    def __init__(self, colors, train=True, transform=None, sp_ratio=0.80):
+    def __init__(self, colors, train=True, transform=None, sp_ratio=0.90):
         self.mnist = datasets.MNIST(root='./data', train=train, download=True)
         self.transform = transform
         self.colors = colors
@@ -151,10 +151,55 @@ if False:
     validation_dataset.transform = resize_transform
 
 model = resnet18(pretrained=True)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+if True:
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+
+    model.fc = nn.Linear(model.fc.in_features, 5) 
+    model = model.to(device)
+    
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    
+    num_epochs = 1
+    for epoch in range(num_epochs):
+        model.train()
+        running_loss = 0.0
+        correct = 0
+        total = 0
+        
+        for images, labels, _, _ in tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}"):
+            images, labels = images.to(device), labels.to(device)
+            
+            mask = labels < 5
+            images, labels = images[mask], labels[mask]
+            
+            if labels.size(0) == 0:
+                continue
+            
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            
+            running_loss += loss.item() * images.size(0)
+            _, predicted = outputs.max(1)
+            correct += (predicted == labels).sum().item()
+            total += labels.size(0)
+        
+        epoch_loss = running_loss / total
+        accuracy = 100 * correct / total
+        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {accuracy:.2f}%")
+
+
+
+
 model.fc = nn.Identity()  
 model.eval()
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 
 def extract_embeddings(dataset, model, device):
@@ -164,8 +209,8 @@ def extract_embeddings(dataset, model, device):
     with torch.no_grad():
         for img_colored, label, _, color_index in tqdm(dataloader):
             img_colored = img_colored.to(device)
-            padded = nn.functional.pad(img_colored, (98, 98, 98, 98), "constant", 0)
-            embeddings = model(padded).cpu().numpy()
+            # padded = nn.functional.pad(img_colored, (98, 98, 98, 98), "constant", 0)
+            embeddings = model(img_colored).cpu().numpy()
             for i in range(embeddings.shape[0]):
                 key = f"{label[i].item()}_{color_index[i].item()}"
                 if key not in embeddings_dict:
@@ -177,7 +222,7 @@ def extract_embeddings(dataset, model, device):
     
     return embeddings_dict
 
-emb_path = 'embeddings'
+emb_path = 'embeddings_90'
 os.makedirs(emb_path, exist_ok=True)
 train_embeddings = extract_embeddings(train_dataset, model, device)
 np.save(f"{emb_path}/cmnist_train_res18_pretrained.npy", train_embeddings)
