@@ -14,9 +14,9 @@ col_names = np.array(df.columns.tolist())
 binary_matrix = (data >= threshold).astype(int)
 
 
-for i in range(21):
+for i in range(54):
 
-    n_iter = 34 if i == 0 else 24
+    n_iter = 84 if i == 0 else 13
     
     for j in range(n_iter):
         row_similarity_matrix = np.dot(binary_matrix, binary_matrix.T)
