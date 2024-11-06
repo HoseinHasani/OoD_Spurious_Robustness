@@ -4,12 +4,13 @@ import numpy as np
 threshold = 7  
 
 df = pd.read_csv('dataset_summary.csv', index_col=0)
+merged_attrs = np.load('merged_attrs.npy', allow_pickle=True).item()
 
 data = df.values
 
 row_names = np.array(df.index.tolist())
 col_names = np.array(df.columns.tolist())
-sfd
+
 binary_matrix = (data >= threshold).astype(int)
 
 

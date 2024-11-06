@@ -1,0 +1,158 @@
+import numpy as np
+
+attribute_groups = {
+    # Water Bodies & Oceanic Scenes
+    'ocean': 'Water Bodies',
+    'sea': 'Water Bodies',
+    'body_of_water': 'Water Bodies',
+    'lake': 'Water Bodies',
+    'pond': 'Water Bodies',
+    'pool': 'Water Bodies',
+    'lagoon': 'Water Bodies',
+    'river': 'Water Bodies',
+    'stream': 'Water Bodies',
+    'brook': 'Water Bodies',
+    'canal': 'Water Bodies',
+    'riverbank': 'Water Bodies',
+    'shoreline': 'Water Bodies',
+    'seashore': 'Water Bodies',
+    'seaside': 'Water Bodies',
+    'waterfall': 'Water Bodies',
+    'estuary': 'Water Bodies',
+    'Gulf_of_Mexico': 'Water Bodies',
+    'bay': 'Water Bodies',
+
+    # Landforms & Natural Terrain
+    'mountain': 'Landforms',
+    'hill': 'Landforms',
+    'canyon': 'Landforms',
+    'valley': 'Landforms',
+    'peak': 'Landforms',
+    'ridge': 'Landforms',
+    'slope': 'Landforms',
+    'cliff': 'Landforms',
+    'platform': 'Landforms',
+    'mesa': 'Landforms',
+    'butte': 'Landforms',
+    'rock': 'Landforms',
+    'boulder': 'Landforms',
+    'crag': 'Landforms',
+    'mound': 'Landforms',
+
+    # Beaches & Coastal Areas
+    'beach': 'Coastal Areas',
+    'shore': 'Coastal Areas',
+    'coastline': 'Coastal Areas',
+    'sand': 'Coastal Areas',
+    'breakwater': 'Coastal Areas',
+    'pier': 'Coastal Areas',
+
+    # Roads & Paths
+    'road': 'Roads and Paths',
+    'street': 'Roads and Paths',
+    'highway': 'Roads and Paths',
+    'local_road': 'Roads and Paths',
+    'expressway': 'Roads and Paths',
+    'driveway': 'Roads and Paths',
+    'path': 'Roads and Paths',
+    'sidewalk': 'Roads and Paths',
+    'trail': 'Roads and Paths',
+    'dirt_track': 'Roads and Paths',
+    'racetrack': 'Roads and Paths',
+    'track': 'Roads and Paths',
+    'alley': 'Roads and Paths',
+
+    # Residential & Urban Structures
+    'house': 'Residential and Urban Structures',
+    'home': 'Residential and Urban Structures',
+    'dwelling': 'Residential and Urban Structures',
+    'apartment': 'Residential and Urban Structures',
+    'apartment_building': 'Residential and Urban Structures',
+    'residential_district': 'Residential and Urban Structures',
+    'neighborhood': 'Residential and Urban Structures',
+    'building': 'Residential and Urban Structures',
+    'town': 'Residential and Urban Structures',
+    'village': 'Residential and Urban Structures',
+    'suburb': 'Residential and Urban Structures',
+    'streetcar': 'Residential and Urban Structures',
+    'office': 'Residential and Urban Structures',
+    'office_building': 'Residential and Urban Structures',
+    'urban_area': 'Residential and Urban Structures',
+
+    # Parks & Recreation Areas
+    'park': 'Parks and Recreation Areas',
+    'playground': 'Parks and Recreation Areas',
+    'theme_park': 'Parks and Recreation Areas',
+    'amusement_park': 'Parks and Recreation Areas',
+    'campsite': 'Parks and Recreation Areas',
+    'campus': 'Parks and Recreation Areas',
+    'boot_camp': 'Parks and Recreation Areas',
+    'recreation_area': 'Parks and Recreation Areas',
+
+    # Sports Venues & Fields
+    'stadium': 'Sports Venues',
+    'court': 'Sports Venues',
+    'basketball_court': 'Sports Venues',
+    'tennis_court': 'Sports Venues',
+    'volleyball_court': 'Sports Venues',
+    'football_field': 'Sports Venues',
+    'playing_field': 'Sports Venues',
+    'ball_field': 'Sports Venues',
+    'gymnasium': 'Sports Venues',
+
+    # Forests & Vegetation
+    'forest': 'Forests and Vegetation',
+    'woods': 'Forests and Vegetation',
+    'jungle': 'Forests and Vegetation',
+    'scrubland': 'Forests and Vegetation',
+    'grassland': 'Forests and Vegetation',
+    'countryside': 'Forests and Vegetation',
+    'prairie': 'Forests and Vegetation',
+    'savanna': 'Forests and Vegetation',
+    'field': 'Forests and Vegetation',
+    'meadow': 'Forests and Vegetation',
+
+    # Buildings & Facilities
+    'hospital': 'Buildings and Facilities',
+    'clinic': 'Buildings and Facilities',
+    'school': 'Buildings and Facilities',
+    'warehouse': 'Buildings and Facilities',
+    'factory': 'Buildings and Facilities',
+    'department_store': 'Buildings and Facilities',
+    'church': 'Buildings and Facilities',
+    'stadium': 'Buildings and Facilities',
+    'arena': 'Buildings and Facilities',
+    'auditorium': 'Buildings and Facilities',
+    'mall': 'Buildings and Facilities',
+    'museum': 'Buildings and Facilities',
+    'library': 'Buildings and Facilities',
+
+    # Agricultural Scenes
+    'farm': 'Agricultural Scenes',
+    'ranch': 'Agricultural Scenes',
+    'pasture': 'Agricultural Scenes',
+    'barn': 'Agricultural Scenes',
+    'field': 'Agricultural Scenes',
+    'cornfield': 'Agricultural Scenes',
+    'paddock': 'Agricultural Scenes',
+
+    # Public Venues
+    'casino': 'Public Venues',
+    'theater': 'Public Venues',
+    'ballroom': 'Public Venues',
+    'concert': 'Public Venues',
+    'event': 'Public Venues',
+    'show': 'Public Venues',
+
+    # Sea Vessels
+    'boat': 'Sea Vessels',
+    'ship': 'Sea Vessels',
+    'vessel': 'Sea Vessels',
+    'fishing_boat': 'Sea Vessels',
+    'raft': 'Sea Vessels',
+    'sailboat': 'Sea Vessels',
+    'kayak': 'Sea Vessels',
+    'canoe': 'Sea Vessels'
+}
+
+np.save('merged_attrs.npy', attribute_groups)
