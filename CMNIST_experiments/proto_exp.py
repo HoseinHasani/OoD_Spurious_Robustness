@@ -132,7 +132,7 @@ print('Prototypical:')
 
 network_name = 'ResNet50' if backbone == 'res50' else 'DINO-v2 (Normalized)'
 
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=True,
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes, plot=False,
                     exp_name='Prototypical', network_name=network_name)
 
 
@@ -181,7 +181,7 @@ for l in range(n_c):
 
 aug_prototypes = np.array(aug_prototypes)
 print('Prototypical-GI:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=True,
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False,
                     exp_name='Prototypical-GI', network_name=network_name)
 
 # refined_prototypes = []
@@ -198,7 +198,7 @@ for c in range(n_c):
     aug_prototypes2.append(aug_prototypes[n_c*c: n_c*(c+1)].mean())
 
 print('Prototypical-GI-MG:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=True,
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False,
                     exp_name='Prototypical-GI-MG', network_name=network_name)
 
 

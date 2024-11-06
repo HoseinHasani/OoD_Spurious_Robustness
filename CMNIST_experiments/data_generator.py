@@ -10,6 +10,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import os
 
+colorize_digit = True
+
 def generate_distinct_colors(num_colors=5, min_distance=120, automatic=False):
     colors = []
     def l2_distance(color1, color2):
@@ -28,16 +30,20 @@ def generate_distinct_colors(num_colors=5, min_distance=120, automatic=False):
             torch.tensor([10, 20, 190]),
             torch.tensor([200, 150, 0]),
             ]
-    return torch.stack(colors)  
+        colors = torch.stack(colors)
+        if colorize_digit:
+            colors = 1.25 * colors.float()
+    return colors
 
 
 class ColoredMNIST(Dataset):
-    def __init__(self, colors, train=True, transform=None, sp_ratio=0.90):
+    def __init__(self, colors, train=True, transform=None, sp_ratio=0.50, colorize_digit=colorize_digit):
         self.mnist = datasets.MNIST(root='./data', train=train, download=True)
         self.transform = transform
         self.colors = colors
         self.train = train
         self.sp_ratio = sp_ratio
+        self.colorize_digit = colorize_digit
         self.to_pil = ToPILImage()
 
     def __len__(self):
@@ -48,37 +54,37 @@ class ColoredMNIST(Dataset):
         
         img_rgb = torch.cat([transforms.ToTensor()(img)] * 3, dim=0)
 
+        # Determine color index based on spurious correlation settings
         if label < 5:
             if self.train:
                 if torch.rand(1).item() < self.sp_ratio:
-                    # Majority group: default color for the class
-                    color_index = label
+                    color_index = label  # Majority group: default color for the class
                 else:
-                    # Minority group: use colors from two other classes
-                    alt_colors = [c for c in range(5) if c != label]
+                    alt_colors = [c for c in range(5) if c != label]  # Minority group: other class colors
                     color_index = np.random.choice(alt_colors)
             else:
-                # For validation, each color appears with equal probability (0.2 for each color)
-                color_index = np.random.choice(range(5), p=[0.2] * 5)
-    
+                color_index = np.random.choice(range(5), p=[0.2] * 5)  # Equal probability for each color in validation
             in_distribution = True
         else:
-            # Out-of-distribution samples (digits 5 to 9)
-            color_index = label % 5
+            color_index = label % 5  # Out-of-distribution samples (digits 5 to 9)
             in_distribution = False
-        
-        background_color = self.colors[color_index] / 256
-        img_colored = background_color[:, None, None] * torch.ones_like(img_rgb)
-        img_colored = torch.where(img_rgb > 0.24, img_rgb, img_colored)
 
+        color = self.colors[color_index] / 256
+
+        # Apply color based on whether we are colorizing the digit or the background
+        if self.colorize_digit:
+            img_colored = color[:, None, None] * torch.ones_like(img_rgb)
+            img_colored = torch.where(img_rgb > 0.1, img_colored, img_rgb)
+        else:
+            img_colored = color[:, None, None] * torch.ones_like(img_rgb)
+            img_colored = torch.where(img_rgb > 0.24, img_rgb, img_colored)
 
         if self.transform:
             img_colored = self.to_pil(img_colored)
             img_colored = self.transform(img_colored)
-            
+
         return img_colored, label, in_distribution, color_index
-
-
+    
 colors = generate_distinct_colors(num_colors=5)
 
 train_dataset = ColoredMNIST(colors=colors, train=True, transform=None, sp_ratio=0.90)
@@ -97,7 +103,7 @@ def visualize_colored_mnist(dataset, ood_dataset, num_samples=1):
         for i, color_idx in enumerate(color_indices):
             found = 0
             for img, lbl, in_dist, sample_color_idx in dataset:
-                if np.random.rand() < 0.1:
+                if np.random.rand() < 0.7:
                     continue
                 if lbl == label and in_dist and sample_color_idx == color_idx:
                     axes[label, i].imshow(to_pil(img))
@@ -128,7 +134,7 @@ def visualize_colored_mnist(dataset, ood_dataset, num_samples=1):
     
     for i, label in enumerate(range(5, 10)):
         for img, lbl, in_dist, sample_color_idx in ood_dataset:
-            if np.random.rand() < 0.1:
+            if np.random.rand() < 0.7:
                 continue
             if lbl == label and not in_dist:
                 ood_axes[i].imshow(to_pil(img))
@@ -143,7 +149,8 @@ def visualize_colored_mnist(dataset, ood_dataset, num_samples=1):
 
 if False:
     resize_transform = transforms.Compose([
-        transforms.Resize((224, 224)),
+        # transforms.Resize((224, 224)),
+        transforms.Resize((56, 56)),
         transforms.ToTensor(),
     ])
     
@@ -222,7 +229,8 @@ def extract_embeddings(dataset, model, device):
     
     return embeddings_dict
 
-emb_path = 'embeddings'
+c_type = 'FG' if colorize_digit else 'BG'
+emb_path = f'embeddings_{c_type}'
 os.makedirs(emb_path, exist_ok=True)
 train_embeddings = extract_embeddings(train_dataset, model, device)
 np.save(f"{emb_path}/cmnist_train_res18_pretrained.npy", train_embeddings)
