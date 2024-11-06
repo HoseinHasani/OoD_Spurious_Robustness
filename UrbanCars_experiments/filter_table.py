@@ -1,42 +1,44 @@
 import pandas as pd
-from itertools import combinations
-from tqdm import tqdm
+import numpy as np
 
-threshold = 1
-file_path = 'dataset_summary.csv'  
-df = pd.read_csv(file_path)
+threshold = 7  
 
-df = df.apply(pd.to_numeric, errors='coerce').fillna(0).astype(int)
+df = pd.read_csv('dataset_summary.csv', index_col=0)
 
-filtered_df = df.loc[:, (df >= threshold).any(axis=0)]
-filtered_df = filtered_df.loc[(filtered_df >= threshold).any(axis=1), :]
+data = df.values
 
-best_rows = []
-best_columns = []
+row_names = np.array(df.index.tolist())
+col_names = np.array(df.columns.tolist())
+sfd
+binary_matrix = (data >= threshold).astype(int)
 
-for start_row in range(len(filtered_df)):
-    for start_col in range(len(filtered_df.columns)):
-        rows = [start_row]
-        cols = [start_col]
+
+for i in range(21):
+
+    n_iter = 34 if i == 0 else 24
+    
+    for j in range(n_iter):
+        row_similarity_matrix = np.dot(binary_matrix, binary_matrix.T)
+        row_similarity_array = row_similarity_matrix.sum(-1)
+        arg_min = np.argwhere(row_similarity_array == np.min(row_similarity_array)).ravel()[-1]
+        inds = np.arange(len(row_similarity_array))
+        new_inds = np.delete(inds, arg_min)
         
-        for end_row in range(start_row, len(filtered_df)):
-            if (filtered_df.iloc[end_row, cols] >= threshold).all():
-                rows.append(end_row)
-            else:
-                break
+        binary_matrix = binary_matrix[new_inds]
+        data = data[new_inds]
+        row_names = row_names[new_inds]
         
-        for end_col in range(start_col, len(filtered_df.columns)):
-            if (filtered_df.iloc[rows, end_col] >= threshold).all():
-                cols.append(end_col)
-            else:
-                break
+    
+    col_similarity_matrix = np.dot(binary_matrix.T, binary_matrix)
+    col_similarity_array = col_similarity_matrix.sum(-1)
+    arg_min = np.argwhere(col_similarity_array == np.min(col_similarity_array)).ravel()[-1]
+    inds = np.arange(len(col_similarity_array))
+    new_inds = np.delete(inds, arg_min)
+    
+    binary_matrix = binary_matrix[:, new_inds]
+    data = data[:, new_inds]
+    col_names = col_names[new_inds]
+        
+binary_df = pd.DataFrame(data, index=row_names, columns=col_names)
 
-        if len(rows) * len(cols) > len(best_rows) * len(best_columns):
-            best_rows = rows
-            best_columns = cols
-
-largest_sub_table = filtered_df.iloc[best_rows, best_columns]
-
-
-largest_sub_table.to_csv(f'reduced_threshold_{threshold}.csv', index=False)
-
+binary_df.to_csv(f'reduced_th_{threshold}.csv')
