@@ -10,7 +10,7 @@ col_attribute_groups = {
     # Boating & Water Sports
     'rafting': 'Boating', 
     'rowing': 'Boating',
-    'boating': 'Boating',
+    # 'boating': 'Boating',
     
     # Push
     'pulling': 'Pull',
