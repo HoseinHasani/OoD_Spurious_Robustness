@@ -8,8 +8,18 @@ col_attribute_groups = {
     'pedaling': 'Cycling',
 
     # Boating & Water Sports
-    'rafting': 'WaterSports', 
-    'rowing': 'WaterSports',
+    'rafting': 'Boating', 
+    'rowing': 'Boating',
+    'boating': 'Boating',
+    
+    # Push
+    'pulling': 'Pull',
+    'dragging': 'Pull',
+    
+    
+    # Waiting
+    'waiting': 'Waiting',
+    'standing': 'Waiting',
     
     
     # Descending Movements
@@ -56,6 +66,12 @@ col_attribute_groups = {
     'landing': 'Landing', #mostly related to balloons and airplane landing
     'taxiing': 'Landing', #mostly related to airplane landing
 
+    # Social
+    'celebrating': 'Social',
+    'congregating': 'Social',
+    'gathering': 'Social',
+    'socializing': 'Social',
+    'intermingling': 'Social',
     
 }
 

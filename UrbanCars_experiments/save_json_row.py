@@ -50,6 +50,7 @@ row_attribute_groups = {
     'hall': 'Indoor',
     'classroom': 'Indoor',
     'office': 'Indoor',
+    'anteroom': 'Indoor',
 
     # Oceans and Seas
     'ocean': 'Seas',
