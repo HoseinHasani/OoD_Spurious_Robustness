@@ -96,6 +96,33 @@ def plot_dict_hist(dict_data, fig_name):
     plt.legend()
 
     
+def refine_group_prototypes(group_embs, n_iter=2):
+    all_embs = np.concatenate(group_embs)
+
+    prototypes = [embs.mean(0) for embs in group_embs]
+    prototypes = np.array(prototypes)
+    
+    print([group_embs[j].shape for j in range(len(group_embs))]) 
+    
+    for k in range(n_iter):
+        dists = np.linalg.norm(all_embs[..., None] - prototypes.T[None], axis=1)
+        labels = np.argmin(dists, axis=1)
+        new_embs = []
+        for l in np.unique(labels):
+            inds = np.argwhere(labels == l).ravel()
+            new_embs.append(all_embs[inds])
+
+        print([new_embs[j].shape for j in range(len(new_embs))]) 
+    
+        prototypes = [embs.mean(0) for embs in new_embs]
+        prototypes = np.array(prototypes)
+    print()
+    
+    
+    return prototypes
+    
+    
+    
 core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_dict)
 print('ax correlation: ', np.dot(core_ax, sp_ax))
 
@@ -141,17 +168,27 @@ total_miss_inds = np.argwhere(y_hat_train != y_train).ravel()
 total_crr_inds = np.argwhere(y_hat_train == y_train).ravel()
 
 aug_prototypes = []
-
+aug_embs = []
 for l in [0, 1]:
     class_inds = np.argwhere(y_train == l).ravel()
     class_miss_inds = np.intersect1d(class_inds, total_miss_inds, assume_unique=True)
     aug_prototypes.append(x_train[class_miss_inds].mean(0))
+    aug_embs.append(x_train[class_miss_inds])
+    
     class_crr_inds = np.intersect1d(class_inds, total_crr_inds, assume_unique=True)
     aug_prototypes.append(x_train[class_crr_inds].mean(0))
-    
+    aug_embs.append(x_train[class_crr_inds])
     
 aug_prototypes = np.array(aug_prototypes)
 
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes)
 
 
+refined_prototypes = []
+
+refined_prototypes.extend(refine_group_prototypes(aug_embs[:2]))
+refined_prototypes.extend(refine_group_prototypes(aug_embs[2:]))
+
+aug_prototypes = np.array(aug_prototypes)
+
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes)

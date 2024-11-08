@@ -6,7 +6,7 @@ import os
 import warnings
 from sklearn.model_selection import train_test_split
 
-seed = 6
+seed = 1
 np.random.seed(seed+1)
 
 warnings.filterwarnings("ignore")
@@ -57,14 +57,14 @@ minority_groups = {
 }
 
 # 95% correlation:
-# majority_groups = {
-#     'camel-desert': 800,  
-#     'cow-grass': 800      
-# }
-# minority_groups = {
-#     'camel-grass': 40,    
-#     'cow-desert': 40      
-# }
+majority_groups = {
+    'camel-desert': 800,  
+    'cow-grass': 800      
+}
+minority_groups = {
+    'camel-grass': 40,    
+    'cow-desert': 40      
+}
 
 train_dict = {'camel-desert': [], 'camel-grass': [], 'cow-desert': [], 'cow-grass': []}
 test_dict = {'camel-desert': [], 'camel-grass': [], 'cow-desert': [], 'cow-grass': []}
@@ -172,23 +172,28 @@ def extract_prototypes(embs, th=0.8):
 
 def refine_group_prototypes(group_embs):
     all_embs = np.concatenate(group_embs)
-    print(group_embs[0].shape, group_embs[1].shape)
-    first_prototypes = [embs.mean(0) for embs in group_embs]
-    first_prototypes = np.array(first_prototypes)
-    
-    dists = np.linalg.norm(all_embs[..., None] - first_prototypes.T[None], axis=1)
-    labels = np.argmin(dists, axis=1)
-    new_embs = []
-    for l in np.unique(labels):
-        inds = np.argwhere(labels == l).ravel()
-        new_embs.append(all_embs[inds])
 
-    print(new_embs[0].shape, new_embs[1].shape)   
+    prototypes = [embs.mean(0) for embs in group_embs]
+    prototypes = np.array(prototypes)
+    
+    print(group_embs[0].shape, group_embs[1].shape) 
+    
+    for k in range(4):
+        dists = np.linalg.norm(all_embs[..., None] - prototypes.T[None], axis=1)
+        labels = np.argmin(dists, axis=1)
+        new_embs = []
+        for l in np.unique(labels):
+            inds = np.argwhere(labels == l).ravel()
+            new_embs.append(all_embs[inds])
+
+        print(new_embs[0].shape, new_embs[1].shape)   
+        
+        prototypes = [embs.mean(0) for embs in new_embs]
+        prototypes = np.array(prototypes)
     print()
     
-    new_prototypes = [embs.mean(0) for embs in new_embs]
     
-    return new_prototypes
+    return prototypes
     
     
     
@@ -265,8 +270,8 @@ print('Prototypical-GI:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False,
                     exp_name='Prototypical-GI', network_name=network_name)
 
-# print('after (refined):')
-# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes, plot=True)
+print('after (refined):')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes, plot=False)
 
 aug_prototypes = np.array(aug_prototypes)
 aug_prototypes2 = [aug_prototypes[:2].mean(0), aug_prototypes[2:].mean(0)]

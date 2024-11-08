@@ -7,6 +7,7 @@ import warnings
 from sklearn.model_selection import train_test_split
 
 seed = 2
+n_iter = 3
 np.random.seed(seed+1)
 
 warnings.filterwarnings("ignore")
@@ -133,25 +134,30 @@ def extract_prototypes(embs, th=0.8):
     final_prototype = embs[valid_inds].mean(0)
     return final_prototype
 
-def refine_group_prototypes(group_embs):
+def refine_group_prototypes(group_embs, n_iter):
     all_embs = np.concatenate(group_embs)
-    print(group_embs[0].shape, group_embs[1].shape)
-    first_prototypes = [embs.mean(0) for embs in group_embs]
-    first_prototypes = np.array(first_prototypes)
-    
-    dists = np.linalg.norm(all_embs[..., None] - first_prototypes.T[None], axis=1)
-    labels = np.argmin(dists, axis=1)
-    new_embs = []
-    for l in np.unique(labels):
-        inds = np.argwhere(labels == l).ravel()
-        new_embs.append(all_embs[inds])
 
-    print(new_embs[0].shape, new_embs[1].shape)   
+    prototypes = [embs.mean(0) for embs in group_embs]
+    prototypes = np.array(prototypes)
+    
+    print(group_embs[0].shape, group_embs[1].shape) 
+    
+    for k in range(n_iter):
+        dists = np.linalg.norm(all_embs[..., None] - prototypes.T[None], axis=1)
+        labels = np.argmin(dists, axis=1)
+        new_embs = []
+        for l in np.unique(labels):
+            inds = np.argwhere(labels == l).ravel()
+            new_embs.append(all_embs[inds])
+
+        print(new_embs[0].shape, new_embs[1].shape)   
+        
+        prototypes = [embs.mean(0) for embs in new_embs]
+        prototypes = np.array(prototypes)
     print()
     
-    new_prototypes = [embs.mean(0) for embs in new_embs]
     
-    return new_prototypes
+    return prototypes
     
     
 

@@ -82,25 +82,30 @@ def extract_prototypes(embs, th=0.8):
     final_prototype = embs[valid_inds].mean(0)
     return final_prototype
 
-def refine_group_prototypes(group_embs):
+def refine_group_prototypes(group_embs, n_iter=4):
     all_embs = np.concatenate(group_embs)
-    print(group_embs[0].shape, group_embs[1].shape)
-    first_prototypes = [embs.mean(0) for embs in group_embs]
-    first_prototypes = np.array(first_prototypes)
-    
-    dists = np.linalg.norm(all_embs[..., None] - first_prototypes.T[None], axis=1)
-    labels = np.argmin(dists, axis=1)
-    new_embs = []
-    for l in np.unique(labels):
-        inds = np.argwhere(labels == l).ravel()
-        new_embs.append(all_embs[inds])
 
-    print(new_embs[0].shape, new_embs[1].shape)   
+    prototypes = [embs.mean(0) for embs in group_embs]
+    prototypes = np.array(prototypes)
+    
+    print([group_embs[j].shape for j in range(len(group_embs))]) 
+    
+    for k in range(n_iter):
+        dists = np.linalg.norm(all_embs[..., None] - prototypes.T[None], axis=1)
+        labels = np.argmin(dists, axis=1)
+        new_embs = []
+        for l in np.unique(labels):
+            inds = np.argwhere(labels == l).ravel()
+            new_embs.append(all_embs[inds])
+
+        print([new_embs[j].shape for j in range(len(new_embs))]) 
+    
+        prototypes = [embs.mean(0) for embs in new_embs]
+        prototypes = np.array(prototypes)
     print()
     
-    new_prototypes = [embs.mean(0) for embs in new_embs]
     
-    return new_prototypes
+    return prototypes
     
     
 
@@ -184,13 +189,13 @@ print('Prototypical-GI:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False,
                     exp_name='Prototypical-GI', network_name=network_name)
 
-# refined_prototypes = []
+refined_prototypes = []
 
-# for c in range(n_c):
-#     refined_prototypes.extend(refine_group_prototypes(aug_embs[n_c*c: n_c*(c+1)]))
+for c in range(n_c):
+    refined_prototypes.extend(refine_group_prototypes(aug_embs[n_c*c: n_c*(c+1)]))
 
-# print('after (refined):')
-# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes, plot=False)
+print('after (refined):')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes, plot=False)
 
 aug_prototypes = np.array(aug_prototypes)
 aug_prototypes2 = []
