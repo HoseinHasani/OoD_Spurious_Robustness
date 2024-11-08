@@ -22,6 +22,20 @@ resnet_type = resnet_types[0]
 envs = ['country', 'urban']
 items = ['obj', 'bg', 'co_occur_obj']
 
+
+
+core_class_names = ['0', '1']
+ood_class_names = ['0', '1']
+sp_class_names = ['0', '1']
+
+data_path = 'embeddings/'
+
+
+train_emb_dict = np.load(data_path + 'urbancars_train_InD_res50_pretrained.npy', allow_pickle=True).item()
+test_emb_dict = np.load(data_path + 'urbancars_val_InD_res50_pretrained.npy', allow_pickle=True).item()
+ood_emb_dict = np.load(data_path + 'urbancars_test_OoD_bg_co_occur_res50_pretrained.npy', allow_pickle=True).item()
+
+
 maj0_name = 'obj-country_bg-country_co_occur_obj-country'
 maj1_name = 'obj-urban_bg-urban_co_occur_obj-urban'
 
@@ -38,24 +52,24 @@ min1_names = [
     ]
 
 
-core_class_names = ['0', '1']
-ood_class_names = ['0', '1']
-sp_class_names = ['0', '1']
-
-data_path = 'embeddings/'
-
-
-train_emb_dict = np.load(data_path + 'urbancars_train_InD_res50_pretrained.npy', allow_pickle=True).item()
-test_emb_dict = np.load(data_path + 'urbancars_test_InD_res50_pretrained.npy', allow_pickle=True).item()
-ood_emb_dict = np.load(data_path + 'urbancars_val_OoD_bg_co_occur_res50_pretrained.npy', allow_pickle=True).item()
-
-
-
 train_dict0 = {}
 train_dict0['0_1'] = np.concatenate([train_emb_dict[name] for name in min0_names])
 train_dict0['1_0'] = np.concatenate([train_emb_dict[name] for name in min1_names])
 train_dict0['0_0'] = train_emb_dict[maj0_name]
 train_dict0['1_1'] = train_emb_dict[maj1_name]
+
+
+min0_names = [
+    # 'obj-country_bg-country_co_occur_obj-urban',
+    # 'obj-country_bg-urban_co_occur_obj-country',
+    'obj-country_bg-urban_co_occur_obj-urban'    
+    ]
+
+min1_names = [
+    # 'obj-urban_bg-urban_co_occur_obj-country',
+    # 'obj-urban_bg-country_co_occur_obj-urban',
+    'obj-urban_bg-country_co_occur_obj-country'    
+    ]
 
 
 test_dict0 = {}
@@ -65,17 +79,6 @@ test_dict0['0_0'] = test_emb_dict[maj0_name]
 test_dict0['1_1'] = test_emb_dict[maj1_name]
 
 
-min0_names = [
-    'obj-country_bg-country_co_occur_obj-urban',
-    'obj-country_bg-urban_co_occur_obj-country',
-    'obj-country_bg-urban_co_occur_obj-urban'    
-    ]
-
-min1_names = [
-    'obj-urban_bg-urban_co_occur_obj-country',
-    'obj-urban_bg-country_co_occur_obj-urban',
-    'obj-urban_bg-country_co_occur_obj-country'    
-    ]
 
 
 ood_embs0 = {}
