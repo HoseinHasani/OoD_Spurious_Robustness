@@ -9,5 +9,6 @@ datasets/
 *.md
 *.png
 *.jpg
+*.csv
 data/
 embeddings/
