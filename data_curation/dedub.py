@@ -2,59 +2,58 @@ import os
 import shutil
 from PIL import Image
 import numpy as np
+from tqdm import tqdm
 
-def load_image(image_path):
-    """Load an image and return it as a numpy array."""
-    try:
-        img = Image.open(image_path)
-        return np.array(img)
-    except Exception as e:
-        print(f"Error loading image {image_path}: {e}")
-        return None
 
-def calculate_image_difference(image1, image2):
-    """Calculate pixel difference between two images."""
-    if image1.shape != image2.shape:
-        return np.inf  # Images of different sizes are considered different.
-    # Compute pixel-wise absolute difference and take the sum of all differences.
-    diff = np.sum(np.abs(image1.astype(np.int32) - image2.astype(np.int32)))
+def image_difference(img1, img2):
+
+    if img1.size != img2.size:
+        return 100000  
+    diff = np.sum(np.abs(np.array(img1) - np.array(img2)))
+    
     return diff
 
-def move_unique_images(source_dir, dest_dir, threshold=1000):
-    """Move unique images from source_dir to dest_dir based on raw pixel comparison."""
-    if not os.path.exists(dest_dir):
-        os.makedirs(dest_dir)
 
-    image_files = []
-    # Gather image files with common image extensions
-    for ext in ['jpeg', 'jpg', 'png', 'bmp', 'tiff']:
-        image_files.extend([os.path.join(source_dir, f) for f in os.listdir(source_dir) if f.lower().endswith(ext)])
+def copy_unique_images(source_dir, target_dir, threshold):
 
-    unique_images = []
+    if not os.path.exists(target_dir):
+        os.makedirs(target_dir)
 
-    for i, img_path in enumerate(image_files):
-        img1 = load_image(img_path)
-        if img1 is None:
+    source_files = [f for f in os.listdir(source_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+    
+    n_copy = 0
+    n_skip = 0
+    
+    for i in tqdm(range(len(source_files))):
+        source_file = source_files[i]
+        source_image_path = os.path.join(source_dir, source_file)
+        
+        try:
+            img = Image.open(source_image_path)
+        except Exception as e:
+            print(f"Error loading image {source_file}: {e}")
             continue
+        
+        is_unique = True
+        for target_file in os.listdir(target_dir):
+            target_image_path = os.path.join(target_dir, target_file)
+            target_img = Image.open(target_image_path)
 
-        is_duplicate = False
-        for unique_img_path in unique_images:
-            img2 = load_image(unique_img_path)
-            if img2 is None:
-                continue
-            diff = calculate_image_difference(img1, img2)
-            if diff < threshold:  # If difference is below the threshold, consider as duplicate
-                print(f"Duplicate found: {img_path} is similar to {unique_img_path}, difference: {diff}")
-                is_duplicate = True
+            diff = image_difference(img, target_img)
+            if diff < threshold:
+                is_unique = False
                 break
-
-        if not is_duplicate:
-            unique_images.append(img_path)
-            # Move the unique image to the destination directory
-            shutil.move(img_path, os.path.join(dest_dir, os.path.basename(img_path)))
-            print(f"Moved unique image: {img_path}")
-
-# Example usage:
-source_directory = '/path/to/source_directory'  # Replace with your source directory
-destination_directory = '/path/to/destination_directory'  # Replace with your destination directory
-move_unique_images(source_directory, destination_directory, threshold=1000)
+        
+        if is_unique:
+            n_copy += 1
+            shutil.copy2(source_image_path, target_dir)
+        else:
+            n_skip += 1
+            
+    print()
+    print(source_dir, n_skip, n_copy)
+    
+    
+source_directory = 'black'
+target_directory = 'black2'
+copy_unique_images(source_directory, target_directory, threshold=6000)
