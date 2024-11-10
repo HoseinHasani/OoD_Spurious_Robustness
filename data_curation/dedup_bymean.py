@@ -5,50 +5,47 @@ import numpy as np
 from tqdm import tqdm
 
 
-def image_difference(img1, img2):
-    if img1.size != img2.size:
-        return 100000
-    diff = np.sum(np.abs(np.array(img1) - np.array(img2)))
-    return diff
+target_means = [] 
 
+def image_mean(img):
+    return np.mean(np.array(img), axis=(0, 1)) 
 
 def copy_unique_images(source_dir, target_dir, threshold):
-
     if not os.path.exists(target_dir):
         os.makedirs(target_dir)
 
     source_files = [f for f in os.listdir(source_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
     
-    target_images = []
 
     n_copy = 0
     n_skip = 0
 
-    for i in tqdm(range(len(source_files))):
-        source_file = source_files[i]
+    for source_file in tqdm(source_files):
         source_image_path = os.path.join(source_dir, source_file)
 
         try:
-            img = Image.open(source_image_path)
+            img = Image.open(source_image_path).convert('RGB')
+            img_mean = image_mean(img)
         except Exception as e:
             print(f"Error loading image {source_file}: {e}")
             continue
 
         is_unique = True
-        for target_file, target_img in target_images:
-            diff = image_difference(img, target_img)
-            if diff < threshold:
+        for target_mean in target_means:
+            diff = np.max(np.abs(img_mean - target_mean))
+            th_val = threshold * (1 - 0.5 * min(len(target_means) / 500, 1))
+            if diff < th_val:
                 is_unique = False
                 break
 
         if is_unique:
             n_copy += 1
             shutil.copy2(source_image_path, target_dir)
-            target_images.append((source_file, img))  
+            target_means.append(img_mean)  
         else:
             n_skip += 1
 
-    print(f"\n Folder: {source_dir}, Copied: {n_copy}, Skipped: {n_skip}")
+    print(f"\nFolder: {source_dir}, Copied: {n_copy}, Skipped: {n_skip}\n")
 
 
 def deduplicate_dataset(root_source_dir, root_target_dir, threshold):
@@ -62,6 +59,6 @@ def deduplicate_dataset(root_source_dir, root_target_dir, threshold):
             copy_unique_images(source_subdir, target_subdir, threshold)
 
 
-root_source_directory = 'dataset/data'  
-root_target_directory = 'dedub/dataset/data'  
-deduplicate_dataset(root_source_directory, root_target_directory, threshold=6000)
+root_source_directory = 'FSLSHIFT/sheep'  
+root_target_directory = f'dedub/{root_source_directory}'  
+deduplicate_dataset(root_source_directory, root_target_directory, threshold=1.6)
