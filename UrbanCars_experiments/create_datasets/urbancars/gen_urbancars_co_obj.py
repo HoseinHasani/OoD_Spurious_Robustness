@@ -216,6 +216,19 @@ class UrbanCarsDataGen:
             int(0.5 * args.target_image_size),
             int(0.875 * args.target_image_size),
         )
+        
+    def scramble_image_within_mask(self, image, mask):
+
+        mask = mask.bool()
+        
+        scrambled_image = image.clone()
+        masked_region = image[:, mask.squeeze()]
+        
+        shuffled_region = masked_region[:, torch.randperm(masked_region.shape[1])]
+        
+        scrambled_image[:, mask.squeeze()] = shuffled_region
+        
+        return scrambled_image
 
     def _gen_composition(
         self,
@@ -310,6 +323,8 @@ class UrbanCarsDataGen:
                 warning("Skipping co-occur object due to missing or unreadable mask/image")
                 continue
 
+
+
             cropped_co_occur_mask, cropped_co_occur_image = crop_mask_and_img(
                 co_occur_mask, co_occur_image
             )
@@ -324,18 +339,8 @@ class UrbanCarsDataGen:
                 target_side_size=args.target_image_size,
                 object_center_pos=self.co_occur_obj_center_pos,
             )
-
-            blend_img = (
-                rescaled_co_occur_mask * rescaled_co_occur_img
-                + (1 - rescaled_co_occur_mask) * bg_image
-            )
-
-            output_img = (
-                rescaled_mask * rescaled_img + (1 - rescaled_mask) * blend_img
-            )
-
-
-
+                
+                
             just_bg_fname = f"{i:03d}_just_bg.jpg"
             just_bg_path = os.path.join(composition_dir_path, just_bg_fname)
             save_image(
@@ -366,11 +371,68 @@ class UrbanCarsDataGen:
                 padding=0,
                 value_range=(0, 1),
             )
+            
+
+            just_bg_fname = f"{i:03d}_just_bg.jpg"
+            just_bg_path = os.path.join(composition_dir_path, just_bg_fname)
+            save_image(
+                bg_image, just_bg_path, nrow=1, padding=0, value_range=(0, 1)
+            )
+
+            # Create _no_car image (background + co-occur object, without the main object)
+            no_car_image = (
+                rescaled_co_occur_mask * rescaled_co_occur_img
+                + (1 - rescaled_co_occur_mask) * bg_image
+            )
+
+            no_car_fname = f"{i:03d}_no_car.jpg"
+            no_car_path = os.path.join(composition_dir_path, no_car_fname)
+            save_image(
+                no_car_image, no_car_path, nrow=1, padding=0, value_range=(0, 1)
+            )
+            
+            
+            
+            
+            co_occur_mask_fname = f"{i:03d}_co_occur_obj_mask.png"
+            co_occur_mask_path = os.path.join(
+                composition_dir_path, co_occur_mask_fname
+            )
+            save_image(
+                rescaled_co_occur_mask.float(),
+                co_occur_mask_path,
+                nrow=1,
+                padding=0,
+                value_range=(0, 1),
+            )
+            
+            
+            blend_img = (
+                rescaled_co_occur_mask * rescaled_co_occur_img
+                + (1 - rescaled_co_occur_mask) * bg_image
+            )
+
+            output_img = (
+                rescaled_mask * rescaled_img + (1 - rescaled_mask) * blend_img
+            )
+
+
+
 
             img_fname = f"{i:03d}.jpg"
             img_fpath = os.path.join(composition_dir_path, img_fname)
             save_image(
                 output_img, img_fpath, nrow=1, padding=0, value_range=(0, 1)
+            )
+            
+            scrambled_img = self.scramble_image_within_mask(rescaled_img, rescaled_mask)
+            
+            ood_image = rescaled_mask * scrambled_img + (1 - rescaled_mask) * blend_img
+
+            scrambled_fname = f"{i:03d}_scrambled.jpg"
+            scrambled_path = os.path.join(composition_dir_path, scrambled_fname)
+            save_image(
+                ood_image, scrambled_path, nrow=1, padding=0, value_range=(0, 1)
             )
 
             mask_fname = f"{i:03d}_mask.png"
