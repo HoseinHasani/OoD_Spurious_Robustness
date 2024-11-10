@@ -217,16 +217,42 @@ class UrbanCarsDataGen:
             int(0.875 * args.target_image_size),
         )
         
-    def scramble_image_within_mask(self, image, mask):
+        
+    def scramble_image_within_mask(self, image, mask, patch_size=7):
 
         mask = mask.bool()
         
         scrambled_image = image.clone()
-        masked_region = image[:, mask.squeeze()]
         
-        shuffled_region = masked_region[:, torch.randperm(masked_region.shape[1])]
+        coords = torch.nonzero(mask.squeeze(), as_tuple=True)
+        if len(coords[0]) == 0:
+            return scrambled_image
         
-        scrambled_image[:, mask.squeeze()] = shuffled_region
+        if patch_size == 1:
+            masked_region = image[:, mask.squeeze()]
+            shuffled_region = masked_region[:, torch.randperm(masked_region.shape[1])]
+            scrambled_image[:, mask.squeeze()] = shuffled_region
+            return scrambled_image
+        
+        
+        h_min, h_max = coords[0].min().item(), coords[0].max().item()
+        w_min, w_max = coords[1].min().item(), coords[1].max().item()
+        
+        patches = []
+        for i in range(h_min, h_max, patch_size):
+            for j in range(w_min, w_max, patch_size):
+                patch = image[:, i:i + patch_size, j:j + patch_size].clone()
+                if mask[:, i:i + patch_size, j:j + patch_size].any():
+                    patches.append(patch)
+        
+        random.shuffle(patches)
+        
+        patch_idx = 0
+        for i in range(h_min, h_max, patch_size):
+            for j in range(w_min, w_max, patch_size):
+                if mask[:, i:i + patch_size, j:j + patch_size].any():
+                    scrambled_image[:, i:i + patch_size, j:j + patch_size] = patches[patch_idx]
+                    patch_idx += 1
         
         return scrambled_image
 
