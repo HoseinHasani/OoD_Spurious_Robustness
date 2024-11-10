@@ -275,13 +275,18 @@ class UrbanCarsDataGen:
         ]
 
         for i in tqdm(range(num_img), leave=False, dynamic_ncols=True):
-            obj_data_dict = next(obj_loader)
-            image, mask = obj_data_dict["image"], obj_data_dict["mask"]
-            image.squeeze_(0)
-            mask.squeeze_(0)
 
+            try:
+                obj_data_dict = next(obj_loader)
+                image, mask = obj_data_dict["image"], obj_data_dict["mask"]
+                image.squeeze_(0)
+                mask.squeeze_(0)
+            except:
+                warning("Skipping object due to missing or unreadable mask/image")
+                continue
+    
             cropped_mask, cropped_image = crop_mask_and_img(mask, image)
-
+    
             (rescaled_mask, rescaled_img,) = rescale_cropped_mask_and_img(
                 cropped_mask=cropped_mask,
                 cropped_img=cropped_image,
@@ -289,13 +294,21 @@ class UrbanCarsDataGen:
                 target_side_size=args.target_image_size,
                 object_center_pos=self.object_center_pos,
             )
-
-            bg_image = next(bg_loader)
-            bg_image.squeeze_(0)
-
-            co_occur_image, co_occur_mask = next(co_occur_obj_loader)
-            co_occur_image.squeeze_(0)
-            co_occur_mask.squeeze_(0)
+    
+            try:
+                bg_image = next(bg_loader)
+                bg_image.squeeze_(0)
+            except:
+                warning("Skipping background due to missing or unreadable image")
+                continue
+    
+            try:
+                co_occur_image, co_occur_mask = next(co_occur_obj_loader)
+                co_occur_image.squeeze_(0)
+                co_occur_mask.squeeze_(0)
+            except:
+                warning("Skipping co-occur object due to missing or unreadable mask/image")
+                continue
 
             cropped_co_occur_mask, cropped_co_occur_image = crop_mask_and_img(
                 co_occur_mask, co_occur_image
