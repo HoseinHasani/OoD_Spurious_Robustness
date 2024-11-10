@@ -334,6 +334,27 @@ class UrbanCarsDataGen:
                 rescaled_mask * rescaled_img + (1 - rescaled_mask) * blend_img
             )
 
+
+
+            just_bg_fname = f"{i:03d}_just_bg.jpg"
+            just_bg_path = os.path.join(composition_dir_path, just_bg_fname)
+            save_image(
+                bg_image, just_bg_path, nrow=1, padding=0, value_range=(0, 1)
+            )
+
+            # Create _no_car image (background + co-occur object, without the main object)
+            no_car_image = (
+                rescaled_co_occur_mask * rescaled_co_occur_img
+                + (1 - rescaled_co_occur_mask) * bg_image
+            )
+
+            no_car_fname = f"{i:03d}_no_car.jpg"
+            no_car_path = os.path.join(composition_dir_path, no_car_fname)
+            save_image(
+                no_car_image, no_car_path, nrow=1, padding=0, value_range=(0, 1)
+            )
+            
+            
             co_occur_mask_fname = f"{i:03d}_co_occur_obj_mask.png"
             co_occur_mask_path = os.path.join(
                 composition_dir_path, co_occur_mask_fname
