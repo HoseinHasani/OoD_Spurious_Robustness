@@ -69,6 +69,6 @@ def deduplicate_dataset(root_source_dir, root_target_dir, threshold):
             copy_unique_images(source_subdir, target_subdir, threshold)
 
 
-root_source_directory = 'FSLSHIFT/bear'  
-root_target_directory = f'dedub/{root_source_directory}'  
+root_source_directory = 'FSLSHIFT/lizard'  
+root_target_directory = f'dedup/{root_source_directory}'  
 deduplicate_dataset(root_source_directory, root_target_directory, threshold=56000)

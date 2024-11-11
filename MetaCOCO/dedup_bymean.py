@@ -33,7 +33,7 @@ def copy_unique_images(source_dir, target_dir, threshold):
         is_unique = True
         for target_mean in target_means:
             diff = np.max(np.abs(img_mean - target_mean))
-            th_val = threshold * (1 - 0.5 * min(len(target_means) / 500, 1))
+            th_val = threshold * (1 - 0.2 * min(len(target_means) / 500, 1))
             if diff < th_val:
                 is_unique = False
                 break
@@ -59,6 +59,6 @@ def deduplicate_dataset(root_source_dir, root_target_dir, threshold):
             copy_unique_images(source_subdir, target_subdir, threshold)
 
 
-root_source_directory = 'FSLSHIFT/sheep'  
-root_target_directory = f'dedub/{root_source_directory}'  
-deduplicate_dataset(root_source_directory, root_target_directory, threshold=1.6)
+root_source_directory = 'FSLSHIFT/squirrel'  
+root_target_directory = f'dedup/{root_source_directory}'  
+deduplicate_dataset(root_source_directory, root_target_directory, threshold=1.71)
