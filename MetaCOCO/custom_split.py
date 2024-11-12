@@ -49,3 +49,43 @@ for class_name in classes:
 
 metadata.to_csv('updated_dataset_metadata.csv', index=False)
 print("Updated metadata saved to 'updated_dataset_metadata.csv'")
+
+
+
+
+
+n_train_dict = np.load('class_train_num.npy', allow_pickle=True).item()
+updated_metadata = pd.read_csv('updated_dataset_metadata.csv', index_col=0)
+original_metadata = pd.read_csv('dataset_metadata.csv', index_col=0)
+
+validation_passed = True
+
+# 1. Check if number of training samples in each group matches n_train_dict
+for class_name, train_counts in n_train_dict.items():
+    for attribute_index, n_train in enumerate(train_counts):
+        attribute_name = attributes[attribute_index]  # Get attribute name by index
+        
+        train_samples = updated_metadata[
+            (updated_metadata['class'] == class_name) &
+            (updated_metadata['attribute'] == attribute_name) &
+            (updated_metadata['split'] == 0)
+        ]
+        
+        if len(train_samples) != n_train:
+            print(f"Mismatch in training count for class '{class_name}', attribute '{attribute_name}':"
+                  f" Expected {n_train}, found {len(train_samples)}.")
+            validation_passed = False
+
+# 2. Check if indices, address, class, and attribute match between updated and original metadata
+for column in ['address', 'class', 'attribute']:
+    if not updated_metadata[column].equals(original_metadata[column]):
+        print(f"Mismatch detected in column '{column}': original and updated metadata are not in the same order or contain mismatched values.")
+        validation_passed = False
+
+if validation_passed:
+    print("All validations passed: Training sample counts match, and data integrity is preserved in the updated metadata.")
+else:
+    print("Some validations failed. Please check the log above for mismatches.")
+    
+    
+    
