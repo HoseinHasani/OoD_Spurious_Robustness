@@ -17,7 +17,7 @@ class JTTPrototypicalPostprocessor(BasePostprocessor):
         self.activation_log = None
         self.args_dict = self.config.postprocessor.postprocessor_sweep
         self.setup_flag = False
-        self.perform_normalization = False
+        self.perform_normalization = True
         self.train_embs = []
         self.train_prototypes = []
         self.train_labels = None
@@ -37,17 +37,35 @@ class JTTPrototypicalPostprocessor(BasePostprocessor):
         
         aug_prototypes = []
         aug_embs = []
-        for l in np.unique(y_train):
+
+        n_c = len(np.unique(y_train))
+        
+        for l in range(n_c):
             class_inds = np.argwhere(y_train == l).ravel()
-            class_miss_inds = np.intersect1d(class_inds, total_misc_inds, assume_unique=True)
-            aug_prototypes.append(x_train[class_miss_inds].mean(0))
-            #aug_prototypes.append(np.median(x_train[class_miss_inds], axis=0))
-            aug_embs.append(x_train[class_miss_inds])
+        
             class_crr_inds = np.intersect1d(class_inds, total_crr_inds, assume_unique=True)
-            aug_prototypes.append(x_train[class_crr_inds].mean(0))
-            #aug_prototypes.append(np.median(x_train[class_crr_inds], axis=0))
+            crr_prototype = x_train[class_crr_inds].mean(0)
+            aug_prototypes.append(crr_prototype)
             aug_embs.append(x_train[class_crr_inds])
-            print(len(class_miss_inds), len(class_crr_inds))
+        
+            for j in range(n_c):
+                if j == l:
+                    continue
+                
+                class_miss_inds = np.intersect1d(class_inds, total_misc_inds, assume_unique=True)
+                
+                if len(class_miss_inds) < 1:
+                    print('*'*20)
+                    print('Empty!')
+                    aug_prototypes.append(crr_prototype.copy())
+                    
+                trg_lbl_inds = np.argwhere(y_hat_train == j).ravel()
+                class_miss_inds_trg = np.intersect1d(class_miss_inds, trg_lbl_inds, assume_unique=True)
+                
+                if len(class_miss_inds_trg) > 0:
+                    trg_prototype = x_train[class_miss_inds_trg].mean(0)
+                    aug_prototypes.append(trg_prototype)
+                    aug_embs.append(x_train[class_miss_inds_trg])
             
         self.train_prototypes.extend(aug_prototypes)
         
