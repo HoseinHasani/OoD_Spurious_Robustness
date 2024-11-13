@@ -30,16 +30,16 @@ for class_name in classes:
         if n_remaining < 10:
             test_indices = remaining_indices  # All remaining to test
             val_indices = []
-        elif n_remaining < 20:
-            n_test = int(0.8 * n_remaining)
+        elif n_remaining < 24:
+            n_test = int(0.82 * n_remaining)
             test_indices = random.sample(remaining_indices, n_test)
             val_indices = list(set(remaining_indices) - set(test_indices))
-        elif n_remaining < 30:
-            n_test = int(0.6 * n_remaining)
+        elif n_remaining < 40:
+            n_test = int(0.74 * n_remaining)
             test_indices = random.sample(remaining_indices, n_test)
             val_indices = list(set(remaining_indices) - set(test_indices))
         else:
-            n_test = min(int(0.5 * n_remaining), 25)
+            n_test = min(int(0.5 * n_remaining), 40)
             test_indices = random.sample(remaining_indices, n_test)
             val_indices = list(set(remaining_indices) - set(test_indices))
         
