@@ -10,9 +10,9 @@ from .base_postprocessor import BasePostprocessor
 
 
 
-class MKMeansPrototypicalPostprocessor(BasePostprocessor):
+class MRefinedPrototypicalPostprocessor(BasePostprocessor):
     def __init__(self, config):
-        super(MKMeansPrototypicalPostprocessor, self).__init__(config)
+        super(MRefinedPrototypicalPostprocessor, self).__init__(config)
         self.args = self.config.postprocessor.postprocessor_args
         self.activation_log = None
         self.args_dict = self.config.postprocessor.postprocessor_sweep
@@ -22,27 +22,6 @@ class MKMeansPrototypicalPostprocessor(BasePostprocessor):
         self.train_prototypes = []
         self.train_labels = None
         self.train_feats = None
-        
-        
-    def refine_group_prototypes(self, group_embs, n_iter=2):
-        all_embs = np.concatenate(group_embs)
-    
-        prototypes = [embs.mean(0) for embs in group_embs]
-        prototypes = np.array(prototypes)
-        
-        for k in range(n_iter):
-            dists = np.linalg.norm(all_embs[..., None] - prototypes.T[None], axis=1)
-            labels = np.argmin(dists, axis=1)
-            new_embs = []
-            for l in np.unique(labels):
-                inds = np.argwhere(labels == l).ravel()
-                new_embs.append(all_embs[inds])
-    
-            prototypes = [embs.mean(0) for embs in new_embs]
-            prototypes = np.array(prototypes)
-        
-        
-        return prototypes
 
     def perform_classification(self):
         
@@ -88,16 +67,11 @@ class MKMeansPrototypicalPostprocessor(BasePostprocessor):
                     class_prototypes.append(trg_prototype)
                     class_embs.append(x_train[class_miss_inds_trg])
                     
-                
-                
-                if len(class_prototypes) > 1:
-                    refined_prototypes = self.refine_group_prototypes(class_embs)
-                    aug_prototypes.extend(refined_prototypes)
-                else:
-                    aug_prototypes.extend(class_prototypes)
-                
             
-        self.train_prototypes.extend(aug_prototypes)
+                    
+            aug_prototypes.append(np.mean(class_prototypes, 0))
+            
+        self.train_prototypes = aug_prototypes
         
         
     def setup(self, net: nn.Module, id_loader_dict, ood_loader_dict):
@@ -180,6 +154,7 @@ class MKMeansPrototypicalPostprocessor(BasePostprocessor):
         dists = np.array([self.calc_euc_dist(data, p) for p in self.train_prototypes])
         pred_list = np.argmin(dists, axis=0).astype(int)
         conf_list = -np.min(dists, axis=0)
+        
         return pred_list, conf_list, label_list
 
     def set_hyperparam(self, hyperparam: list):
