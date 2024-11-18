@@ -5,6 +5,8 @@ import dist_utils
 import os
 import warnings
 from sklearn.model_selection import train_test_split
+from sklearn.cluster import KMeans
+
 
 seed = 2
 n_iter = 3
@@ -134,7 +136,7 @@ def extract_prototypes(embs, th=0.8):
     final_prototype = embs[valid_inds].mean(0)
     return final_prototype
 
-def refine_group_prototypes(group_embs, n_iter):
+def refine_group_prototypes(group_embs, n_iter=n_iter):
     all_embs = np.concatenate(group_embs)
 
     prototypes = [embs.mean(0) for embs in group_embs]
@@ -160,6 +162,17 @@ def refine_group_prototypes(group_embs, n_iter):
     return prototypes
     
     
+def cluster_group_prototypes(group_embs, n_iter=100):
+    n_c = len(group_embs)
+    kmeans = KMeans(n_clusters=n_c, max_iter=n_iter)
+    all_embs = np.concatenate(group_embs)
+    
+    kmeans.fit(all_embs)
+
+    prototypes = kmeans.cluster_centers_
+    # print(prototypes.shape)
+    
+    return prototypes
 
 
 train_dict_list = get_class_dicts(train_dict)
@@ -240,3 +253,15 @@ aug_prototypes2 = [refined_prototypes[:2].mean(0), refined_prototypes[2:].mean(0
 print('Prototypical-GI-MG (refined):')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False,
                     exp_name='Prototypical-GI-MG (refined)', network_name=network_name)
+
+n_c = 2
+
+kmeans_prototypes = []
+for c in range(n_c):
+    kmeans_prototypes.extend(cluster_group_prototypes(aug_embs[n_c*c: n_c*(c+1)]))
+    
+print('Prototypical-KMEANS:')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=kmeans_prototypes, plot=False,
+                    exp_name='Prototypical-KMEANS', network_name=network_name)
+
+
