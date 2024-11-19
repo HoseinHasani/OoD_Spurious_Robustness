@@ -1,94 +1,71 @@
 import pandas as pd
-from itertools import product
 
-def generate_latex_table(csv_path, fixed_attrs, row_attr1='method', row_attr2=None,
-                         col_attr_1order=None, col_attr_2order=None, col_attr_3order=None,
-                         output_file="table.txt"):
-    # Load CSV
-    data = pd.read_csv(csv_path)
-    
-    # Validate configuration
-    all_attrs = {row_attr1, row_attr2, col_attr_1order, col_attr_2order, col_attr_3order}
-    all_attrs.discard(None)
-    for attr in fixed_attrs:
-        if attr in all_attrs:
-            raise ValueError(f"Conflict: Attribute '{attr}' is fixed and also used in rows or columns.")
-    
-    # Apply fixed attributes
-    for attr, value in fixed_attrs.items():
-        data = data[data[attr] == value]
-    
-    # Get unique values for rows and columns
-    row_values = data[row_attr1].unique()
-    if row_attr2:
-        row_groups = {val: data[data[row_attr1] == val][row_attr2].unique() for val in row_values}
-    else:
-        row_groups = None
-    
-    col_attrs = [col_attr_1order, col_attr_2order, col_attr_3order]
-    col_attrs = [attr for attr in col_attrs if attr]  # Remove None
-    col_values = [data[attr].unique() for attr in col_attrs]
-    
-    # Generate table structure
-    table_lines = []
-    table_lines.append("\\begin{table}[!htb]")
-    table_lines.append("\\centering")
-    table_lines.append("\\fontsize{13}{15}\\selectfont")
-    table_lines.append("\\resizebox{0.9\\textwidth}{!}{%")
-    table_lines.append("\\begin{tabular}{" + "c" * (1 + len(col_values)) + "}")
-    table_lines.append("\\specialrule{1.5pt}{1pt}{1pt}")
-    
-    # Build column hierarchy
-    header_lines = []
-    for i, attr in enumerate(col_attrs):
-        cols = [f"\\textbf{{{val}}}" for val in col_values[i]]
-        cmid_rules = f"\\cmidrule(lr){{{2 + i * len(cols)}-{2 + (i + 1) * len(cols) - 1}}}"
-        header_lines.append(" & " + " & ".join(cols) + " \\\\ " + cmid_rules)
-    table_lines.extend(header_lines)
-    
-    # Add rows
-    for row_val in row_values:
-        if row_groups:
-            group_values = row_groups.get(row_val, [])
-        else:
-            group_values = [row_val]
+# Example usage
+csv_file = "data.csv"  # Path to your CSV file
+row_attr = "method"  # Row attribute
+col_attr = "metric"  # Column attribute
+fixed_attrs = {
+    "train_dataset": "CIFAR10",  # Fixed attribute example
+}
+output_file = "table_output.txt"
+
+# Load the CSV file
+df = pd.read_csv(csv_file)
+
+# Filter the dataframe based on fixed attributes
+for attr, value in fixed_attrs.items():
+    df = df[df[attr] == value]
+
+# Resolve duplicates by aggregating the data (e.g., taking the mean of duplicates)
+df = df.groupby([row_attr, col_attr], as_index=False).agg(
+    mean_val=('mean_val', 'mean'),  # Aggregate mean_val
+    std_val=('std_val', 'mean')    # Aggregate std_val
+)
+
+# Create a pivot table with row_attr as rows and col_attr as columns
+pivot_table = df.pivot(index=row_attr, columns=col_attr, values=['mean_val', 'std_val'])
+
+# Start building the LaTeX table
+latex_table = []
+latex_table.append(r"\begin{table}[!htb]")
+latex_table.append(r"\centering")
+latex_table.append(r"\fontsize{13}{15}\selectfont")
+latex_table.append(r"\resizebox{0.9\textwidth}{!}{%")
+latex_table.append(r"\begin{tabular}{" + "c" * (len(pivot_table.columns.levels[1]) + 1) + "}")
+latex_table.append(r"\specialrule{1.5pt}{1pt}{1pt}")
+
+# Add column headers
+col_headers = [col for col in pivot_table.columns.levels[1]]
+latex_table.append(
+    " & ".join([row_attr] + [f"\\textbf{{{col}}}" for col in col_headers]) + r" \\"
+)
+latex_table.append(r"\specialrule{1.5pt}{1pt}{1pt}")
+
+# Add rows
+for row in pivot_table.index:
+    row_data = []
+    for col in col_headers:
+        mean_val = pivot_table.loc[row, ('mean_val', col)]
+        std_val = pivot_table.loc[row, ('std_val', col)]
         
-        for group_val in group_values:
-            row_label = f"\\textbf{{{row_val}}}" if group_val == row_val else group_val
-            row_data = []
-            
-            for col_comb in product(*col_values):
-                query = data[(data[row_attr1] == row_val)]
-                if row_groups:
-                    query = query[query[row_attr2] == group_val]
-                for col_attr, col_val in zip(col_attrs, col_comb):
-                    query = query[query[col_attr] == col_val]
-                
-                if not query.empty:
-                    mean_val = query['mean_val'].values[0]
-                    std_val = query['std_val'].values[0] if 'std_val' in query else None
-                    if pd.isna(std_val):
-                        row_data.append(f"${mean_val}$")
-                    else:
-                        row_data.append(f"${mean_val}_{{\\textcolor{{gray}}{{\\pm {std_val}}}}}$")
-                else:
-                    print(f"Missing combination: {row_val}, {group_val}, {col_comb}")
-                    row_data.append("-")
-            
-            table_lines.append(row_label + " & " + " & ".join(row_data) + " \\\\")
-        if row_groups:
-            table_lines.append("\\specialrule{1pt}{1pt}{1pt}")
+        if pd.isna(mean_val):
+            row_data.append(" ")
+        elif pd.isna(std_val):
+            row_data.append(f"${mean_val:.2f}$")
+        else:
+            row_data.append(f"${mean_val:.2f}_{{\\textcolor{{gray}}{{\\pm {std_val:.2f}}}}}$")
     
-    # Finish table
-    table_lines.append("\\specialrule{1.5pt}{1pt}{1pt}")
-    table_lines.append("\\end{tabular}}")
-    table_lines.append("\\vspace{-0.1mm}")
-    table_lines.append("\\caption{Your Table Caption}")
-    table_lines.append("\\vspace{-1mm}")
-    table_lines.append("\\label{tab:your_label}")
-    table_lines.append("\\end{table}")
-    
-    # Write to file
-    with open(output_file, 'w') as f:
-        f.write("\n".join(table_lines))
-    print(f"LaTeX table written to {output_file}")
+    latex_table.append(f"{row} & " + " & ".join(row_data) + r" \\")
+
+latex_table.append(r"\specialrule{1.5pt}{1pt}{1pt}")
+latex_table.append(r"\end{tabular}}")
+latex_table.append(r"\vspace{-0.1mm}")
+latex_table.append(r"\caption{Generated table}")
+latex_table.append(r"\vspace{-1mm}")
+latex_table.append(r"\label{tab:generated}")
+latex_table.append(r"\end{table}")
+
+# Write LaTeX table to the output file
+with open(output_file, "w") as f:
+    f.write("\n".join(latex_table))
+print(f"LaTeX table written to {output_file}")
