@@ -1,11 +1,12 @@
 import pandas as pd
+import itertools
 
 # Example usage
 csv_file = "data.csv"  # Path to your CSV file
 row_attr = "method"  # Row attribute
 col_attr_1st = "correlation"  # Primary column attribute
 col_attr_2nd = "backbone"  # Secondary column attribute (set to None for flat table)
-col_attr_3rd = None#"metric"  # Tertiary column attribute (can be None)
+col_attr_3rd = "metric"  # Tertiary column attribute (can be None)
 
 
 fixed_attrs = {
@@ -44,6 +45,40 @@ else:
     pivot_table = df.pivot(index=row_attr, columns=col_attr_1st, values=['mean_val', 'std_val'])
     
 
+# Identify unique values for each attribute
+row_values = df[row_attr].unique()
+col_1st_values = df[col_attr_1st].unique() if col_attr_1st else [None]
+col_2nd_values = df[col_attr_2nd].unique() if col_attr_2nd else [None]
+col_3rd_values = df[col_attr_3rd].unique() if col_attr_3rd else [None]
+
+
+
+combinations = list(itertools.product(row_values, col_1st_values, col_2nd_values, col_3rd_values))
+
+
+# Check for missing combinations and log them
+missing_combinations = []
+for combo in combinations:
+    # Filter dataframe to see if this combination exists
+    row_val, col_1st_val, col_2nd_val, col_3rd_val = combo
+    query_conditions = (df[row_attr] == row_val)
+    if col_attr_1st:
+        query_conditions &= (df[col_attr_1st] == col_1st_val)
+    if col_attr_2nd:
+        query_conditions &= (df[col_attr_2nd] == col_2nd_val)
+    if col_attr_3rd:
+        query_conditions &= (df[col_attr_3rd] == col_3rd_val)
+    
+    if df[query_conditions].empty:  # Combination is missing
+        missing_combinations.append(combo)
+
+# Print the missing combinations
+if missing_combinations:
+    print("Missing combinations:")
+    for combo in missing_combinations:
+        print(combo)
+        
+        
 # Start building the LaTeX table
 latex_table = []
 latex_table.append(r"\begin{table}[!htb]")
