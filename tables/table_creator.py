@@ -1,58 +1,25 @@
 import pandas as pd
 import itertools
 
-# Default attributes
-
-attrs_list = ['Method', 'Train Dataset', 'ID Dataset',
-              'SP-OOD Dataset', 'NSP-OOD Dataset',
-              'Training', 'Backbone', 'Metric',
-              'Correlation', 'k-val',
-              'Mean Value', 'STD Value'
-              ]
-
-default_attrs = {
-    'Method': 'SPROD-I',
-    'Train Dataset': 'Waterbirds',
-    'ID Dataset': 'Waterbirds',
-    'SP-OOD Dataset': 'SP-OOD',
-    'NSP-OOD Dataset': 'NSP-OOD', 
-    'Training': 'Pretrained',
-    'Backbone': 'ResNet-50',
-    'Metric': 'AUOROC',
-    'Correlation': 'r = 90\%',
-    'k-val': '0', 
-    }
-
-valid_attrs = {
-    'Method': ['OpenMax', 'MSP', 'MDS', 'RMDS', 'Energy', 'GradNorm', 'ReAct', 'MaxLogit', 'KLM', 'KNN', 'SHE',
-               'SPROD-I', 'SPROD-II', 'SPROD-III', 'SPROD-IV', 'Proto-Kmeans'],
-    'Train Dataset': ['Waterbirds', 'CelebA', 'UrbanCars', 'AnimalsMetaCoCo'],
-    'ID Dataset': ['?'],
-    'SP-OOD Dataset': ['?'],  
-    'NSP-OOD Dataset': ['?'],
-    'Training': ['Pretrained', 'ERM-Finetuned'],
-    'Backbone': ['ResNet-50', 'ResNet-18', 'ResNet-101',
-                 'BiT-M-R50x1', 'BiT-M-R101x1', 'BiT-M-R50x3',
-                 'DeiT-Ti', 'DeiT-S', 'DeiT-B',
-                 'ViT-Ti', 'ViT-S', 'ViT-B',
-                 'DINOv2-ViT-S', 'DINOv2-ViT-B', 'DINOv2-ViT-L'],
-    'Metric': ['FPR@95', 'AUROC', 'AUPR_IN', 'AUPR_OUT', 'ACC'],
-    'Correlation': ['r = 50\%', 'r = 70\%', 'r = 90\%', 'r = 95\%'],
-    'k-val': ['0', '1', '3', '5', '10'], 
-    }
 
 
-# Example usage
-csv_file = "data.csv"  # Path to your CSV file
-row_attr = "method"  # Row attribute
-col_attr_1st = "correlation"  # Primary column attribute
-col_attr_2nd = "backbone"  # Secondary column attribute (set to None for flat table)
-col_attr_3rd = "metric"  # Tertiary column attribute (can be None)
+
+######################################
+
+
+row_attr = "Method"  # Row attribute
+col_attr_1st = "Correlation"  # Primary column attribute
+col_attr_2nd = "Backbone"  # Can be None
+col_attr_3rd = "Metric"  # Can be None
 
 
 fixed_attrs = {
-    "train_dataset": "CIFAR10",  # Fixed attribute example
+    "Train Dataset": "CIFAR10",  # Fixed attribute example
 }
+
+######################################
+
+csv_file = "data.csv"  # Path to your CSV file
 output_file = "table_output.txt"
 
 # Load the CSV file
@@ -122,7 +89,7 @@ if missing_combinations:
         
 # Start building the LaTeX table
 latex_table = []
-latex_table.append(r"\begin{table}[!htb]")
+latex_table.append(r"\begin{table*}[!htb]")
 latex_table.append(r"\centering")
 latex_table.append(r"\fontsize{13}{15}\selectfont")
 latex_table.append(r"\resizebox{0.9\textwidth}{!}{%")
@@ -298,7 +265,7 @@ latex_table.append(r"\vspace{-0.1mm}")
 latex_table.append(r"\caption{Generated table}")
 latex_table.append(r"\vspace{-1mm}")
 latex_table.append(r"\label{tab:generated}")
-latex_table.append(r"\end{table}")
+latex_table.append(r"\end{table*}")
 
 # Write LaTeX table to the output file
 with open(output_file, "w") as f:
