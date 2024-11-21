@@ -45,9 +45,12 @@ def calc_dists_ratio(ind_dict, ood_dict):
     
     
     
-def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False, prototypes=None, cov=None):
+def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False,
+                  prototypes=None, cov=None, apply_softmax=False):
         
     all_dist_vals = []
+    all_group_dists = []
+    
     if known_group:
         for key in embs_dict.keys():
             dist_vals = [calc_euc_dist(embs_dict[key],
@@ -98,13 +101,21 @@ def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False, prototypes=N
                     
                     p_dist_vals.append(dist_vals)
                     
+                if apply_softmax:
+                    p_dist_vals = np.array(p_dist_vals)
+                    p_dist_probs = np.exp(-p_dist_vals)
+                    p_dist_probs = p_dist_probs / p_dist_probs.sum(0)
+                    
+                    p_dist_vals = 1 - p_dist_probs
+                    
                 all_dist_vals.append(np.min(p_dist_vals, axis=0))
+                all_group_dists.append(np.array(p_dist_vals).T)
                 
-    return np.concatenate(all_dist_vals)
+    return np.concatenate(all_dist_vals)#, np.concatenate(all_group_dists)
     
 
 def get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std=None,
-                      known_group=False, prototypes=None, cov=None):
+                      known_group=False, prototypes=None, cov=None, apply_softmax=False):
     
     if known_group:
         dist_vals = [calc_euc_dist(ood_embs, embs_dict[k].mean(0), cov) for k in embs_dict.keys()]
@@ -151,9 +162,16 @@ def get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std=None,
                 
                 p_dist_vals.append(dist_vals_)
             
+            if apply_softmax:
+                p_dist_vals = np.array(p_dist_vals)
+                p_dist_probs = np.exp(-p_dist_vals)
+                p_dist_probs = p_dist_probs / p_dist_probs.sum(0)
+                
+                p_dist_vals = 1 - p_dist_probs
+                
             dist_vals = np.min(p_dist_vals, axis=0)
             
-    return dist_vals
+    return dist_vals#, np.array(p_dist_vals).T
 
 
 def find_thresh_val(main_vals, th=0.95):
@@ -164,13 +182,18 @@ def find_thresh_val(main_vals, th=0.95):
 
 def calc_ROC(embs_dict, ood_embs,
              embs_std_dict=None, ood_embs_std=None, prototypes=None,
-             known_group=False, plot=False, cov=None):
+             known_group=False, plot=False, cov=None,
+             exp_name='', network_name='', apply_exp=False, apply_softmax=False):
         
         
-    ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std, known_group, prototypes=prototypes, cov=cov)
+    ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std, known_group, prototypes=prototypes, cov=cov, apply_softmax=apply_softmax)
     
-    ind_dists = get_dist_vals(embs_dict, embs_std_dict, known_group, prototypes=prototypes, cov=cov)
-
+    ind_dists = get_dist_vals(embs_dict, embs_std_dict, known_group, prototypes=prototypes, cov=cov, apply_softmax=apply_softmax)
+    
+    if apply_exp:
+        ood_dists = -np.exp(-ood_dists)
+        ind_dists = - np.exp(-ind_dists)
+        
     # ind_embs = np.concatenate([embs_dict[key] for key in embs_dict.keys()])
     # ood_dists = np.concatenate([np.linalg.norm(ood_embs - prototypes[k][None], axis=-1) for k in range(len(prototypes))])
     # ind_dists = np.concatenate([np.linalg.norm(ind_embs - prototypes[k][None], axis=-1) for k in range(len(prototypes))])
@@ -205,14 +228,14 @@ def calc_ROC(embs_dict, ood_embs,
     pred = pred.max() - pred
     
     fps, tps, thresholds = metrics.roc_curve(y, pred)
-    fps = np.concatenate([[0], fps, [1]])
-    tps = np.concatenate([[0], tps, [1]])
+    # fps = np.concatenate([[0], fps, [1]])
+    # tps = np.concatenate([[0], tps, [1]])
     
     auc_val = np.round(metrics.auc(fps, tps), 4)
     
     precs, recs, thresholds = metrics.precision_recall_curve(y, pred)
-    precs = np.concatenate([[0], precs, [1]])
-    recs = np.concatenate([[1], recs, [0]])
+    # precs = np.concatenate([[0], precs, [1]])
+    # recs = np.concatenate([[1], recs, [0]])
     
     aupr_val = np.round(metrics.auc(np.sort(precs), recs), 4)
     
@@ -231,20 +254,122 @@ def calc_ROC(embs_dict, ood_embs,
         plt.legend()
         plt.title('ROC', fontsize=17)
         
-        
-        plt.figure(figsize=(8,4))
-        plt.hist(ind_dists, 25, histtype='step', density=False, linewidth=2.5, label='InD distances', color='tab:blue')
-        plt.hist(ood_dists, 25, histtype='step', density=False, linewidth=2.5, label='OoD distances', color='tab:orange')
-        plt.title('dist hist')
+        name = f'All Distances - {exp_name} - {network_name}'
+        plt.figure(figsize=(6, 3))
+        plt.hist(ind_dists, 25, histtype='step', density=False, linewidth=2., label='InD distances', color='tab:blue')
+        plt.hist(ood_dists, 25, histtype='step', density=False, linewidth=2., label='OoD distances', color='tab:orange')
+        plt.title(name)
         plt.legend()
+        plt.savefig(name + '.png', dpi=130)
+        
     
-    
-    
+            
     print('95-percent err: ', np.round(100 * err, 3))
     
     # print('***********************')
     print()
     
+    
+    
+def calc_ROC_classwise(embs_dict, ood_embs,
+             embs_std_dict=None, ood_embs_std=None, prototypes=None,
+             known_group=False, plot=False, cov=None,
+             exp_name='', network_name=''):
+        
+        
+    ood_dists, group_ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std, known_group, prototypes=prototypes, cov=cov)
+    
+    ind_dists, group_ind_dists = get_dist_vals(embs_dict, embs_std_dict, known_group, prototypes=prototypes, cov=cov)
+
+            
+    thresh = find_thresh_val(ind_dists)
+    err = ood_dists[ood_dists < thresh].shape[0] / ood_dists.shape[0]
+    
+    
+    
+    y = np.concatenate((np.zeros_like(ood_dists), np.ones_like(ind_dists)))
+    pred = np.concatenate((ood_dists, ind_dists))
+    pred = pred.max() - pred
+    
+    fps, tps, thresholds = metrics.roc_curve(y, pred)
+    
+    auc_val = np.round(metrics.auc(fps, tps), 4)
+    
+    precs, recs, thresholds = metrics.precision_recall_curve(y, pred)
+    
+    aupr_val = np.round(metrics.auc(np.sort(precs), recs), 4)
+    
+    print('auc: ', np.round(metrics.roc_auc_score(y, pred), 4),
+          'aupr:', np.round(metrics.average_precision_score(y, pred), 4))
+    
+    if plot:
+        plt.figure()
+        plt.plot(fps, tps, label=f'area={auc_val}', linewidth=2)
+        plt.xlabel('FPR')
+        plt.ylabel('TPR')
+        #plt.ylim([0.55, 1.001])
+        plt.legend()
+        plt.title('ROC', fontsize=17)
+        
+        name = f'All Distances - {exp_name} - {network_name}'
+        plt.figure(figsize=(6, 3))
+        plt.hist(ind_dists, 25, histtype='step', density=False, linewidth=2., label='InD distances', color='tab:blue')
+        plt.hist(ood_dists, 25, histtype='step', density=False, linewidth=2., label='OoD distances', color='tab:orange')
+        plt.title(name)
+        plt.legend()
+        plt.savefig(name + '.png', dpi=130)
+        
+        if len(prototypes) == 2:
+            plt.figure(figsize=(9, 3))
+            name = f'Class Distances - {exp_name} - {network_name}'
+            plt.suptitle(name)   
+            
+            plt.subplot(121)
+            plt.hist(group_ind_dists[:, 0], 25, histtype='step', density=False, linewidth=2., label='InD distances', color='tab:blue')
+            plt.hist(group_ood_dists[:, 0], 25, histtype='step', density=False, linewidth=2., label='OoD distances', color='tab:orange')
+            plt.title('class 0', y=-0.1)
+            
+            plt.subplot(122)
+            plt.hist(group_ind_dists[:, 1], 25, histtype='step', density=False, linewidth=2., label='InD distances', color='tab:blue')
+            plt.hist(group_ood_dists[:, 1], 25, histtype='step', density=False, linewidth=2., label='OoD distances', color='tab:orange')
+            plt.title('class 1', y=-0.1)
+            
+            plt.legend()
+            plt.savefig(name + '.png', dpi=130)
+    
+    
+        if len(prototypes) == 4:
+            plt.figure(figsize=(9, 6))
+            name = f'Class Distances - {exp_name} - {network_name}'
+            plt.suptitle(name)   
+            
+            plt.subplot(221)
+            plt.hist(group_ind_dists[:, 0], 25, histtype='step', density=False, linewidth=2., label='InD distances', color='tab:blue')
+            plt.hist(group_ood_dists[:, 0], 25, histtype='step', density=False, linewidth=2., label='OoD distances', color='tab:orange')
+            plt.title('group 0', y=-0.1)
+
+            plt.subplot(222)
+            plt.hist(group_ind_dists[:, 1], 25, histtype='step', density=False, linewidth=2., label='InD distances', color='tab:blue')
+            plt.hist(group_ood_dists[:, 1], 25, histtype='step', density=False, linewidth=2., label='OoD distances', color='tab:orange')
+            plt.title('group 1', y=-0.1)
+            
+            plt.subplot(223)
+            plt.hist(group_ind_dists[:, 2], 25, histtype='step', density=False, linewidth=2., label='InD distances', color='tab:blue')
+            plt.hist(group_ood_dists[:, 2], 25, histtype='step', density=False, linewidth=2., label='OoD distances', color='tab:orange')
+            plt.title('group 2', y=-0.1)
+
+            plt.subplot(224)
+            plt.hist(group_ind_dists[:, 3], 25, histtype='step', density=False, linewidth=2., label='InD distances', color='tab:blue')
+            plt.hist(group_ood_dists[:, 3], 25, histtype='step', density=False, linewidth=2., label='OoD distances', color='tab:orange')
+            plt.title('group 3', y=-0.1)
+            
+            plt.legend()
+            plt.savefig(name + '.png', dpi=130)
+            
+    print('95-percent err: ', np.round(100 * err, 3))
+    
+    # print('***********************')
+    print()
     
 def calc_ROC_with_dists(ind_dists, ood_dists, plot=False):
         

@@ -46,7 +46,7 @@ def calc_dists_ratio(ind_dict, ood_dict):
     
     
 def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False,
-                  prototypes=None, cov=None):
+                  prototypes=None, cov=None, apply_softmax=False):
         
     all_dist_vals = []
     all_group_dists = []
@@ -101,6 +101,13 @@ def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False,
                     
                     p_dist_vals.append(dist_vals)
                     
+                if apply_softmax:
+                    p_dist_vals = np.array(p_dist_vals)
+                    p_dist_probs = np.exp(-p_dist_vals)
+                    p_dist_probs = p_dist_probs / p_dist_probs.sum(0)
+                    
+                    p_dist_vals = 1 - p_dist_probs
+                    
                 all_dist_vals.append(np.min(p_dist_vals, axis=0))
                 all_group_dists.append(np.array(p_dist_vals).T)
                 
@@ -108,7 +115,7 @@ def get_dist_vals(embs_dict, embs_std_dict=None, known_group=False,
     
 
 def get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std=None,
-                      known_group=False, prototypes=None, cov=None):
+                      known_group=False, prototypes=None, cov=None, apply_softmax=False):
     
     if known_group:
         dist_vals = [calc_euc_dist(ood_embs, embs_dict[k].mean(0), cov) for k in embs_dict.keys()]
@@ -155,6 +162,13 @@ def get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std=None,
                 
                 p_dist_vals.append(dist_vals_)
             
+            if apply_softmax:
+                p_dist_vals = np.array(p_dist_vals)
+                p_dist_probs = np.exp(-p_dist_vals)
+                p_dist_probs = p_dist_probs / p_dist_probs.sum(0)
+                
+                p_dist_vals = 1 - p_dist_probs
+                
             dist_vals = np.min(p_dist_vals, axis=0)
             
     return dist_vals#, np.array(p_dist_vals).T
@@ -169,13 +183,17 @@ def find_thresh_val(main_vals, th=0.95):
 def calc_ROC(embs_dict, ood_embs,
              embs_std_dict=None, ood_embs_std=None, prototypes=None,
              known_group=False, plot=False, cov=None,
-             exp_name='', network_name=''):
+             exp_name='', network_name='', apply_exp=False, apply_softmax=False):
         
         
-    ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std, known_group, prototypes=prototypes, cov=cov)
+    ood_dists = get_dist_vals_ood(embs_dict, ood_embs, ood_embs_std, known_group, prototypes=prototypes, cov=cov, apply_softmax=apply_softmax)
     
-    ind_dists = get_dist_vals(embs_dict, embs_std_dict, known_group, prototypes=prototypes, cov=cov)
-
+    ind_dists = get_dist_vals(embs_dict, embs_std_dict, known_group, prototypes=prototypes, cov=cov, apply_softmax=apply_softmax)
+    
+    if apply_exp:
+        ood_dists = -np.exp(-ood_dists)
+        ind_dists = - np.exp(-ind_dists)
+        
     # ind_embs = np.concatenate([embs_dict[key] for key in embs_dict.keys()])
     # ood_dists = np.concatenate([np.linalg.norm(ood_embs - prototypes[k][None], axis=-1) for k in range(len(prototypes))])
     # ind_dists = np.concatenate([np.linalg.norm(ind_embs - prototypes[k][None], axis=-1) for k in range(len(prototypes))])

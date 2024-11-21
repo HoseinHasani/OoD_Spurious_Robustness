@@ -15,6 +15,8 @@ warnings.filterwarnings("ignore")
 normalize_embs = True
 
 
+
+
 backbones = ['dino', 'res50', 'res18']
 backbone = backbones[1]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
