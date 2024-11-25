@@ -92,7 +92,7 @@ latex_table = []
 latex_table.append(r"\begin{table*}[!htb]")
 latex_table.append(r"\centering")
 latex_table.append(r"\fontsize{13}{15}\selectfont")
-latex_table.append(r"\resizebox{0.9\textwidth}{!}{%")
+latex_table.append(r"\resizebox{0.99\textwidth}{!}{%")
 
 
 # Determine column spans for multi-level headers
@@ -224,7 +224,7 @@ for row in pivot_table.index:
                         elif pd.isna(std_val):
                             row_data.append(f"${mean_val:.2f}$")
                         else:
-                            row_data.append(f"${mean_val:.2f}_{{\\textcolor{{gray}}{{\\pm {std_val:.2f}}}}}$")
+                            row_data.append(f"${mean_val:.2f}_{{\\textcolor{{gray}}{{\\pm {std_val:.1f}}}}}$")
                     else:
                         row_data.append(" ")
                         
@@ -240,7 +240,7 @@ for row in pivot_table.index:
                     elif pd.isna(std_val):
                         row_data.append(f"${mean_val:.2f}$")
                     else:
-                        row_data.append(f"${mean_val:.2f}_{{\\textcolor{{gray}}{{\\pm {std_val:.2f}}}}}$")
+                        row_data.append(f"${mean_val:.2f}_{{\\textcolor{{gray}}{{\\pm {std_val:.1f}}}}}$")
                 else:
                     row_data.append(" ")
                     
@@ -254,7 +254,7 @@ for row in pivot_table.index:
             elif pd.isna(std_val):
                 row_data.append(f"${mean_val:.2f}$")
             else:
-                row_data.append(f"${mean_val:.2f}_{{\\textcolor{{gray}}{{\\pm {std_val:.2f}}}}}$")
+                row_data.append(f"${mean_val:.2f}_{{\\textcolor{{gray}}{{\\pm {std_val:.1f}}}}}$")
         
     latex_table.append(f"{row} & " + " & ".join(row_data) + r" \\")
 
