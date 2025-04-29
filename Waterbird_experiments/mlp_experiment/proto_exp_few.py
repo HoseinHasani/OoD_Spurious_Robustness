@@ -10,8 +10,7 @@ warnings.filterwarnings("ignore")
 
 normalize_embs = True
 
-N = 100
-
+n_samples = 40
 
 backbones = ['dino', 'res50', 'res18']
 backbone = backbones[1]
@@ -102,6 +101,24 @@ else:
     ood_dict = ood_embs0
 
 
+
+
+if n_samples:
+    
+    train_dict0 = train_dict.copy()
+    
+    
+    for key in train_dict0.keys():
+        samples = train_dict0[key]
+        if key[0] == key[-1]:
+            n = n_samples 
+        else:
+            n = n_samples//10
+            
+        inds = np.random.choice(len(samples), n, replace=False)
+        
+        new_samples = samples[inds]
+        train_dict[key] = new_samples
 
 
 
