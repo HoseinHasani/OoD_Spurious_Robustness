@@ -7,7 +7,7 @@ import warnings
 from sklearn.cluster import KMeans
 
 
-n_g_sample_val = 10
+n_g_sample_val = 3
 
 warnings.filterwarnings("ignore")
 
@@ -15,7 +15,7 @@ normalize_embs = True
 
 
 backbones = ['dino', 'res50', 'res18']
-backbone = backbones[2]
+backbone = backbones[1]
 resnet_types = ['pretrained', 'finetuned', 'scratch']
 resnet_type = resnet_types[0]
 
@@ -163,13 +163,15 @@ def extract_prototypes(embs, th=0.8):
     final_prototype = embs[valid_inds].mean(0)
     return final_prototype
 
-def refine_group_prototypes(group_embs, n_iter=2):
+def refine_group_prototypes(group_embs, prototypes=None, n_iter=2, print_logs=False):
     all_embs = np.concatenate(group_embs)
 
-    prototypes = [embs.mean(0) for embs in group_embs]
-    prototypes = np.array(prototypes)
+    if prototypes is None:
+        prototypes = [embs.mean(0) for embs in group_embs]
+        prototypes = np.array(prototypes)
     
-    print([group_embs[j].shape for j in range(len(group_embs))]) 
+    if print_logs:
+        print([group_embs[j].shape for j in range(len(group_embs))]) 
     
     for k in range(n_iter):
         dists = np.linalg.norm(all_embs[..., None] - prototypes.T[None], axis=1)
@@ -179,11 +181,14 @@ def refine_group_prototypes(group_embs, n_iter=2):
             inds = np.argwhere(labels == l).ravel()
             new_embs.append(all_embs[inds])
 
-        print([new_embs[j].shape for j in range(len(new_embs))]) 
+        if print_logs:
+            print([new_embs[j].shape for j in range(len(new_embs))]) 
     
         prototypes = [embs.mean(0) for embs in new_embs]
         prototypes = np.array(prototypes)
-    print()
+        
+    if print_logs:
+        print()
     
     
     return prototypes
@@ -308,6 +313,14 @@ for k in sorted(val_dict.keys()):
     
 val_prototypes = np.array(val_prototypes)
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=val_prototypes, plot=False)
+
+
+refined_val_prototypes = []
+refined_val_prototypes.extend(refine_group_prototypes(aug_embs[:2], val_prototypes[:2]))
+refined_val_prototypes.extend(refine_group_prototypes(aug_embs[2:], val_prototypes[2:]))
+refined_val_prototypes = np.array(refined_val_prototypes)
+print(f'val {n_g_sample_val} - stage3:')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_val_prototypes, plot=False)
 
 
 # aug_prototypes = np.concatenate([aug_prototypes, train_prototypes])
