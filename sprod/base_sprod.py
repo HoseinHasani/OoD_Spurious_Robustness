@@ -5,7 +5,7 @@ import torch.nn as nn
 from tqdm import tqdm
 
 import openood.utils.comm as comm
-from openood.postprocessors.base_postprocessor import BasePostprocessor
+import BasePostprocessor
 
 class BaseSPROD(BasePostprocessor):
     def __init__(self, config, probabilistic_score: bool = False, normalize_features: bool = True):
