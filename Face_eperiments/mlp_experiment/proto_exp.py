@@ -4,6 +4,13 @@ import dist_utils
 import os
 import warnings
 import pickle
+
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../sprod')))
+from sprod1 import SPROD1
+
 warnings.filterwarnings("ignore")
 
 normalize_embs = True
@@ -40,7 +47,7 @@ grouped_embs_train0 = grouped_embs.copy()
 ood_embs = {name: ood_embs0[name] for name in ood_embs0.keys()}
 
 
-if ط:
+if normalize_embs:
     train_dict = {key: normalize(grouped_embs_train0[key]) for key in grouped_embs_train0.keys()}
     test_dict = {key: normalize(grouped_embs0[key]) for key in grouped_embs0.keys()}
     ood_dict = {key: normalize(ood_embs0[key]) for key in ood_embs0.keys()}
@@ -159,8 +166,30 @@ print('stage 1:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes)
 
 
+
+
 x_train = np.concatenate(train_embs)
 y_train = np.concatenate([np.zeros(len(train_embs[0])), np.ones(len(train_embs[1]))])
+
+
+test_embs = np.concatenate([test_dict[k] for k in test_dict.keys()])
+
+class DummyConfig:
+    class Postprocessor:
+        postprocessor_args = {}
+    postprocessor = Postprocessor()
+    
+    
+config = DummyConfig()
+sprod1 = SPROD1(config=config, probabilistic_score=False, normalize_features=True)
+
+train_preds, train_confs, _ = sprod1.numpy_inference(x_train, y_train)
+test_preds, test_confs, _ = sprod1.numpy_inference(test_embs)
+ood_preds, ood_confs, _ = sprod1.numpy_inference(ood_embs)
+
+print('sprod-1:')
+dist_utils.calc_ROC_with_dists(-test_confs, -ood_confs)
+
 dists = np.linalg.norm(x_train[..., None] - train_prototypes.T[None], axis=1)
 y_hat_train = np.argmin(dists, -1)  
 

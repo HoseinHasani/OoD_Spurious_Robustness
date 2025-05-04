@@ -1,4 +1,4 @@
-from .full_sprod import FullSPROD
+from full_sprod import FullSPROD
 
 class SPROD3(FullSPROD):
     def __init__(self, config):

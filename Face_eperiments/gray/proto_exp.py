@@ -140,7 +140,7 @@ def refine_group_prototypes(group_embs, n_iter=2):
     prototypes = [embs.mean(0) for embs in group_embs]
     prototypes = np.array(prototypes)
     
-    print([group_embs[j].shape for j in range(len(group_embs))]) 
+    # print([group_embs[j].shape for j in range(len(group_embs))]) 
     
     for k in range(n_iter):
         dists = np.linalg.norm(all_embs[..., None] - prototypes.T[None], axis=1)
@@ -150,22 +150,22 @@ def refine_group_prototypes(group_embs, n_iter=2):
             inds = np.argwhere(labels == l).ravel()
             new_embs.append(all_embs[inds])
 
-        print([new_embs[j].shape for j in range(len(new_embs))]) 
+        # print([new_embs[j].shape for j in range(len(new_embs))]) 
     
         prototypes = [embs.mean(0) for embs in new_embs]
         prototypes = np.array(prototypes)
-    print()
+    # print()
     
     
     return prototypes
-    
-    
+
+
     
 core_ax, sp_ax, core_ax_norm, sp_ax_norm = get_axis(train_dict)
 print('ax correlation: ', np.dot(core_ax, sp_ax))
 
 
-    
+
 print()
 dist_utils.calc_dists_ratio(train_dict, ood_dict)
 dist_utils.calc_dists_ratio(test_dict, ood_dict)
