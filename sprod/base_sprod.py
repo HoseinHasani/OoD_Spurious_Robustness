@@ -3,9 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from tqdm import tqdm
-
-import openood.utils.comm as comm
-import BasePostprocessor
+from base_postprocessor import BasePostprocessor
 
 class BaseSPROD(BasePostprocessor):
     def __init__(self, config, probabilistic_score: bool = False, normalize_features: bool = True):
@@ -83,7 +81,7 @@ class BaseSPROD(BasePostprocessor):
             data_list, label_list = [], []
 
             for loader_name, data_loader in data_loaders_dict.items():
-                for batch in tqdm(data_loader, disable=not progress or not comm.is_main_process()):
+                for batch in tqdm(data_loader):
                     data, label = batch[0], batch[1]
                     if self.normalize_features:
                         data = self.normalize(data)
@@ -105,3 +103,68 @@ class BaseSPROD(BasePostprocessor):
         conf_list = -np.min(dists, axis=1)
 
         return pred_list, conf_list, labels
+    
+    
+    
+    def numpy_inference(self,
+                        embeddings: np.ndarray,
+                        labels: np.ndarray = None,
+                        donormalize: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+    
+        if donormalize:
+            embeddings = self.normalize(embeddings)
+    
+        if labels is not None:
+            self.build_class_prototypes(embeddings, labels)
+            self.setup_flag = True
+    
+        prototypes = np.stack(self.train_prototypes)
+        dists = self.calc_euc_dist(embeddings, prototypes)
+    
+        if self.probabilistic_score:
+            probs = np.exp(-dists)
+            probs = probs / np.sum(probs, axis=1, keepdims=True)
+            dists = 1.0 - probs
+    
+        pred_list = np.argmin(dists, axis=1).astype(int)
+        conf_list = -np.min(dists, axis=1)
+    
+        return pred_list, conf_list, labels
+
+
+
+
+
+
+
+class DummyConfig:
+    class Postprocessor:
+        postprocessor_args = {}
+    postprocessor = Postprocessor()
+
+def test_numpy_inference():
+    config = DummyConfig()
+    model = BaseSPROD(config=config, probabilistic_score=False, normalize_features=True)
+
+    num_samples = 100
+    num_features = 64
+    num_classes = 5
+
+    rng = np.random.RandomState(42)
+    embeddings = rng.randn(num_samples, num_features)
+    labels = rng.randint(0, num_classes, size=num_samples)
+
+    preds, confs, true_labels = model.numpy_inference(embeddings, labels)
+
+    # Basic assertions
+    assert preds.shape == (num_samples,)
+    assert confs.shape == (num_samples,)
+    assert np.all((preds >= 0) & (preds < num_classes))
+    assert np.allclose(true_labels, labels)
+
+    print("Test passed. Sample predictions:", preds[:5])
+    print("Sample confidences:", confs[:5])
+
+if __name__ == "__main__":
+    test_numpy_inference()
+
