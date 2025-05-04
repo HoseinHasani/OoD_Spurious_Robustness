@@ -11,6 +11,7 @@ def calculate_mahalanobis_distance(sample, prototype, inv_cov_matrix):
 
 def calc_euc_dist(embs, prototypes, cov=None):
     if cov is None:
+        # dist = 1 - embs @ prototypes
         dist = np.linalg.norm(embs - prototypes, axis=-1)
     else:
         inv_cov_matrix = np.linalg.inv(cov)

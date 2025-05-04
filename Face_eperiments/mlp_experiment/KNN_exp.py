@@ -11,7 +11,7 @@ warnings.filterwarnings("ignore")
 
 normalize_embs = True
 
-k_values = [0, 7, 60]
+k_values = [0, 9, 50]
 
 backbones = ['dino', 'res50', 'res18']
 backbone = backbones[2]

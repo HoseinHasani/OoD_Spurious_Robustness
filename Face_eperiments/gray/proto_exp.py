@@ -193,6 +193,7 @@ train_prototypes = np.array(train_prototypes)
 print('OOD:')
 #dist_utils.calc_ROC(test_dict_list[0], ood_embs, prototypes=train_dict_list[0])
 #dist_utils.calc_ROC(test_dict_list[1], ood_embs, prototypes=train_dict_list[1])
+print('stage 1:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=train_prototypes)
 
 
@@ -218,7 +219,7 @@ for l in [0, 1]:
     aug_embs.append(x_train[class_crr_inds])
     
 aug_prototypes = np.array(aug_prototypes)
-
+print('stage 2:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes)
 
 
@@ -226,7 +227,14 @@ refined_prototypes = []
 
 refined_prototypes.extend(refine_group_prototypes(aug_embs[:2]))
 refined_prototypes.extend(refine_group_prototypes(aug_embs[2:]))
+refined_prototypes = np.array(refined_prototypes)
 
-aug_prototypes = np.array(aug_prototypes)
-
+print('stage 3:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes)
+
+merged_prototypes = []
+merged_prototypes.append(refined_prototypes[:2].mean(0))
+merged_prototypes.append(refined_prototypes[2:].mean(0))
+merged_prototypes = np.array(merged_prototypes)
+print('stage 4:')
+dist_utils.calc_ROC(test_dict, ood_embs, prototypes=merged_prototypes)
