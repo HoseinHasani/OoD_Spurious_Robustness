@@ -1,4 +1,4 @@
-from .base_sprod import BaseSPROD
+from base_sprod import BaseSPROD
 import numpy as np
 
 class FullSPROD(BaseSPROD):
@@ -10,6 +10,7 @@ class FullSPROD(BaseSPROD):
         self.use_group_refinement = use_group_refinement
         self.merge_refined_prototypes = merge_refined_prototypes
         self.refine_n_iter = refine_n_iter
+        
 
     def setup(self, net, id_loader_dict, ood_loader_dict):
         """Override setup to perform flexible classification-aware prototype refinement."""
@@ -81,3 +82,35 @@ class FullSPROD(BaseSPROD):
             prototypes = np.array(prototypes)
 
         return prototypes
+    
+    
+    def numpy_inference2(self,
+                        embeddings: np.ndarray,
+                        labels: np.ndarray = None,
+                        donormalize: bool = False):
+    
+        
+        if donormalize:
+            embeddings = self.normalize(embeddings)
+            
+        self.train_feats = embeddings
+        self.train_labels = labels
+    
+        if labels is not None:
+            _, _, _ = self.numpy_inference(embeddings, labels, donormalize)
+            self.build_class_prototypes(embeddings, labels)
+            self.setup_flag = True
+            self.perform_classification()
+    
+        prototypes = np.stack(self.train_prototypes)
+        dists = self.calc_euc_dist(embeddings, prototypes)
+    
+        if self.probabilistic_score:
+            probs = np.exp(-dists)
+            probs = probs / np.sum(probs, axis=1, keepdims=True)
+            dists = 1.0 - probs
+    
+        pred_list = np.argmin(dists, axis=1).astype(int)
+        conf_list = -np.min(dists, axis=1)
+    
+        return pred_list, conf_list, labels

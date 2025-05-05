@@ -65,7 +65,7 @@ class BaseSPROD(BasePostprocessor):
             prototype = class_embs.mean(axis=0)
             self.train_prototypes.append(prototype)
             
-        self.train_prototypes = np.stack(self.train_prototypes)
+        
 
     def setup(self, net: nn.Module, id_loader_dict: dict, ood_loader_dict: dict):
         """Setup phase: extract features and build prototypes."""

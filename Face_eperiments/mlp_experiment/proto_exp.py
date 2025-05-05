@@ -10,6 +10,9 @@ import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../sprod')))
 from sprod1 import SPROD1
+from sprod2 import SPROD2
+from sprod3 import SPROD3
+from sprod4 import SPROD4
 
 warnings.filterwarnings("ignore")
 
@@ -182,6 +185,10 @@ class DummyConfig:
     
 config = DummyConfig()
 sprod1 = SPROD1(config=config, probabilistic_score=False, normalize_features=True)
+sprod2 = SPROD2(config=config)
+sprod3 = SPROD3(config=config)
+sprod4 = SPROD4(config=config)
+
 
 train_preds, train_confs, _ = sprod1.numpy_inference(x_train, y_train)
 test_preds, test_confs, _ = sprod1.numpy_inference(test_embs)
@@ -213,6 +220,11 @@ aug_prototypes = np.array(aug_prototypes)
 print('stage 2:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes)
 
+print('sprod-2:')
+train_preds, train_confs, _ = sprod2.numpy_inference2(x_train, y_train)
+test_preds, test_confs, _ = sprod2.numpy_inference2(test_embs)
+ood_preds, ood_confs, _ = sprod2.numpy_inference2(ood_embs)
+dist_utils.calc_ROC_with_dists(-test_confs, -ood_confs)
 
 refined_prototypes = []
 
@@ -227,5 +239,22 @@ merged_prototypes = []
 merged_prototypes.append(refined_prototypes[:2].mean(0))
 merged_prototypes.append(refined_prototypes[2:].mean(0))
 merged_prototypes = np.array(merged_prototypes)
+
+
+print('sprod-3:')
+train_preds, train_confs, _ = sprod3.numpy_inference2(x_train, y_train)
+test_preds, test_confs, _ = sprod3.numpy_inference2(test_embs)
+ood_preds, ood_confs, _ = sprod3.numpy_inference2(ood_embs)
+dist_utils.calc_ROC_with_dists(-test_confs, -ood_confs)
+
+
 print('stage 4:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=merged_prototypes)
+
+
+
+print('sprod-4:')
+train_preds, train_confs, _ = sprod4.numpy_inference2(x_train, y_train)
+test_preds, test_confs, _ = sprod4.numpy_inference2(test_embs)
+ood_preds, ood_confs, _ = sprod4.numpy_inference2(ood_embs)
+dist_utils.calc_ROC_with_dists(-test_confs, -ood_confs)
