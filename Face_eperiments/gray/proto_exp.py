@@ -4,6 +4,15 @@ import dist_utils
 import os
 import warnings
 import pickle
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../sprod')))
+from sprod1 import SPROD1
+from sprod2 import SPROD2
+from sprod3 import SPROD3
+from sprod4 import SPROD4
+
 warnings.filterwarnings("ignore")
 
 normalize_embs = True
@@ -14,7 +23,7 @@ sp_class_names = ['0', '1']
 
 backbones = ['clip_ViT_B_16', 'dinov2_vits14', 'clip_ViT_B_16']
 
-backbone = backbones[0]
+backbone = backbones[1]
 
 in_data_embs0 = np.load(f'embs/celeba_embs_{backbone}_0.8_seed14.npy', allow_pickle=True).item()
     
@@ -134,7 +143,7 @@ def plot_dict_hist(dict_data, fig_name):
     plt.legend()
 
     
-def refine_group_prototypes(group_embs, n_iter=2):
+def refine_group_prototypes(group_embs, n_iter=1):
     all_embs = np.concatenate(group_embs)
 
     prototypes = [embs.mean(0) for embs in group_embs]
@@ -203,6 +212,31 @@ dists = np.linalg.norm(x_train[..., None] - train_prototypes.T[None], axis=1)
 y_hat_train = np.argmin(dists, -1)  
 
 
+
+test_embs = np.concatenate([test_dict[k] for k in test_dict.keys()])
+
+class DummyConfig:
+    class Postprocessor:
+        postprocessor_args = {}
+    postprocessor = Postprocessor()
+    
+    
+config = DummyConfig()
+sprod1 = SPROD1(config=config, probabilistic_score=False, normalize_features=True)
+sprod2 = SPROD2(config=config)
+sprod3 = SPROD3(config=config)
+sprod4 = SPROD4(config=config)
+
+
+train_preds, train_confs, _ = sprod1.numpy_inference(x_train, y_train)
+test_preds, test_confs, _ = sprod1.numpy_inference(test_embs)
+ood_preds, ood_confs, _ = sprod1.numpy_inference(ood_embs)
+
+print('sprod-1:')
+dist_utils.calc_ROC_with_dists(-test_confs, -ood_confs)
+
+
+
 total_miss_inds = np.argwhere(y_hat_train != y_train).ravel()
 total_crr_inds = np.argwhere(y_hat_train == y_train).ravel()
 
@@ -223,6 +257,15 @@ print('stage 2:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes)
 
 
+
+print('sprod-2:')
+train_preds, train_confs, _ = sprod2.numpy_inference2(x_train, y_train)
+test_preds, test_confs, _ = sprod2.numpy_inference2(test_embs)
+ood_preds, ood_confs, _ = sprod2.numpy_inference2(ood_embs)
+dist_utils.calc_ROC_with_dists(-test_confs, -ood_confs)
+
+
+
 refined_prototypes = []
 
 refined_prototypes.extend(refine_group_prototypes(aug_embs[:2]))
@@ -232,9 +275,25 @@ refined_prototypes = np.array(refined_prototypes)
 print('stage 3:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes)
 
+
+print('sprod-3:')
+train_preds, train_confs, _ = sprod3.numpy_inference2(x_train, y_train)
+test_preds, test_confs, _ = sprod3.numpy_inference2(test_embs)
+ood_preds, ood_confs, _ = sprod3.numpy_inference2(ood_embs)
+dist_utils.calc_ROC_with_dists(-test_confs, -ood_confs)
+
+
+
 merged_prototypes = []
 merged_prototypes.append(refined_prototypes[:2].mean(0))
 merged_prototypes.append(refined_prototypes[2:].mean(0))
 merged_prototypes = np.array(merged_prototypes)
 print('stage 4:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=merged_prototypes)
+
+
+print('sprod-4:')
+train_preds, train_confs, _ = sprod4.numpy_inference2(x_train, y_train)
+test_preds, test_confs, _ = sprod4.numpy_inference2(test_embs)
+ood_preds, ood_confs, _ = sprod4.numpy_inference2(ood_embs)
+dist_utils.calc_ROC_with_dists(-test_confs, -ood_confs)

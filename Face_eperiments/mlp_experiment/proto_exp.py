@@ -106,7 +106,7 @@ def plot_dict_hist(dict_data, fig_name):
     plt.legend()
 
     
-def refine_group_prototypes(group_embs, n_iter=2):
+def refine_group_prototypes(group_embs, n_iter=1):
     all_embs = np.concatenate(group_embs)
 
     prototypes = [embs.mean(0) for embs in group_embs]

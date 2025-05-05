@@ -66,8 +66,9 @@ class FullSPROD(BaseSPROD):
             else:
                 final_prototypes.extend(refined_prototypes)
 
-        self.train_prototypes.extend(final_prototypes)
-
+        self.train_prototypes.extend(final_prototypes); print('extend')
+        # self.train_prototypes = final_prototypes; print('equal')
+        
     def refine_group_prototypes(self, group_embs, n_iter: int = 1):
         """Refine prototypes iteratively."""
         all_embs = np.concatenate(group_embs)

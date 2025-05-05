@@ -5,6 +5,15 @@ import dist_utils
 import os
 import warnings
 from sklearn.cluster import KMeans
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../sprod')))
+from sprod1 import SPROD1
+from sprod2 import SPROD2
+from sprod3 import SPROD3
+from sprod4 import SPROD4
+
 
 warnings.filterwarnings("ignore")
 
@@ -157,13 +166,13 @@ def extract_prototypes(embs, th=0.8):
     final_prototype = embs[valid_inds].mean(0)
     return final_prototype
 
-def refine_group_prototypes(group_embs, n_iter=2):
+def refine_group_prototypes(group_embs, n_iter=1):
     all_embs = np.concatenate(group_embs)
 
     prototypes = [embs.mean(0) for embs in group_embs]
     prototypes = np.array(prototypes)
     
-    print([group_embs[j].shape for j in range(len(group_embs))]) 
+    # print([group_embs[j].shape for j in range(len(group_embs))]) 
     
     for k in range(n_iter):
         dists = np.linalg.norm(all_embs[..., None] - prototypes.T[None], axis=1)
@@ -173,11 +182,11 @@ def refine_group_prototypes(group_embs, n_iter=2):
             inds = np.argwhere(labels == l).ravel()
             new_embs.append(all_embs[inds])
 
-        print([new_embs[j].shape for j in range(len(new_embs))]) 
+        # print([new_embs[j].shape for j in range(len(new_embs))]) 
     
         prototypes = [embs.mean(0) for embs in new_embs]
         prototypes = np.array(prototypes)
-    print()
+    # print()
     
     
     return prototypes
@@ -239,6 +248,29 @@ x_train = np.concatenate(train_embs)
 y_train = np.concatenate([np.zeros(len(train_embs[0])), np.ones(len(train_embs[1]))])
 
 
+test_embs = np.concatenate([test_dict[k] for k in test_dict.keys()])
+
+class DummyConfig:
+    class Postprocessor:
+        postprocessor_args = {}
+    postprocessor = Postprocessor()
+    
+    
+config = DummyConfig()
+sprod1 = SPROD1(config=config, probabilistic_score=False, normalize_features=True)
+sprod2 = SPROD2(config=config)
+sprod3 = SPROD3(config=config)
+sprod4 = SPROD4(config=config)
+
+
+train_preds, train_confs, _ = sprod1.numpy_inference(x_train, y_train)
+test_preds, test_confs, _ = sprod1.numpy_inference(test_embs)
+ood_preds, ood_confs, _ = sprod1.numpy_inference(ood_embs)
+
+print('sprod-1:')
+dist_utils.calc_ROC_with_dists(-test_confs, -ood_confs)
+
+
 dists = np.linalg.norm(x_train[..., None] - train_prototypes.T[None], axis=1)
 y_hat_train = np.argmin(dists, -1)  
 
@@ -267,67 +299,98 @@ print('Prototypical-GI:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=False,
                     exp_name='Prototypical-GI', network_name=network_name)
 
+
+print('sprod-2:')
+train_preds, train_confs, _ = sprod2.numpy_inference2(x_train, y_train)
+test_preds, test_confs, _ = sprod2.numpy_inference2(test_embs)
+ood_preds, ood_confs, _ = sprod2.numpy_inference2(ood_embs)
+dist_utils.calc_ROC_with_dists(-test_confs, -ood_confs)
+
+
 print('after (refined):')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=refined_prototypes, plot=False)
 
+
+print('sprod-3:')
+train_preds, train_confs, _ = sprod3.numpy_inference2(x_train, y_train)
+test_preds, test_confs, _ = sprod3.numpy_inference2(test_embs)
+ood_preds, ood_confs, _ = sprod3.numpy_inference2(ood_embs)
+dist_utils.calc_ROC_with_dists(-test_confs, -ood_confs)
+
+
+
 aug_prototypes = np.array(aug_prototypes)
+# aug_prototypes = np.array(refined_prototypes)
 aug_prototypes2 = [aug_prototypes[:2].mean(0), aug_prototypes[2:].mean(0)]
 print('Prototypical-GI-MG:')
 dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=False,
                     exp_name='Prototypical-GI-MG', network_name=network_name)
 
-n_c = 2
 
-kmeans_prototypes = []
-for c in range(n_c):
-    kmeans_prototypes.extend(cluster_group_prototypes(aug_embs[n_c*c: n_c*(c+1)]))
+
+print('sprod-4:')
+train_preds, train_confs, _ = sprod4.numpy_inference2(x_train, y_train)
+test_preds, test_confs, _ = sprod4.numpy_inference2(test_embs)
+ood_preds, ood_confs, _ = sprod4.numpy_inference2(ood_embs)
+dist_utils.calc_ROC_with_dists(-test_confs, -ood_confs)
+
+
+
+
+if False:
     
-print('Prototypical-KMEANS:')
-dist_utils.calc_ROC(test_dict, ood_embs, prototypes=kmeans_prototypes, plot=False,
-                    exp_name='Prototypical-KMEANS', network_name=network_name)
-
-
-
-
-# aug_prototypes = np.concatenate([aug_prototypes, train_prototypes])
-# print('after after:')
-# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=True)
-
-# inds1 = [0, 1, 4]
-# inds2 = [2, 3, 5]
-
-# aug_prototypes2 = [aug_prototypes[inds1].mean(0), aug_prototypes[inds2].mean(0)]
-# print('after after2:')
-# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=True)
-
-
-
-n_cluster = 4
-kmeans_protos = []
-
-def propose_centers(embeddings):
-    centers = []
-    for embs in embeddings:
-        for j in range(n_cluster):
-            mean = embs.mean(0)
-            std = embs.std(0)
-            if j == 0:
-                centers.append(mean)
-            else:
-                centers.append(np.random.normal(mean, std / 0.2))
-    return centers
-
-class1_protos = propose_centers(aug_embs[:2])
-kmeans = KMeans(n_clusters=n_cluster*2, random_state=0, init=class1_protos, max_iter=15).fit(train_embs[0])
-kmeans_protos.append(kmeans.cluster_centers_)
-
-class2_protos = propose_centers(aug_embs[2:])
-kmeans = KMeans(n_clusters=n_cluster*2, random_state=0, init=class2_protos, max_iter=15).fit(train_embs[1])
-kmeans_protos.append(kmeans.cluster_centers_)
-
-kmeans_protos = np.concatenate(kmeans_protos)
-aug_prototypes = np.concatenate([aug_prototypes, kmeans_protos])
-# print('kmeans:')
-# dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes)
-
-
+    n_c = 2
+    
+    kmeans_prototypes = []
+    for c in range(n_c):
+        kmeans_prototypes.extend(cluster_group_prototypes(aug_embs[n_c*c: n_c*(c+1)]))
+        
+    print('Prototypical-KMEANS:')
+    dist_utils.calc_ROC(test_dict, ood_embs, prototypes=kmeans_prototypes, plot=False,
+                        exp_name='Prototypical-KMEANS', network_name=network_name)
+    
+    
+    
+    
+    # aug_prototypes = np.concatenate([aug_prototypes, train_prototypes])
+    # print('after after:')
+    # dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes, plot=True)
+    
+    # inds1 = [0, 1, 4]
+    # inds2 = [2, 3, 5]
+    
+    # aug_prototypes2 = [aug_prototypes[inds1].mean(0), aug_prototypes[inds2].mean(0)]
+    # print('after after2:')
+    # dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes2, plot=True)
+    
+    
+    
+    n_cluster = 4
+    kmeans_protos = []
+    
+    def propose_centers(embeddings):
+        centers = []
+        for embs in embeddings:
+            for j in range(n_cluster):
+                mean = embs.mean(0)
+                std = embs.std(0)
+                if j == 0:
+                    centers.append(mean)
+                else:
+                    centers.append(np.random.normal(mean, std / 0.2))
+        return centers
+    
+    class1_protos = propose_centers(aug_embs[:2])
+    kmeans = KMeans(n_clusters=n_cluster*2, random_state=0, init=class1_protos, max_iter=15).fit(train_embs[0])
+    kmeans_protos.append(kmeans.cluster_centers_)
+    
+    class2_protos = propose_centers(aug_embs[2:])
+    kmeans = KMeans(n_clusters=n_cluster*2, random_state=0, init=class2_protos, max_iter=15).fit(train_embs[1])
+    kmeans_protos.append(kmeans.cluster_centers_)
+    
+    kmeans_protos = np.concatenate(kmeans_protos)
+    aug_prototypes = np.concatenate([aug_prototypes, kmeans_protos])
+    # print('kmeans:')
+    # dist_utils.calc_ROC(test_dict, ood_embs, prototypes=aug_prototypes)
+    
+    
