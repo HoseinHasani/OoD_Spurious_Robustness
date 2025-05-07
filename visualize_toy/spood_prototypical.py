@@ -77,13 +77,13 @@ for i, (sample, label, color) in enumerate(zip(samples, ['Spurious OOD', 'ID'], 
     plt.plot([sample[0], nearest_proto[0]], [sample[1], nearest_proto[1]],
              linestyle='--', color=nearest_color, linewidth=1.3)
     
-    shiftx = .2 if label == 'ID' else -2.2
-    shifty = -0.6 if label == 'ID' else -0.1
+    shiftx = .2 if label == 'ID' else -2.9
+    shifty = -0.5 if label == 'ID' else -0.28
     plt.text(sample[0] + shiftx, sample[1] + shifty,
-             f"Dist: {dist_val:.2f}\nSoftmax: {softmax_val:.2f}",
+             f"Min Distance: {dist_val:.2f}\nMax Softmax: {softmax_val:.2f}",
              color=color, fontsize=11, fontweight='bold')
 
-plt.title("Prototypical Score for Spurious OOD vs ID Sample")
+plt.title("Prototypical Classification")
 plt.xlabel("Spurious Feature")
 plt.ylabel("Core Feature")
 plt.axis('equal')
@@ -91,5 +91,5 @@ plt.xticks([])
 plt.yticks([])
 # plt.legend(loc='upper left')
 plt.tight_layout()
-plt.savefig("toy_spood_proto.pdf")
+plt.savefig("toy_spood_prototypical.pdf")
 plt.show()

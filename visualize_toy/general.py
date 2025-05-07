@@ -46,10 +46,10 @@ plt.scatter(ood_sample[0, 0], ood_sample[0, 1], label='OOD Sample', color='#d627
 plt.scatter(id_sample[0, 0], id_sample[0, 1], label='ID Sample', color='#ff7f0e',
             edgecolors='k', s=110, marker='o', linewidths=1.2)
 
-plt.text(ood_sample[0, 0] - 0.9, ood_sample[0, 1] + 0.2,
-         f"Softmax: {probs[0].max():.2f}", color='#d62728', fontsize=11)
-plt.text(id_sample[0, 0] - 0.3, id_sample[0, 1] + 0.2,
-         f"Softmax: {probs[1].max():.2f}", color='#ff7f0e', fontsize=11)
+plt.text(ood_sample[0, 0] - 1.9, ood_sample[0, 1] + 0.2,
+         f"Max Softmax: {probs[0].max():.2f}", color='#d62728', fontsize=11, fontweight='bold')
+plt.text(id_sample[0, 0] - 2.77, id_sample[0, 1] + 0.2,
+         f"Max Softmax: {probs[1].max():.2f}", color='#ff7f0e', fontsize=11, fontweight='bold')
 
 xx, yy = np.meshgrid(np.linspace(-3.4, 4, 400), np.linspace(-4, 4, 400))
 grid = np.c_[xx.ravel(), yy.ravel()]
@@ -61,14 +61,14 @@ plt.clabel(contour, inline=True, fmt='Decision Boundary', fontsize=9)
 plt.axhline(0, color='gray', linestyle='--', linewidth=0.7, alpha=0.5)
 plt.axvline(0, color='gray', linestyle='--', linewidth=0.7, alpha=0.5)
 
-plt.title("Softmax Score for OOD vs ID Sample")
+plt.title("Logistic Regression")
 plt.legend(loc='upper right')
 plt.grid(True, linestyle=':', linewidth=0.5)
 plt.axis('equal')
 plt.ylabel("Core Feature")
-plt.xlabel("l")
+# plt.xlabel("l")
 plt.xticks([])
 plt.yticks([])
 plt.tight_layout()
-plt.savefig("toy_ood.pdf")
+plt.savefig("toy_ood_logistic.pdf")
 plt.show()

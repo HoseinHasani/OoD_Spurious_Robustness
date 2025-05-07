@@ -17,7 +17,7 @@ class1 = np.random.normal(loc=[-0.01, -2], scale=0.7, size=(360, 2))
 class2 = np.random.normal(loc=[0.01, 2], scale=0.7, size=(360, 2))
 
 ood_sample = np.array([[3.5, -0.05]])
-id_sample = np.array([[-0.5, 0.09]])
+id_sample = np.array([[-0.5, 0.077]])
 
 proto1 = np.mean(class1, axis=0)
 proto2 = np.mean(class2, axis=0)
@@ -25,7 +25,7 @@ prototypes = np.stack([proto1, proto2])
 proto_colors = ['#1f77b4', '#2ca02c']
 
 def distance(z, p):
-    return np.sum((z - p)**2)
+    return np.sqrt(np.sum((z - p)**2))
 
 samples = np.vstack([ood_sample, id_sample])
 distances = np.array([[distance(s, p) for p in prototypes] for s in samples])
@@ -47,24 +47,25 @@ for i, (sample, label, marker_color) in enumerate(zip(samples, ['OOD', 'ID'], ['
     nearest_idx = np.argmin(distances[i])
     nearest_proto = prototypes[nearest_idx]
     proto_color = proto_colors[nearest_idx]
-    dist_val = np.sqrt(distances[i][nearest_idx])
+    dist_val = distances[i][nearest_idx]
     softmax_val = softmax_scores[i][nearest_idx]
 
     plt.plot([sample[0], nearest_proto[0]], [sample[1], nearest_proto[1]],
              linestyle='--', color=proto_color, linewidth=1.3)
 
-    shift = 2.8 if label == 'ID' else 1.2
-    plt.text(sample[0] - shift, sample[1] + 0.25,
+    shiftx = -2.96 if label == 'ID' else -1.2
+    shifty = 0.1 if label == 'ID' else 0.24
+    plt.text(sample[0] + shiftx, sample[1] + shifty,
              f"Min Distance: {dist_val:.2f}\nMax Softmax: {softmax_val:.2f}",
-             color=marker_color, fontsize=11)
+             color=marker_color, fontsize=11, fontweight='bold')
 
-plt.title("Prototypical Score for OOD vs ID Sample")
+plt.title("Prototypical Classification")
 plt.legend(loc='upper right')
 plt.axis('equal')
 plt.xticks([])
 plt.yticks([])
-plt.xlabel("l")
+# plt.xlabel("l")
 plt.ylabel("Core Feature")
 plt.tight_layout()
-plt.savefig("toy_ood_proto.pdf")
+plt.savefig("toy_ood_prototypical.pdf")
 plt.show()
