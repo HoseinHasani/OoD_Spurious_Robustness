@@ -1,18 +1,24 @@
-import pickle
 import os
+from collections import defaultdict
 
-path = 'pickles'  
+directory = "pickles"
 
-for filename in os.listdir(path):
-    if filename.endswith('.pkl'):
-        # if 's14' not in filename:
-        #     continue
-        if 'clbood' not in filename:
+components = defaultdict(set)
+
+for filename in os.listdir(directory):
+    if '^' in filename and filename.endswith(".pkl"):
+        parts = filename[:-4].split('^')
+        if len(parts) != 7:
+            print(f"Warning: Unexpected format in file: {filename}")
             continue
-        
-        file_path = os.path.join(path, filename)
-        with open(file_path, 'rb') as f:
-            data = pickle.load(f)
-            print(f'{filename}:')
-            print(data['AUROC'])
-            print('-' * 40)
+        dataset, backbone, method, ood_set, correlation, seed, flag = parts
+        components["dataset"].add(dataset)
+        components["backbone"].add(backbone)
+        components["method"].add(method)
+        components["ood_set"].add(ood_set)
+        components["correlation"].add(correlation)
+        components["seed"].add(seed)
+        components["flag"].add(flag)
+
+for key in ["dataset", "backbone", "method", "ood_set", "correlation", "seed", "flag"]:
+    print(f"{key}: {sorted(components[key])}")
