@@ -55,6 +55,10 @@ df_avg = df.groupby(group_keys)[metric].mean().reset_index()
 pivot = df_avg.pivot(index=fields_to_compare[0], columns=fields_to_compare[1], values=metric)
 print(pivot.round(2))
 
+output_csv_path = f"results_{metric.lower()}_pivot.csv"
+pivot.round(2).to_csv(output_csv_path)
+
+print(f"Saved pivot table to {output_csv_path}")
 
 import seaborn as sns
 import matplotlib.pyplot as plt
