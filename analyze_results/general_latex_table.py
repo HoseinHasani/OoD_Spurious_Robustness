@@ -26,6 +26,7 @@ display_names = {
 feature_methods = ['sprod3', 'knn', 'mds', 'rmds', 'she']
 output_methods = ['msp', 'mls', 'gradnorm', 'ebo', 'vim']
 all_methods = feature_methods + output_methods
+all_methods = ['msp', 'mds', 'rmds', 'ebo', 'gradnorm', 'react', 'mls', 'klm', 'knn', 'she', 'vim', 'sprod3']
 
 # Choose backbone
 selected_backbone = "resnet_50"  # Change as needed
@@ -78,7 +79,7 @@ for dataset in dataset_list:
         if not entry.empty:
             mean = entry['mean'].values[0]
             std = entry['std'].values[0]
-            row[method] = f"$\\text{{{mean:.1f}}} \\pm \\textcolor{{gray}}{{\\text{{{std:.1f}}}}}$"
+            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
         else:
             row[method] = "---"
     table_data[readable_name] = row
@@ -91,7 +92,7 @@ for method in all_methods:
         entry = table_data[dataset][method]
         if entry != "---":
             try:
-                mean_val = float(entry.split("\\pm")[0].replace("$\\text{", "").replace("}", "").strip())
+                mean_val = float(entry.split("_")[0].replace("$", "").strip())
                 vals.append(mean_val)
             except:
                 continue
@@ -116,7 +117,7 @@ latex_table += separator + "\n"
 latex_table += "\n".join(lines) + "\n"
 latex_table += r"\bottomrule" + "\n"
 latex_table += r"\end{tabular}" + "\n"
-latex_table += f"\\caption{{AUROC scores (mean$\\pm$std) for backbone {selected_backbone}.}}" + "\n"
+latex_table += f"\\caption{{{metric}}}" + "\n"
 latex_table += r"\label{tab:ood_" + selected_backbone + "}\n"
 latex_table += r"\end{table}"
 
