@@ -6,25 +6,20 @@ import seaborn as sns
 
 # Directories
 input_dir = "pickles"
-output_dir = "sprod_dataset_plots"
+output_dir = "method_bar_plots"
 os.makedirs(output_dir, exist_ok=True)
 
-# Parameters
-metric = "AUROC"
-flag_filter = "default"
-backbone_filter = "resnet_50"
-
-# Dataset metadata
+# Dataset setup
 dataset_list = ['animals_metacoco', 'celeba_blond', 'spurious_imagenet', 'urbancars', 'waterbirds']
 near_ood_dataset = ['animals_ood', 'clbood', 'spurious_imagenet', 'urbn_no_car_ood', 'placesbg']
-hard_correlations_dict = {
+hard_correlations = {
     'waterbirds': 90,
     'celeba_blond': 0.9,
     'urbancars': 95,
     'animals_metacoco': 95,
     'spurious_imagenet': 95
 }
-standard_data_name = {
+display_names = {
     'waterbirds': 'Waterbirds',
     'celeba_blond': 'CelebA',
     'urbancars': 'UrbanCars',
@@ -32,103 +27,108 @@ standard_data_name = {
     'spurious_imagenet': 'SpuriousImageNet'
 }
 
-# SProd methods only
-sprod_methods = ['sprod1', 'sprod2', 'sprod3', 'sprod4']
-palette = sns.color_palette("tab10", len(sprod_methods))
-method_colors = dict(zip(sprod_methods, palette))
+# OOD method categories
+feature_methods = ['sprod3', 'knn', 'mds', 'rmds', 'she']
+output_methods = ['msp', 'mls', 'gradnorm', 'ebo', 'vim']
+all_methods = feature_methods + output_methods
+method_colors = dict(zip(all_methods, sns.color_palette("tab20", len(all_methods))))
 
-for dataset_name in dataset_list:
-    ood = near_ood_dataset[dataset_list.index(dataset_name)]
-    correlation_filter = f"r{hard_correlations_dict[dataset_name]}"
+# Metric to visualize
+metric = "AUROC"
 
+# Start processing
+for dataset in dataset_list:
+    ood = near_ood_dataset[dataset_list.index(dataset)]
+    corr_tag = f"r{hard_correlations[dataset]}"
+    readable_name = display_names[dataset]
     records = []
 
-    for filename in os.listdir(input_dir):
-        if not filename.endswith(".pkl") or '^' not in filename:
+    # Parse files
+    for fname in os.listdir(input_dir):
+        if not fname.endswith('.pkl') or '^' not in fname:
             continue
-
-        parts = filename[:-4].split('^')
+        parts = fname[:-4].split('^')
         if len(parts) < 7:
             continue
 
-        dataset, backbone, method, ood_set, correlation, seed = parts[:6]
+        ds, backbone, method, ood_set, corr, seed = parts[:6]
         flag = "_".join(parts[6:])
-
-        if (
-            dataset != dataset_name or
-            ood_set != ood or
-            correlation != correlation_filter or
-            method not in sprod_methods or
-            flag != flag_filter
-        ):
+        if ds != dataset or ood_set != ood or corr != corr_tag or flag != "default":
             continue
 
-        filepath = os.path.join(input_dir, filename)
-        with open(filepath, 'rb') as f:
+        with open(os.path.join(input_dir, fname), 'rb') as f:
             result = pickle.load(f)
 
         records.append({
-            "dataset": standard_data_name[dataset],
+            "dataset": ds,
+            "backbone": backbone,
             "method": method,
             "seed": seed,
             metric: result.get(metric, None)
         })
 
     df = pd.DataFrame(records)
-
     if df.empty:
-        print(f"⚠️ No data found for {dataset_name} at correlation {correlation_filter}")
+        print(f"⚠️ No data for {dataset} ({corr_tag})")
         continue
 
-    df_stats = df.groupby(['method'])[metric].agg(['mean', 'std']).reset_index()
+    # Compute mean & std
+    stats = df.groupby(['backbone', 'method'])[metric].agg(['mean', 'std']).reset_index()
 
-    # Complete with zeroes for missing methods
-    df_complete = []
-    for method in sprod_methods:
-        row = df_stats[df_stats['method'] == method]
-        if row.empty:
-            df_complete.append({'method': method, 'mean': 0, 'std': 0})
+    for backbone in stats['backbone'].unique():
+        sub = stats[stats['backbone'] == backbone]
+
+        # Ensure all methods present
+        method_rows = []
+        for m in all_methods:
+            row = sub[sub['method'] == m]
+            if row.empty:
+                method_rows.append({'method': m, 'mean': 0, 'std': 0})
+            else:
+                method_rows.append({'method': m, 'mean': row['mean'].values[0], 'std': row['std'].values[0]})
+        df_plot = pd.DataFrame(method_rows)
+
+        # Bar plot
+        colors = [method_colors[m] for m in df_plot['method']]
+        plt.figure(figsize=(5, 6))
+        bars = plt.bar(
+            df_plot['method'],
+            df_plot['mean'],
+            yerr=df_plot['std'],
+            capsize=4,
+            color=colors,
+            edgecolor='black'
+        )
+
+        # Labeling
+        plt.title(f"{metric} for {readable_name} - {backbone}", fontsize=14)
+        plt.xlabel("OOD Detection Method", fontsize=12)
+        plt.ylabel(f"{metric} (mean ± std)", fontsize=12)
+        plt.xticks(rotation=45, ha='right', fontsize=13)
+        plt.yticks(fontsize=12)
+        plt.grid(axis='y', linestyle='--', alpha=0.3)
+
+        # Color code feature/output
+        ax = plt.gca()
+        for label in ax.get_xticklabels():
+            method = label.get_text()
+            if method in feature_methods:
+                label.set_color('red')
+            else:
+                label.set_color('blue')
+
+        # Y limits
+        vis = df_plot[df_plot['mean'] > 0]
+        if not vis.empty:
+            ymin = max(0, (vis['mean'] - vis['std']).min() * 0.9)
+            ymax = min(100, (vis['mean'] + vis['std']).max() * 1.05)
         else:
-            df_complete.append({
-                'method': method,
-                'mean': row['mean'].values[0],
-                'std': row['std'].values[0]
-            })
-    df_plot = pd.DataFrame(df_complete)
+            ymin, ymax = 0, 1
+        plt.ylim(ymin, ymax)
 
-    # Bar colors
-    bar_colors = [method_colors[m] for m in df_plot['method']]
-
-    # Plotting
-    plt.figure(figsize=(5, 6))
-    bars = plt.bar(
-        df_plot['method'],
-        df_plot['mean'],
-        yerr=df_plot['std'],
-        capsize=5,
-        color=bar_colors,
-        edgecolor='black'
-    )
-
-    plt.grid(axis='y', linestyle='--', alpha=0.3)
-    clean_name = standard_data_name[dataset_name]
-    plt.title(f"{metric} for {clean_name}", fontsize=14)
-    plt.xlabel("Method", fontsize=12)
-    plt.ylabel(f"{metric} (mean ± std)", fontsize=12)
-
-    # Dynamic ylim
-    visible = df_plot[df_plot['mean'] > 0]
-    if not visible.empty:
-        ymin = max(0, (visible['mean'] - visible['std']).min() * 0.96)
-        ymax = min(100, (visible['mean'] + visible['std']).max() * 1.01)
-    else:
-        ymin, ymax = 0, 1
-    plt.ylim(ymin, ymax)
-
-    plt.xticks(ticks=range(len(sprod_methods)), labels=sprod_methods, rotation=45, ha='right', fontsize=12)
-    plt.tight_layout()
-
-    out_path = os.path.join(output_dir, f"sprod_{dataset_name}.png")
-    plt.savefig(out_path, dpi=160)
-    plt.close()
-    print(f"✅ Saved plot: {out_path}")
+        # Save plot
+        plt.tight_layout()
+        outname = f"{dataset}_{backbone}.png"
+        plt.savefig(os.path.join(output_dir, outname), dpi=150)
+        plt.close()
+        print(f"✅ Saved plot: {outname}")
