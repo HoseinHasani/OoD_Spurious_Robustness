@@ -7,8 +7,8 @@ input_dir = "pickles"
 output_dir = "latex_tables"
 os.makedirs(output_dir, exist_ok=True)
 
-dataset_list = ['animals_metacoco', 'celeba_blond', 'spurious_imagenet', 'urbancars', 'waterbirds']
-near_ood_dataset = ['animals_ood', 'clbood', 'spurious_imagenet', 'urbn_no_car_ood', 'placesbg']
+dataset_list = ['waterbirds', 'celeba_blond', 'urbancars', 'animals_metacoco', 'spurious_imagenet']
+near_ood_dataset = ['placesbg', 'clbood', 'urbn_no_car_ood', 'animals_ood', 'spurious_imagenet']
 hard_correlations = {
     'waterbirds': 90,
     'celeba_blond': 0.9,
@@ -23,18 +23,15 @@ display_names = {
     'animals_metacoco': 'AnimalsMetaCoCo',
     'spurious_imagenet': 'SpuriousImageNet'
 }
-feature_methods = ['sprod3', 'knn', 'mds', 'rmds', 'she']
-output_methods = ['msp', 'mls', 'gradnorm', 'ebo', 'vim']
-all_methods = feature_methods + output_methods
+# Final method order (last one is "our method")
 all_methods = ['msp', 'mds', 'rmds', 'ebo', 'gradnorm', 'react', 'mls', 'klm', 'knn', 'she', 'vim', 'sprod3']
 
-# Choose backbone
-selected_backbone = "resnet_50"  # Change as needed
+# Backbone and metric
+selected_backbone = "resnet_50"
 metric = "AUROC"
 
-# Load all records first
+# Load data
 records = []
-
 for dataset, ood in zip(dataset_list, near_ood_dataset):
     corr_tag = f"r{hard_correlations[dataset]}"
     for fname in os.listdir(input_dir):
@@ -69,7 +66,6 @@ stats = df.groupby(['dataset', 'method'])[metric].agg(['mean', 'std']).reset_ind
 
 # Build LaTeX table data
 table_data = {}
-
 for dataset in dataset_list:
     readable_name = display_names[dataset]
     sub = stats[stats['dataset'] == dataset]
@@ -102,12 +98,20 @@ table_data["Average"] = avg_row
 # Generate LaTeX table string
 header = "Method & " + " & ".join(display_names[ds] for ds in dataset_list) + " & Average \\\\"
 separator = "\\midrule"
-lines = [f"{method} " +
-         " & " + " & ".join(table_data[ds].get(method, "---") for ds in display_names.values()) +
-         f" & {table_data['Average'][method]}" + r" \\"
-         for method in all_methods]
+lines = []
 
+for i, method in enumerate(all_methods):
+    row = f"{method} " + " & " + \
+          " & ".join(table_data[ds].get(method, "---") for ds in display_names.values()) + \
+          f" & {table_data['Average'][method]}" + r" \\"
+    lines.append(row)
+    # Insert special rule before last method (our method = last one)
+    if i == len(all_methods) - 2:
+        lines.append(r"\specialrule{1pt}{1pt}{1pt}")
+
+# Final LaTeX
 latex_table = r"""\begin{table}[t]
+\caption{AUROC for OOD detection across various datasets using ResNet-50. Higher is better.}
 \centering
 \small
 \begin{tabular}{l""" + "c" * (len(dataset_list) + 1) + "}\n"
@@ -117,12 +121,14 @@ latex_table += separator + "\n"
 latex_table += "\n".join(lines) + "\n"
 latex_table += r"\bottomrule" + "\n"
 latex_table += r"\end{tabular}" + "\n"
-latex_table += f"\\caption{{{metric}}}" + "\n"
 latex_table += r"\label{tab:ood_" + selected_backbone + "}\n"
 latex_table += r"\end{table}"
 
-# Print and save
-print(latex_table)
+# Save to file
 output_path = os.path.join(output_dir, f"ood_table_{selected_backbone}.tex")
 with open(output_path, 'w') as f:
     f.write(latex_table)
+    
+print(latex_table)
+
+# print(f"✅ LaTeX table saved to {output_path}")
