@@ -13,3 +13,4 @@ datasets/
 data/
 embeddings/
 *.pdf
+*.zip
