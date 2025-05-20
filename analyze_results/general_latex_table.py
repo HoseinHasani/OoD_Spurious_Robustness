@@ -30,6 +30,22 @@ all_methods = ['msp', 'mds', 'rmds', 'ebo', 'gradnorm', 'react', 'mls', 'klm', '
 selected_backbone = "resnet_50"
 metric = "AUROC"
 
+name_dict = {
+    "sprod3": "SPROD",
+    "she": "SHE",
+    "knn": "KNN",
+    "rmds": "RMDS",
+    "mds": "MDS",
+    "react": "ReAct",
+    "vim": "VIM",
+    "gradnorm": "GNorm",
+    "klm": "KLM",
+    "mls": "MLS",
+    "ebo": "Energy",
+    "msp": "MSP"
+    
+    }
+
 # Load data
 records = []
 for dataset, ood in zip(dataset_list, near_ood_dataset):
@@ -101,7 +117,7 @@ separator = "\\midrule"
 lines = []
 
 for i, method in enumerate(all_methods):
-    row = f"{method} " + " & " + \
+    row = f"{name_dict[method]} " + " & " + \
           " & ".join(table_data[ds].get(method, "---") for ds in display_names.values()) + \
           f" & {table_data['Average'][method]}" + r" \\"
     lines.append(row)
