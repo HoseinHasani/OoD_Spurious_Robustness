@@ -5,12 +5,12 @@ from sklearn.metrics import roc_auc_score
 import warnings
 warnings.filterwarnings("ignore")
 
-m = 40  
-Ks = [2, 3, 4, 6, 9, 12, 16, 20, 25, 30]  
+m = 40
+Ks = [2, 3, 4, 6, 9, 12, 18, 24, 40, 64]  
 seeds = list(range(10, 21))
-N_per_class = 200
+N_per_class0 = 200 
 radius = 100
-n_ood = 500
+n_ood0 = 400
 
 def generate_distant_centers(K, dim, center_std=2.0, min_dist=0.2, max_attempts=2000):
     centers = []
@@ -26,9 +26,11 @@ def generate_distant_centers(K, dim, center_std=2.0, min_dist=0.2, max_attempts=
         assert False
     return np.array(centers)
 
-results = []
+results_dict = {}
 
 for K in Ks:
+    n_ood = n_ood0 #+ 5 * K
+    N_per_class = N_per_class0 #+ 200 // K
     aurocs = []
 
     for seed in seeds:
@@ -37,6 +39,9 @@ for K in Ks:
         center_std = 2.0 + K / 60
         decay = 1 / K
         centers = generate_distant_centers(K=K, dim=m, center_std=center_std, min_dist=0.4)
+        if centers is None:
+            continue
+
         class_stds = np.random.uniform(0.1 + 0.6 * decay, 0.4 + decay, size=K)
         
         X_id = []
@@ -65,22 +70,41 @@ for K in Ks:
         auroc = roc_auc_score(labels, -scores)
         aurocs.append(auroc)
 
-    results.append((K, np.mean(aurocs), np.std(aurocs)))
+    if aurocs:
+        results_dict[K] = (np.mean(aurocs), np.std(aurocs))
+    else:
+        results_dict[K] = (np.nan, np.nan)
 
-Ks_vals, mean_aurocs, std_aurocs = zip(*results)
+mean_aurocs = [results_dict[K][0] for K in Ks]
+std_aurocs = [results_dict[K][1] for K in Ks]
 
-plt.figure(figsize=(10, 6))
-bars = plt.bar(Ks_vals, mean_aurocs, yerr=std_aurocs, capsize=8, color='skyblue', edgecolor='black')
+plt.figure(figsize=(8, 8))
+bars = plt.bar(np.arange(len(Ks)), 
+               [val if not np.isnan(val) else 0 for val in mean_aurocs], 
+               yerr=[err if not np.isnan(err) else 0 for err in std_aurocs],
+               capsize=8, color='skyblue', edgecolor='black')
+
+for bar, val in zip(bars, mean_aurocs):
+    if np.isnan(val):
+        bar.set_visible(False)
 
 plt.xlabel('Number of Classes (K)')
 plt.ylabel('AUROC for OOD Detection')
 plt.title(f'AUROC vs Number of Classes (K) using MSP (m={m})')
-plt.ylim(0.3, 0.8)
+
+# Adaptive y-limits based on valid AUROCs
+valid_aurocs = [val for val in mean_aurocs if not np.isnan(val)]
+y_min = max(0.0, min(valid_aurocs) - 0.05)
+y_max = min(1.0, max(valid_aurocs) + 0.05)
+plt.ylim(y_min, y_max)
+
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 
 for bar, mean in zip(bars, mean_aurocs):
-    plt.text(bar.get_x() + bar.get_width()/2, mean + 0.02, f"{mean:.2f}", 
-             ha='center', va='bottom', fontsize=10)
+    if not np.isnan(mean):
+        plt.text(bar.get_x() + bar.get_width() / 2, mean + 0.01, f"{mean:.2f}",
+                 ha='center', va='bottom', fontsize=10)
 
+plt.xticks(ticks=np.arange(len(Ks)), labels=[str(k) for k in Ks])
 plt.tight_layout()
 plt.show()
