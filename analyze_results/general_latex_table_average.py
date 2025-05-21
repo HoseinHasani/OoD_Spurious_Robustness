@@ -8,6 +8,7 @@ input_dir = "pickles"
 output_dir = "latex_tables"
 os.makedirs(output_dir, exist_ok=True)
 
+metric = "FPR@95"
 metric = "AUROC"
 flag_filter = "default"
 target_datasets = ['waterbirds', 'celeba_blond', 'urbancars', 'animals_metacoco', 'spurious_imagenet']
@@ -25,19 +26,32 @@ hard_correlations = {
     'animals_metacoco': 95,
     'spurious_imagenet': 95
 }
-backbones = ['BiT_M_R101x1', 'BiT_M_R50x1', 'BiT_M_R50x3', 'DeiT_B', 'DeiT_S',
-             'DeiT_Ti', 'ViT_B', 'ViT_S', 'ViT_Ti', 'clip_RN50', 'clip_ViT_B_16',
-             'dinov2_vitb14', 'dinov2_vitl14', 'dinov2_vits14', 'resnet_101',
-             'resnet_18', 'resnet_50']
 
-backbones = ['DeiT_B', 'ViT_S', 'dinov2_vits14', 'resnet_101',
-             'resnet_18', 'resnet_50']
+backbones0 = ['BiT_M_R101x1', 'BiT_M_R50x1', 'BiT_M_R50x3', 'ConvNeXt_B',
+                  'ConvNeXt_S', 'ConvNeXt_T', 'DeiT_B', 'DeiT_S', 'DeiT_Ti',
+                  'Swin_B', 'Swin_S', 'Swin_T', 'ViT_B', 'ViT_S', 'ViT_Ti',
+                  'clip_RN50', 'clip_ViT_B_16', 'dinov2_vitb14', 'dinov2_vitl14',
+                  'dinov2_vits14', 'resnet_101', 'resnet_18', 'resnet_34', 'resnet_50']
+
+
+backbones = ['resnet_18', 'resnet_34', 'resnet_50', 'resnet_101', 'dinov2_vits14', 'ViT_S', 'Swin_B', 'DeiT_B',
+                'ConvNeXt_B', 'BiT_M_R50x1']
+
+
 
 all_methods = ['msp', 'ebo', 'mls', 'klm', 'gradnorm', 'react', 'vim', 'mds', 'rmds', 'knn', 'she', 'sprod3']
 method_display = {
     "sprod3": "SPROD", "she": "SHE", "knn": "KNN", "rmds": "RMDS", "mds": "MDS", "react": "ReAct", "vim": "VIM",
     "gradnorm": "GNorm", "klm": "KLM", "mls": "MLS", "ebo": "Energy", "msp": "MSP"
 }
+
+backbone_display = {
+    "resnet_18": "R18", "resnet_34": "R34", "resnet_50": "R50", "resnet_101": "R101",
+    "dinov2_vits14": "DINOv2", "ViT_S": "ViT", "DeiT_B": "DeiT", "BiT_M_R50x1": "BiT",
+    "ConvNeXt_B": "CvNxt", "Swin_B": "Swin",
+}
+
+backbone_display_names = [backbone_display[name] for name in backbones]
 
 # Step 1: Load results
 records = []
@@ -50,6 +64,12 @@ for fname in os.listdir(input_dir):
     ds, backbone, method, ood_set, corr, seed = parts[:6]
     flag = "^".join(parts[6:])
     
+    if int(seed[1:]) < 20:
+        continue
+
+    if int(seed[1:]) > 25 and int(seed[1:]) < 100: 
+        continue    
+    
     if ds not in target_datasets:
         continue
     if ood_set != near_ood_map[ds] or corr != f"r{hard_correlations[ds]}" or flag != flag_filter:
@@ -61,7 +81,7 @@ for fname in os.listdir(input_dir):
     except Exception as e:
         print(f"Could not read {fname}: {e}")
         continue
-
+    print(fname)
     records.append({
         "dataset": ds,
         "backbone": backbone,
@@ -101,7 +121,7 @@ for method in pivot.index:
 # latex_rows = [[method_display.get(method, method)] + list(pivot_formatted.loc[method]) for method in pivot.index]
 
 # Step 5: Assemble LaTeX
-header = "Method & " + " & ".join(backbones) + " \\\\"
+header = "Method & " + " & ".join(backbone_display_names) + " \\\\"
 separator = "\\midrule"
 lines = [" & ".join(row) + r" \\" for row in latex_rows]
 
