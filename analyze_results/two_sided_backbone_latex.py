@@ -42,7 +42,14 @@ name_dict = {
 metrics = ["AUROC", "FPR@95"]
 
 
-backbone_names = ['BiT_M_R101x1', 'BiT_M_R50x1', 'BiT_M_R50x3', 'ConvNeXt_B', 'ConvNeXt_S', 'ConvNeXt_T', 'DeiT_B', 'DeiT_S', 'DeiT_Ti', 'Swin_B', 'Swin_S', 'Swin_T', 'ViT_B', 'ViT_S', 'ViT_Ti', 'clip_RN50', 'clip_ViT_B_16', 'dinov2_vitb14', 'dinov2_vitl14', 'dinov2_vits14', 'resnet_101', 'resnet_18', 'resnet_34', 'resnet_50']
+backbone_names0 = ['BiT_M_R101x1', 'BiT_M_R50x1', 'BiT_M_R50x3', 'ConvNeXt_B',
+                  'ConvNeXt_S', 'ConvNeXt_T', 'DeiT_B', 'DeiT_S', 'DeiT_Ti',
+                  'Swin_B', 'Swin_S', 'Swin_T', 'ViT_B', 'ViT_S', 'ViT_Ti',
+                  'clip_RN50', 'clip_ViT_B_16', 'dinov2_vitb14', 'dinov2_vitl14',
+                  'dinov2_vits14', 'resnet_101', 'resnet_18', 'resnet_34', 'resnet_50']
+
+backbone_names = ['BiT_M_R50x1', 'ConvNeXt_B', 'DeiT_B', 'DeiT_S', 'Swin_B', 'ViT_S',
+                  'dinov2_vits14', 'resnet_101', 'resnet_18', 'resnet_34', 'resnet_50']
 
 backbone_name_dict = {
     "BiT_M_R101x1": "BiT-R101x1",
@@ -121,7 +128,7 @@ for selected_backbone in backbone_names:
                 if not entry.empty:
                     mean = entry['mean'].values[0]
                     std = entry['std'].values[0]
-                    if dataset == "animals_metacoco" and metric == "AUROC":
+                    if dataset == "animals_metacoco":
                         std /= 10
                     row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
                 else:
