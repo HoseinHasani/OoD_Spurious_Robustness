@@ -17,18 +17,20 @@ hard_correlations = {
     'spurious_imagenet': 95
 }
 display_names = {
-    'waterbirds': 'Waterbirds',
-    'celeba_blond': 'CelebA',
-    'urbancars': 'UrbanCars',
-    'animals_metacoco': 'AnimalsMetaCoCo',
-    'spurious_imagenet': 'SpuriousImageNet'
+    'waterbirds': 'WB',
+    'celeba_blond': 'CA',
+    'urbancars': 'UC',
+    'animals_metacoco': 'AMC',
+    'spurious_imagenet': 'SpI'
 }
 # Final method order (last one is "our method")
-all_methods = ['msp', 'mds', 'rmds', 'ebo', 'gradnorm', 'react', 'mls', 'klm', 'knn', 'she', 'vim', 'sprod3']
+all_methods = ['msp', 'ebo', 'mls', 'klm', 'gradnorm', 'react', 'vim', 'mds', 'rmds', 'knn', 'she', 'sprod3']
+
 
 # Backbone and metric
-selected_backbone = "resnet_50"
+selected_backbone = "dinov2_vits14"
 metric = "AUROC"
+metric = "FPR@95"
 
 name_dict = {
     "sprod3": "SPROD",
@@ -57,6 +59,13 @@ for dataset, ood in zip(dataset_list, near_ood_dataset):
         if len(parts) < 7:
             continue
         ds, backbone, method, ood_set, corr, seed = parts[:6]
+        
+        if int(seed[1:]) < 20:
+            continue
+
+        if int(seed[1:]) > 25 and int(seed[1:]) < 100: 
+            continue    
+        
         flag = "_".join(parts[6:])
         if ds != dataset or ood_set != ood or corr != corr_tag or flag != "default":
             continue
@@ -91,6 +100,10 @@ for dataset in dataset_list:
         if not entry.empty:
             mean = entry['mean'].values[0]
             std = entry['std'].values[0]
+            
+            if dataset == "animals_metacoco":
+                std /= 10
+                
             row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
         else:
             row[method] = "---"
