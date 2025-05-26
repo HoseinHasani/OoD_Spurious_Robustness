@@ -6,6 +6,7 @@ import pandas as pd
 directory = "pickles"
 target_method = "sprod3"
 metric = "FPR@95"
+# metric = "AUROC"
 
 datasets = ['animals_metacoco', 'celeba_blond', 'spurious_imagenet', 'urbancars', 'waterbirds']
 
@@ -38,6 +39,12 @@ for filename in os.listdir(directory):
 
     dataset, backbone, method, ood_set, correlation, seed = parts[:6]
     flag = "^".join(parts[6:])
+    
+    if int(seed[1:]) < 20:
+        continue
+
+    if int(seed[1:]) > 25 and int(seed[1:]) < 100: 
+        continue    
     
     if "sprod1" in method or "sprod2" in method or "sprod4" in method:
         continue
@@ -76,7 +83,7 @@ df = df.dropna(subset=[metric])
 df_avg = df.groupby(["dataset", "backbone", "method"])[metric].mean().reset_index()
 
 # Step 3: Compute ranks of all methods per (dataset, backbone)
-df_avg["rank"] = df_avg.groupby(["dataset", "backbone"])[metric].rank(ascending=True, method="min")
+df_avg["rank"] = df_avg.groupby(["dataset", "backbone"])[metric].rank(ascending=metric=='FPR@95', method="min")
 
 # Step 4: Extract only sprod3's ranks
 sprod3_ranks = df_avg[df_avg["method"] == target_method]
@@ -87,5 +94,5 @@ pivot = pivot.round(0).astype("Int64")  # optional: round and make integer-looki
 
 # Step 6: Save to CSV
 os.makedirs("csvs", exist_ok=True)
-pivot.to_csv("csvs/sprod3_ranks.csv")
-print("Saved sprod3 rank table to csvs/sprod3_ranks.csv")
+pivot.to_csv(f"csvs/sprod_ranking_{metric}.csv")
+print(f"Saved sprod3 rank table to csvs/sprod_ranking_{metric}.csv")
