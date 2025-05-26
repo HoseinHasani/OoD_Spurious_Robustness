@@ -8,8 +8,9 @@ input_dir = "pickles"
 output_dir = "latex_tables"
 os.makedirs(output_dir, exist_ok=True)
 
-metric = "FPR@95"
 metric = "AUROC"
+# metric = "FPR@95"
+
 flag_filter = "default"
 target_datasets = ['waterbirds', 'celeba_blond', 'urbancars', 'animals_metacoco', 'spurious_imagenet']
 near_ood_map = {
@@ -27,19 +28,11 @@ hard_correlations = {
     'spurious_imagenet': 95
 }
 
-backbones0 = ['BiT_M_R101x1', 'BiT_M_R50x1', 'BiT_M_R50x3', 'ConvNeXt_B',
-                  'ConvNeXt_S', 'ConvNeXt_T', 'DeiT_B', 'DeiT_S', 'DeiT_Ti',
-                  'Swin_B', 'Swin_S', 'Swin_T', 'ViT_B', 'ViT_S', 'ViT_Ti',
-                  'clip_RN50', 'clip_ViT_B_16', 'dinov2_vitb14', 'dinov2_vitl14',
-                  'dinov2_vits14', 'resnet_101', 'resnet_18', 'resnet_34', 'resnet_50']
-
-
-backbones = ['resnet_18', 'resnet_34', 'resnet_50', 'resnet_101', 'dinov2_vits14', 'ViT_S', 'Swin_B', 'DeiT_B',
-                'ConvNeXt_B', 'BiT_M_R50x1']
-
-
+backbones = ['resnet_18', 'resnet_34', 'resnet_50', 'resnet_101', 'dinov2_vits14', 
+             'ViT_S', 'Swin_B', 'DeiT_B', 'ConvNeXt_B', 'BiT_M_R50x1']
 
 all_methods = ['msp', 'ebo', 'mls', 'klm', 'gradnorm', 'react', 'vim', 'mds', 'rmds', 'knn', 'she', 'sprod3']
+
 method_display = {
     "sprod3": "SPROD", "she": "SHE", "knn": "KNN", "rmds": "RMDS", "mds": "MDS", "react": "ReAct", "vim": "VIM",
     "gradnorm": "GNorm", "klm": "KLM", "mls": "MLS", "ebo": "Energy", "msp": "MSP"
@@ -64,11 +57,8 @@ for fname in os.listdir(input_dir):
     ds, backbone, method, ood_set, corr, seed = parts[:6]
     flag = "^".join(parts[6:])
     
-    if int(seed[1:]) < 20:
+    if int(seed[1:]) < 20 or (25 < int(seed[1:]) < 100):
         continue
-
-    if int(seed[1:]) > 25 and int(seed[1:]) < 100: 
-        continue    
     
     if ds not in target_datasets:
         continue
@@ -81,7 +71,7 @@ for fname in os.listdir(input_dir):
     except Exception as e:
         print(f"Could not read {fname}: {e}")
         continue
-    print(fname)
+    
     records.append({
         "dataset": ds,
         "backbone": backbone,
@@ -95,20 +85,16 @@ df = pd.DataFrame(records)
 df = df.dropna(subset=[metric])
 grouped = df.groupby(["method", "backbone"])[metric].mean().reset_index()
 
-# Step 3: Pivot for LaTeX table
+# Step 3: Pivot and compute average column
 pivot = grouped.pivot(index="method", columns="backbone", values=metric)
-pivot = pivot.reindex(all_methods)  # Ensure order of methods
-pivot = pivot[backbones]  # Ensure order of backbones
+pivot = pivot.reindex(all_methods)  # Ensure consistent method order
+pivot = pivot[backbones]  # Ensure consistent backbone order
+pivot["Average"] = pivot.mean(axis=1)
 
-# Step 4: Format LaTeX table
+# Step 4: Format for LaTeX
 def format_val(val):
     return f"{val:.1f}" if pd.notnull(val) else "---"
 
-def bold_max(series):
-    max_val = series.max()
-    return [f"\\textbf{{{format_val(v)}}}" if v == max_val else format_val(v) for v in series]
-
-# Optional: bold best methods per column
 latex_rows = []
 for method in pivot.index:
     row = [method_display.get(method, method)]
@@ -116,20 +102,18 @@ for method in pivot.index:
         row.append(format_val(val))
     latex_rows.append(row)
 
-# Alternatively: bold top per column
-# pivot_formatted = pivot.apply(bold_max, axis=0)
-# latex_rows = [[method_display.get(method, method)] + list(pivot_formatted.loc[method]) for method in pivot.index]
-
-# Step 5: Assemble LaTeX
-header = "Method & " + " & ".join(backbone_display_names) + " \\\\"
+# Step 5: Generate LaTeX table
+header = "Method & " + " & ".join(backbone_display_names) + " & Avg. \\\\"
 separator = "\\midrule"
-lines = [" & ".join(row) + r" \\" for row in latex_rows]
+lines = [" & ".join(row) + r" \\" for row in latex_rows[:-1]]
+lines.append(r"\midrule")
+lines.append(" & ".join(latex_rows[-1]) + r" \\")
 
 latex_table = r"""\begin{table}[t]
-\caption{""" + f"{metric} averaged across datasets for each backbone and method." + r""" Higher is better.}
+\caption{""" + f"{metric} averaged across datasets for each backbone and method, including overall average." + r"""}
 \centering
 \small
-\begin{tabular}{l""" + "c" * len(backbones) + "}\n"
+\begin{tabular}{l""" + "c" * (len(backbones) + 1) + "}\n"
 latex_table += r"\toprule" + "\n"
 latex_table += header + "\n"
 latex_table += separator + "\n"
@@ -139,11 +123,9 @@ latex_table += r"\end{tabular}" + "\n"
 latex_table += r"\label{tab:ood_backbone_avg}" + "\n"
 latex_table += r"\end{table}"
 
-# Save
-os.makedirs(output_dir, exist_ok=True)
-with open(os.path.join(output_dir, f"ood_table_backbones_avg_{metric}.tex"), 'w') as f:
+# Save LaTeX
+output_path = os.path.join(output_dir, f"ood_table_backbones_avg_with_overall_{metric}.tex")
+with open(output_path, 'w') as f:
     f.write(latex_table)
-    
-print(latex_table)
 
-print("✅ LaTeX table generated and saved.")
+print("\n" + latex_table)

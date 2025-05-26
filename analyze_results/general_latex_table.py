@@ -28,9 +28,9 @@ all_methods = ['msp', 'ebo', 'mls', 'klm', 'gradnorm', 'react', 'vim', 'mds', 'r
 
 
 # Backbone and metric
-selected_backbone = "dinov2_vits14"
+selected_backbone = "dinov2_vitb14"
 metric = "AUROC"
-metric = "FPR@95"
+# metric = "FPR@95"
 
 name_dict = {
     "sprod3": "SPROD",
@@ -136,11 +136,11 @@ for i, method in enumerate(all_methods):
     lines.append(row)
     # Insert special rule before last method (our method = last one)
     if i == len(all_methods) - 2:
-        lines.append(r"\specialrule{1pt}{1pt}{1pt}")
+        lines.append(r"\midrule")
 
 # Final LaTeX
 latex_table = r"""\begin{table}[t]
-\caption{AUROC for OOD detection across various datasets using ResNet-50. Higher is better.}
+\caption{$selected_backbone$.}
 \centering
 \small
 \begin{tabular}{l""" + "c" * (len(dataset_list) + 1) + "}\n"
