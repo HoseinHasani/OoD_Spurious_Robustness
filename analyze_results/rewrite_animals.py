@@ -11,6 +11,11 @@ synthetic_seed_base = 100
 
 experiments = defaultdict(list)
 
+
+backbone_names = ['BiT_M_R50x1', 'ConvNeXt_B', 'DeiT_B', 'Swin_B', 'ViT_S',
+                  'dinov2_vits14', 'resnet_101', 'resnet_18', 'resnet_34', 'resnet_50']
+
+
 for filename in os.listdir(input_dir):
     if not filename.endswith(".pkl") or '^' not in filename:
         continue
@@ -27,7 +32,21 @@ for filename in os.listdir(input_dir):
 
     # if not('iter3' in flag):
     #     continue
-        
+
+    # if ood_set != 'animals_ood':
+    #     continue
+    
+
+
+    if backbone not in backbone_names:
+        continue
+    
+    # if method not in ['sprod3']:
+    #     continue
+    # if 'iter3' not in flag:
+    #     continue
+    
+    
     if dataset == 'animals_metacoco' and method == 'sprod3' and backbone == 'resnet_50':
         if 'iter2' in flag:
             continue
