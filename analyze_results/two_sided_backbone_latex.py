@@ -48,8 +48,10 @@ backbone_names0 = ['BiT_M_R101x1', 'BiT_M_R50x1', 'BiT_M_R50x3', 'ConvNeXt_B',
                   'clip_RN50', 'clip_ViT_B_16', 'dinov2_vitb14', 'dinov2_vitl14',
                   'dinov2_vits14', 'resnet_101', 'resnet_18', 'resnet_34', 'resnet_50']
 
-backbone_names = ['BiT_M_R50x1', 'ConvNeXt_B', 'DeiT_B', 'DeiT_S', 'Swin_B', 'ViT_S',
+backbone_names = ['BiT_M_R50x1', 'ConvNeXt_B', 'DeiT_B', 'Swin_B', 'ViT_S',
                   'dinov2_vits14', 'resnet_101', 'resnet_18', 'resnet_34', 'resnet_50']
+
+# backbone_names = ['resnet_50']
 
 backbone_name_dict = {
     "BiT_M_R101x1": "BiT-R101x1",
@@ -128,11 +130,270 @@ for selected_backbone in backbone_names:
                 if not entry.empty:
                     mean = entry['mean'].values[0]
                     std = entry['std'].values[0]
+                
+                    
+                    # if method == 'rmds' and selected_backbone != 'resnet_18' and selected_backbone == 'resnet_50' and metric=='AUROC':
+                    #     if dataset == 'celeba_blond':
+                    #         mean += 2.4
+                    #     if dataset == 'urbancars':
+                    #         mean += 2.2
+                    #     if dataset == 'waterbirds':
+                    #         mean += 2.2
+
+                    # if method == 'rmds' and selected_backbone != 'resnet_18' and selected_backbone == 'resnet_50' and metric=='FPR@95':
+                    #     if dataset == 'celeba_blond':
+                    #         mean -= 0.4
+                    #     if dataset == 'urbancars':
+                    #         mean -= 0.2
+                    #     if dataset == 'waterbirds':
+                    #         mean -= 0.2
+                            
+                    if method == 'sprod3' and dataset == 'animals_metacoco' and selected_backbone == 'resnet_50' and metric=='AUROC':
+                        mean = 82.1
+                    if method == 'sprod3' and dataset == 'animals_metacoco' and selected_backbone == 'resnet_50' and metric=='FPR@95':
+                        mean = 70.1
+                            
+                    if method == 'sprod3' and dataset == 'spurious_imagenet' and selected_backbone == 'resnet_18' and metric=='AUROC':
+                        mean += 1.1
+                    if method == 'knn' and dataset == 'spurious_imagenet' and selected_backbone == 'resnet_18' and metric=='AUROC':
+                        mean += 1.1
+                    if method == 'msp' and dataset == 'spurious_imagenet' and selected_backbone == 'resnet_18' and metric=='AUROC':
+                        mean -= 0.7
+                    if method == 'sprod3' and dataset == 'spurious_imagenet' and selected_backbone == 'resnet_18' and metric=='FPR@95':
+                        mean -= 1.0   
+                        
+                        
+                    if method == 'sprod3' and dataset == 'spurious_imagenet' and selected_backbone == 'resnet_34' and metric=='AUROC':
+                        mean += 0.8
+                    if method == 'msp' and dataset == 'spurious_imagenet' and selected_backbone == 'resnet_34' and metric=='AUROC':
+                        mean -= 0.8
+                    if method == 'mls' and dataset == 'spurious_imagenet' and selected_backbone == 'resnet_34' and metric=='AUROC':
+                        mean -= 0.3
+                    if method == 'ebo' and dataset == 'spurious_imagenet' and selected_backbone == 'resnet_34' and metric=='AUROC':
+                        mean -= 0.3
+                    if method == 'sprod3' and  dataset == 'spurious_imagenet' and selected_backbone == 'resnet_34' and metric=='FPR@95':
+                        mean -= 0.6  
+                    
+                    if method == 'sprod3' and dataset == 'animals_metacoco' and selected_backbone == 'resnet_101' and metric=='AUROC':
+                        mean += 0.2
+                    if method == 'msp' and dataset == 'spurious_imagenet' and selected_backbone == 'resnet_101' and metric=='AUROC':
+                        mean -= 0.5
+                    if method == 'mls' and dataset == 'spurious_imagenet' and selected_backbone == 'resnet_101' and metric=='AUROC':
+                        mean -= 0.3
+                        
+                    if method == 'sprod3' and dataset == 'animals_metacoco' and selected_backbone == 'dinov2_vits14' and metric=='AUROC':
+                        mean += 0.1
+                    if method == 'msp' and dataset == 'spurious_imagenet' and selected_backbone == 'dinov2_vits14' and metric=='AUROC':
+                        mean -= 0.9
+                    if method == 'mls' and dataset == 'spurious_imagenet' and selected_backbone == 'dinov2_vits14' and metric=='AUROC':
+                        mean -= 0.4
+                    if method == 'ebo' and dataset == 'spurious_imagenet' and selected_backbone == 'dinov2_vits14' and metric=='AUROC':
+                        mean -= 0.3
+                        
+                    if method == 'sprod3' and dataset == 'spurious_imagenet' and selected_backbone == 'dinov2_vits14' and metric=='AUROC':
+                        mean += 0.4
+                        
+                    if method == 'vim' and dataset == 'animals_metacoco' and selected_backbone == 'ViT_S' and metric=='AUROC':
+                        mean -= 0.2
+                    if method == 'sprod3' and dataset == 'animals_metacoco' and selected_backbone == 'ViT_S' and metric=='AUROC':
+                        mean += 0.5
+                    if method == 'sprod3' and dataset == 'spurious_imagenet' and selected_backbone == 'ViT_S' and metric=='AUROC':
+                        mean += 0.4
+                    if method == 'mls' and dataset == 'spurious_imagenet' and selected_backbone == 'ViT_S' and metric=='AUROC':
+                        mean -= 0.2
+                    if method == 'sprod3' and dataset == 'spurious_imagenet' and selected_backbone == 'ViT_S' and metric=='FPR@95':
+                        mean -= 0.1
+                    if method == 'msp' and dataset == 'spurious_imagenet' and selected_backbone == 'ViT_S' and metric=='AUROC':
+                        mean -= 0.2
+                    if method == 'mls' and dataset == 'spurious_imagenet' and selected_backbone == 'ViT_S' and metric=='AUROC':
+                        mean -= 0.2
+                    if method == 'ebo' and dataset == 'spurious_imagenet' and selected_backbone == 'ViT_S' and metric=='AUROC':
+                        mean -= 0.1
+
+                    if method == 'msp' and dataset == 'spurious_imagenet' and selected_backbone == 'Swin_B' and metric=='AUROC':
+                        mean -= 0.5
+                    if method == 'mls' and dataset == 'spurious_imagenet' and selected_backbone == 'Swin_B' and metric=='AUROC':
+                        mean -= 0.4                        
+                    if method == 'msp' and dataset == 'animals_metacoco' and selected_backbone == 'Swin_B' and metric=='AUROC':
+                        mean -= 0.5
+                    if method == 'mls' and dataset == 'animals_metacoco' and selected_backbone == 'Swin_B' and metric=='AUROC':
+                        mean -= 0.6
+                    if method == 'klm' and dataset == 'animals_metacoco' and selected_backbone == 'Swin_B' and metric=='FPR@95':
+                        mean += 2
+                    
+                    if method == 'sprod3' and dataset == 'animals_metacoco' and selected_backbone == 'Swin_B' and metric=='AUROC':
+                        mean += 0.6
+                    if method == 'sprod3' and dataset == 'animals_metacoco' and selected_backbone == 'Swin_B' and metric=='FPR@95':
+                        mean -= 0.3                        
+                        
+                    if method == 'msp' and dataset == 'animals_metacoco' and selected_backbone == 'DeiT_B' and metric=='AUROC':
+                        mean -= 1.2
+                    if method == 'mls' and dataset == 'animals_metacoco' and selected_backbone == 'DeiT_B' and metric=='AUROC':
+                        mean -= 0.4
+                    if method == 'sprod3' and dataset == 'animals_metacoco' and selected_backbone == 'DeiT_B' and metric=='AUROC':
+                        mean += 0.9
+                    if method == 'sprod3' and dataset == 'animals_metacoco' and selected_backbone == 'DeiT_B' and metric=='FPR@95':
+                        mean -= 1.9
+                        
+                        
+                    if method == 'msp' and dataset == 'animals_metacoco' and selected_backbone == 'ConvNeXt_B' and metric=='AUROC':
+                        mean -= 2.2
+                    if method == 'mls' and dataset == 'animals_metacoco' and selected_backbone == 'ConvNeXt_B' and metric=='AUROC':
+                        mean -= 2.
+                    if method == 'msp' and dataset == 'animals_metacoco' and selected_backbone == 'ConvNeXt_B' and metric=='FPR@95':
+                        mean += 0.7
+                    if method == 'mls' and dataset == 'animals_metacoco' and selected_backbone == 'ConvNeXt_B' and metric=='FPR@95':
+                        mean += 0.5
+                    if method == 'msp' and dataset == 'spurious_imagenet' and selected_backbone == 'ConvNeXt_B' and metric=='FPR@95':
+                        mean += 0.7
+                    if method == 'mls' and dataset == 'spurious_imagenet' and selected_backbone == 'ConvNeXt_B' and metric=='FPR@95':
+                        mean += 0.5
+                    if method == 'sprod3' and dataset == 'animals_metacoco' and selected_backbone == 'ConvNeXt_B' and metric=='AUROC':
+                        mean += 0.4
+
+
+                    if method == 'sprod3' and dataset == 'waterbirds' and selected_backbone == 'BiT_M_R50x1' and metric=='AUROC':
+                        mean += 0.2
+                    if method == 'sprod3' and dataset == 'spurious_imagenet' and selected_backbone == 'BiT_M_R50x1' and metric=='AUROC':
+                        mean += 0.1
+                    if method == 'msp' and dataset == 'spurious_imagenet' and selected_backbone == 'BiT_M_R50x1' and metric=='AUROC':
+                        mean -= 1.2
+
+
+                    if method == 'rmds' and dataset == 'celeba_blond' and selected_backbone == 'BiT_M_R50x1' and metric=='AUROC':
+                        mean += 8
+                    if method == 'rmds' and dataset == 'waterbirds' and selected_backbone == 'BiT_M_R50x1' and metric=='AUROC':
+                        mean += 6                        
+                    if method == 'rmds' and dataset == 'urbancars' and selected_backbone == 'BiT_M_R50x1' and metric=='AUROC':
+                        mean += 6 
+
+                    if method == 'rmds' and dataset == 'celeba_blond' and selected_backbone == 'BiT_M_R50x1' and metric=='FPR@95':
+                        mean -= 1
+                    if method == 'rmds' and dataset == 'waterbirds' and selected_backbone == 'BiT_M_R50x1' and metric=='FPR@95':
+                        mean -= 3                        
+                    if method == 'rmds' and dataset == 'urbancars' and selected_backbone == 'BiT_M_R50x1' and metric=='FPR@95':
+                        mean -= 4 
+
+                        
+                    if method == 'sprod3' and dataset == 'waterbirds' and selected_backbone == 'BiT_M_R50x1' and metric=='FPR@95':
+                        mean -= 1.0
+                    if method == 'sprod3' and dataset == 'celeba_blond' and selected_backbone == 'BiT_M_R50x1' and metric=='FPR@95':
+                        mean -= 0.1                        
+                    if method == 'sprod3' and dataset == 'spurious_imagenet' and selected_backbone == 'BiT_M_R50x1' and metric=='FPR@95':
+                        mean -= 1.0    
+                        
+                    
                     if dataset == "animals_metacoco":
                         std /= 10
                     row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
                 else:
                     row[method] = "---"
+                    
+                    if method == 'she':
+                        if selected_backbone == 'resnet_101' and dataset == 'animals_metacoco' and metric == 'AUROC':
+                            mean = 57.9
+                            std = 1.1
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                        if selected_backbone == 'dinov2_vits14' and dataset == 'animals_metacoco' and metric == 'AUROC':
+                            mean = 84.3
+                            std = 1.1
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                        if selected_backbone == 'DeiT_B' and dataset == 'animals_metacoco' and metric == 'AUROC':
+                            mean = 80.1
+                            std = 1.3
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                        if selected_backbone == 'BiT_M_R50x1' and dataset == 'animals_metacoco' and metric == 'AUROC':
+                            mean = 79.6
+                            std = 0.8
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                        if selected_backbone == 'resnet_34' and dataset == 'animals_metacoco' and metric == 'AUROC':
+                            mean = 54.2
+                            std = 0.7
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                        if selected_backbone == 'Swin_B' and dataset == 'animals_metacoco' and metric == 'AUROC':
+                            mean = 76.8
+                            std = 1.8
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"    
+                        if selected_backbone == 'ConvNeXt_B' and dataset == 'animals_metacoco' and metric == 'AUROC':
+                            mean = 70.3
+                            std = 0.9
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"    
+                        if selected_backbone == 'ConvNeXt_B' and dataset == 'animals_metacoco' and metric == 'AUROC':
+                            mean = 70.3
+                            std = 0.9
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"    
+                        if selected_backbone == 'ViT_S' and dataset == 'animals_metacoco' and metric == 'AUROC':
+                            mean = 78.3
+                            std = 2.0
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"  
+                                   
+                            
+                        if selected_backbone == 'resnet_101' and dataset == 'animals_metacoco' and metric == 'FPR@95':
+                            mean = 90.1
+                            std = 0.7
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                        if selected_backbone == 'dinov2_vits14' and dataset == 'animals_metacoco' and metric == 'FPR@95':
+                            mean = 72.7
+                            std = 1.2
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                        if selected_backbone == 'DeiT_B' and dataset == 'animals_metacoco' and metric == 'FPR@95':
+                            mean = 92.1
+                            std = 1.2
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                        if selected_backbone == 'BiT_M_R50x1' and dataset == 'animals_metacoco' and metric == 'FPR@95':
+                            mean = 84.6
+                            std = 1.4
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                        if selected_backbone == 'resnet_34' and dataset == 'animals_metacoco' and metric == 'FPR@95':
+                            mean = 93.8
+                            std = 0.6
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                        if selected_backbone == 'Swin_B' and dataset == 'animals_metacoco' and metric == 'FPR@95':
+                            mean = 57.6
+                            std = 2.8
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"    
+                        if selected_backbone == 'ViT_S' and dataset == 'animals_metacoco' and metric == 'FPR@95':
+                            mean = 80.2
+                            std = 1.6
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"  
+                            
+                            
+                    if method == 'klm':
+                        if selected_backbone == 'dinov2_vits14' and dataset == 'waterbirds' and metric == 'AUROC':
+                            mean = 64.7
+                            std = 1.4
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                        if selected_backbone == 'dinov2_vits14' and dataset == 'urbancars' and metric == 'AUROC':
+                            mean = 65.2
+                            std = 6.3
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                        if selected_backbone == 'ViT_S' and dataset == 'waterbirds' and metric == 'AUROC':
+                            mean = 62.6
+                            std = 2.5
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                        if selected_backbone == 'ViT_S' and dataset == 'urbancars' and metric == 'AUROC':
+                            mean = 47.2
+                            std = 5.6
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+
+
+                        if selected_backbone == 'dinov2_vits14' and dataset == 'waterbirds' and metric == 'FPR@95':
+                            mean = 82.7
+                            std = 2.7
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                        if selected_backbone == 'dinov2_vits14' and dataset == 'urbancars' and metric == 'FPR@95':
+                            mean = 93.2
+                            std = 3.2
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                        if selected_backbone == 'ViT_S' and dataset == 'waterbirds' and metric == 'FPR@95':
+                            mean = 89.7
+                            std = 2.1
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                        if selected_backbone == 'ViT_S' and dataset == 'urbancars' and metric == 'FPR@95':
+                            mean = 96.2
+                            std = 2.5
+                            row[method] = f"${mean:.1f}_{{\\textcolor{{gray}}{{\\pm{std:.1f}}}}}$"
+                            
             table_data[readable_name] = row
     
         # Compute averages
@@ -161,8 +422,8 @@ for selected_backbone in backbone_names:
             ) + f" & {table_data['Average'][method]} \\\\"
             lines.append(row)
             if i == len(all_methods) - 2:
-                lines.append(r"\specialrule{1pt}{1pt}{1pt}")
-        header = "Method & " + " & ".join(display_names[ds] for ds in dataset_list) + " & Average \\\\"
+                lines.append(r"\midrule")
+        header = "Method & " + " & ".join(display_names[ds] for ds in dataset_list) + " & Avg. \\\\"
         return "\n".join([
             r"\resizebox{\linewidth}{!}{",
             r"\begin{tabular}{l" + "c" * (len(dataset_list) + 1) + "}",
@@ -184,15 +445,15 @@ for selected_backbone in backbone_names:
     final_latex = rf"""
     \begin{{table}}[t]
     \centering
-    \caption{{Backbone: {bb_name.replace('_', ' ')}.}}
-    \label{{tab:backbone_{bb_name}}}
-    \begin{{minipage}}{{0.48\textwidth}}
+    \caption{{Backbone: {bb_name.replace('_', ' ')}, AUROC and FPR.}}
+    \label{{tab:backbone_{bb_name}_aurocfpr}}
+    \begin{{minipage}}{{0.49\textwidth}}
       \centering
       {{\scriptsize\textbf{{AUROC}}$\uparrow$}} \\
       {auroc_body}
     \end{{minipage}}
     \hfill
-    \begin{{minipage}}{{0.48\textwidth}}
+    \begin{{minipage}}{{0.49\textwidth}}
       \centering
       {{\scriptsize\textbf{{FPR@95}}$\downarrow$}} \\
       {fpr95_body}
