@@ -28,7 +28,7 @@ proto_m3 = np.mean(majority2, axis=0)
 proto_m4 = np.mean(minority2, axis=0)
 
 prototypes = np.stack([proto_m1, proto_m2, proto_m3, proto_m4])
-proto_colors = ['#1f77b4', '#1f77b4', '#2ca02c', '#2ca02c']
+proto_colors = ['tab:blue', 'tab:blue', 'tab:red', 'tab:red']
 
 def distance(z, p):
     return np.sqrt(np.sum((z - p)**2))
@@ -43,21 +43,21 @@ grouped_distances = np.array([
 softmax_scores = np.exp(-grouped_distances) / np.sum(np.exp(-grouped_distances), axis=1, keepdims=True)
 
 plt.figure(figsize=(6, 6))
-plt.scatter(majority1[:, 0], majority1[:, 1], label='Class 1 - Majority', alpha=0.65, c='#1f77b4', s=25)
-plt.scatter(minority1[:, 0], minority1[:, 1], label='Class 1 - Minority', alpha=0.35, c='#1f77b4', s=25)
-plt.scatter(majority2[:, 0], majority2[:, 1], label='Class 2 - Majority', alpha=0.65, c='#2ca02c', s=25)
-plt.scatter(minority2[:, 0], minority2[:, 1], label='Class 2 - Minority', alpha=0.35, c='#2ca02c', s=25)
+plt.scatter(majority1[:, 0], majority1[:, 1], label='Class 1 - Majority', alpha=0.65, c='tab:blue', s=25)
+plt.scatter(minority1[:, 0], minority1[:, 1], label='Class 1 - Minority', alpha=0.35, c='tab:blue', s=25)
+plt.scatter(majority2[:, 0], majority2[:, 1], label='Class 2 - Majority', alpha=0.65, c='tab:red', s=25)
+plt.scatter(minority2[:, 0], minority2[:, 1], label='Class 2 - Minority', alpha=0.35, c='tab:red', s=25)
 
 for i, proto in enumerate(prototypes):
     plt.scatter(proto[0], proto[1], marker='*', color=proto_colors[i], s=180,
                 edgecolors='k', linewidths=1.2, label=f'Prototype {i+1}')
 
-plt.scatter(sp_ood_sample[0, 0], sp_ood_sample[0, 1], label='Spurious OOD', color='#d62728',
-            edgecolors='k', s=130, marker='X', linewidths=1.2)
+plt.scatter(sp_ood_sample[0, 0], sp_ood_sample[0, 1], label='Spurious OOD', color='purple',
+            edgecolors='k', s=100, marker='s', linewidths=1.2)  # purple square
 plt.scatter(id_sample[0, 0], id_sample[0, 1], label='ID Sample', color='#ff7f0e',
-            edgecolors='k', s=110, marker='o', linewidths=1.2)
+            edgecolors='k', s=100, marker='o', linewidths=1.2)  # same orange circle
 
-for i, (sample, label, color) in enumerate(zip(samples, ['Spurious OOD', 'ID'], ['#d62728', '#ff7f0e'])):
+for i, (sample, label, color) in enumerate(zip(samples, ['Spurious OOD', 'ID'], ['purple', '#ff7f0e'])):
     class1_idx = np.argmin(all_distances[i][:2])
     class2_idx = np.argmin(all_distances[i][2:])
     min_class1_proto = prototypes[class1_idx]
@@ -65,12 +65,12 @@ for i, (sample, label, color) in enumerate(zip(samples, ['Spurious OOD', 'ID'], 
     
     if grouped_distances[i][0] < grouped_distances[i][1]:
         nearest_proto = min_class1_proto
-        nearest_color = '#1f77b4'
+        nearest_color = 'tab:blue'
         softmax_val = softmax_scores[i][0]
         dist_val = grouped_distances[i][0]
     else:
         nearest_proto = min_class2_proto
-        nearest_color = '#2ca02c'
+        nearest_color = 'tab:red'
         softmax_val = softmax_scores[i][1]
         dist_val = grouped_distances[i][1]
 
