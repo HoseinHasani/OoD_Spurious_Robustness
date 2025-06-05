@@ -9,8 +9,8 @@ id_data = np.load("SPI_ID_resnet50.npy")  # (100, N, 2048)
 ood_data = np.load("SPI_OOD_resnet50.npy")  # shape: (100, N, 2048)
 
 n_classes, n_samples, feature_dim = id_data.shape
-Ks = [2, 3, 4, 7, 12, 20, 40, 88]
-seeds = list(range(10))
+Ks = [2, 3, 4, 7, 12, 20, 40, 60, 90]
+seeds = list(range(20))
 results_dict = {}
 
 for K in Ks:
@@ -40,7 +40,7 @@ for K in Ks:
         y_id = np.array(y_id)
 
         X_ood = []
-        for i, clss in enumerate(test_classes):
+        for i, clss in enumerate(id_classes):
             samples = ood_data[clss]
             X_ood.append(samples)
         X_ood = np.vstack(X_ood)
@@ -49,7 +49,7 @@ for K in Ks:
         clf.fit(X_id, y_id)
 
         msp_id = []
-        for cls in test_classes:
+        for cls in id_classes:
             samples = id_data[cls][20:50]
             probs = clf.predict_proba(samples)
             msp_id.append(np.max(probs, axis=1))

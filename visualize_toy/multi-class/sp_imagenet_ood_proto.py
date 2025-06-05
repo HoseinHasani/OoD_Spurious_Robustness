@@ -11,10 +11,10 @@ id_data = id_data / np.linalg.norm(id_data, 2, axis=-1, keepdims=True)
 ood_data = ood_data / np.linalg.norm(ood_data, 2, axis=-1, keepdims=True)
 
 n_classes, n_samples, feature_dim = id_data.shape
-Ks = [2, 3, 4, 7, 12, 20, 40, 80, 88]
-seeds = list(range(10))
+Ks = [2, 3, 4, 7, 12, 20, 40, 60, 90]
+seeds = list(range(20))
 scoring_mode = "min_distance"  # or "softmax"
-# scoring_mode = "softmax"
+scoring_mode = "softmax"
 results_dict = {}
 
 def compute_scores(X, prototypes, mode):
@@ -57,12 +57,12 @@ for K in Ks:
 
         # Create test set (ID samples from test classes only)
         X_test_id = []
-        for cls in test_classes:
+        for cls in id_classes:
             X_test_id.append(id_data[cls][20:50])
         X_test_id = np.vstack(X_test_id)
 
         X_ood = []
-        for i, clss in enumerate(test_classes):
+        for i, clss in enumerate(id_classes):
             samples = ood_data[clss]
             X_ood.append(samples)
         X_ood = np.vstack(X_ood)
