@@ -5,28 +5,34 @@ from sklearn.metrics import roc_auc_score
 import warnings
 warnings.filterwarnings("ignore")
 
-data = np.load("cifar100_resnet50_embeddings.npy")  
+data = np.load("cifar100_resnet50_embeddings.npy") 
 n_classes, n_samples, feature_dim = data.shape
 
 Ks = [2, 3, 4, 7, 12, 20, 40, 80]
-seeds = list(range(10))  
+seeds = list(range(10))
 results_dict = {}
 
 for K in Ks:
-    print(f'class: {K}')
+    print(f'Processing K = {K}')
     aurocs = []
+    msp_ids = []
+    msp_oods = []
 
     for seed in seeds:
         np.random.seed(seed)
-        
+
         ood_classes = list(range(10 * seed, 10 * (seed + 1)))
-        all_classes = list(set(range(100)) - set(ood_classes))
-        id_classes = np.random.choice(all_classes, size=K, replace=False)
+        available_classes = list(set(range(100)) - set(ood_classes))
+
+        test_classes = np.random.choice(available_classes, size=2, replace=False)
+        remaining_classes = list(set(available_classes) - set(test_classes))
+        random_id_classes = np.random.choice(remaining_classes, size=K - 2, replace=False)
+        id_classes = list(test_classes) + list(random_id_classes)
 
         X_id = []
         y_id = []
         for i, clss in enumerate(id_classes):
-            samples = data[clss][:200]  
+            samples = data[clss][:200]
             X_id.append(samples)
             y_id.extend([i] * len(samples))
         X_id = np.vstack(X_id)
@@ -34,25 +40,32 @@ for K in Ks:
 
         X_ood = []
         for clss in ood_classes:
-            samples = data[clss][:40]  
+            samples = data[clss][:40]
             X_ood.append(samples)
         X_ood = np.vstack(X_ood)
 
         clf = LogisticRegression(solver='lbfgs', max_iter=20, multi_class='multinomial')
         clf.fit(X_id, y_id)
 
-        probs_id = clf.predict_proba(X_id)
-        msp_id = np.max(probs_id, axis=1)
+        msp_id = []
+        for cls in test_classes:
+            samples = data[cls][200:250]  
+            probs = clf.predict_proba(samples)
+            msp_id.append(np.max(probs, axis=1))
+        msp_id = np.concatenate(msp_id)
 
         probs_ood = clf.predict_proba(X_ood)
         msp_ood = np.max(probs_ood, axis=1)
 
         labels = np.concatenate([np.zeros_like(msp_id), np.ones_like(msp_ood)])
         scores = np.concatenate([msp_id, msp_ood])
-        auroc = roc_auc_score(labels, -scores) 
+        auroc = roc_auc_score(labels, -scores)  
         aurocs.append(auroc)
-
+        msp_ids.append(msp_id)
+        msp_oods.append(msp_ood)
+    print(np.mean(msp_ids), np.mean(msp_oods), np.mean(msp_ids)-np.mean(msp_oods), np.mean(msp_ids)/np.mean(msp_oods))
     results_dict[K] = (np.mean(aurocs), np.std(aurocs))
+
 mean_aurocs = [results_dict[K][0] for K in Ks]
 std_aurocs = [results_dict[K][1] for K in Ks]
 
